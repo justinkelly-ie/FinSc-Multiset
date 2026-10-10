@@ -165,6 +165,21 @@ filterStream p (MkStream next seed) = MkStream (filterStep p next) seed
 siftFusedStream : (a -> Bool) -> FusedStream a -> FusedStream a
 siftFusedStream = filterStream
 
+||| Top-level step function for deforested stream filterMap.
+public export
+filterMapStep : (a -> Maybe b) -> (s -> Step s a) -> s -> Step s b
+filterMapStep f next st = case next st of
+  Done => Done
+  Skip st' => Skip st'
+  Yield x st' => case f x of
+    Just y => Yield y st'
+    Nothing => Skip st'
+
+||| Deforested stream filterMap operator (fused filtering and projection in a single pass).
+public export
+filterMapStream : (a -> Maybe b) -> FusedStream a -> FusedStream b
+filterMapStream f (MkStream next seed) = MkStream (filterMapStep f next) seed
+
 ||| Deforested stream zipWith operator.
 %inline public export
 zipWithStream : (a -> b -> c) -> FusedStream a -> FusedStream b -> FusedStream c
