@@ -73,7 +73,7 @@ fireChannel (MkChannel _ dList _) state =
 public export
 streamTransitionTrajectory : Eq s => TransitionChannel s -> TransitionState s -> FusedStream (TransitionState s)
 streamTransitionTrajectory channel initState =
-  unfoldStream (\st => Yield st (fireChannel channel st)) initState
+  unfoldStream (\st => let nextSt = fireChannel channel st in Yield nextSt nextSt) initState
 
 ||| Runs a fueled transition trajectory using stream fold.
 public export
