@@ -1,0 +1,46 @@
+package FinSc-Multiset
+version = 0.4.0
+authors = "Justin Kelly"
+brief   = "Layer 0a Ground Pure Constructive Multiset Algebra & Staging Kernel"
+
+depends = base, linear
+sourcedir = "src"
+
+modules = Multiset,
+          Stage0.BoxInt,
+          Stage0.BoxNat,
+          Stage0.SignedFraction,
+          Stage0.Multiset,
+          Stage0.LMultiset,
+          Stage0.DepMultiset,
+          Stage0.PrimeMultiset,
+          Stage0.StructuralFuel,
+          Stage0.IntPolynumber,
+          Stage0.LinearBuffer,
+          Stage0.Interfaces,
+          Stage0.Singleton.Bit,
+          Stage0.Singleton.Bit2,
+          Stage0.Singleton.Sing,
+          Stage0.Singleton.DepSing,
+          Stage0.OnSeq.FusedStream,
+          Stage0.OnSeq.FusedStreamBenchmark,
+          Stage0.OnSeq.OnMSet,
+          Stage0.TransitionNetwork,
+
+          Stage1.MultisetTree,
+          Stage1.MultisetTensor,
+          Stage1.MultisetDuality,
+          Stage1.HigherDuality,
+          Stage1.Polynumber,
+          Stage1.Order.Preorder,
+          Stage1.TypeTheory.TwoLevel,
+          Stage1.TypeTheory.Staging,
+          Stage1.TypeTheory.MultisetLevel,
+          Stage1.TypeTheory.Smooth13,
+          Stage1.OnSeq,
+          Stage1.OnSeq.Staging,
+          Stage1.OnSeq.MultisetStaging,
+          Stage1.ScaleTransform,
+          Stage1.ConjugateHylo,
+
+          Stage2.ThreeLevel
