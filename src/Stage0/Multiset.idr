@@ -23,7 +23,7 @@ data Multiset1 : (c : Type) -> (a : Type) -> Type where
   BaseM : a -> c -> Multiset1 c a
   AddM1 : a -> c -> Multiset1 c a -> Multiset1 c a
 
-%inline public export
+public export
 insertItem : (Eq a, Num c, Eq c) => a -> c -> Multiset c a -> Multiset c a
 insertItem k v ZeroM = if v == 0 then ZeroM else AddM k v ZeroM
 insertItem k v (AddM k' v' rest) =
@@ -32,7 +32,7 @@ insertItem k v (AddM k' v' rest) =
     in if newV == 0 then rest else AddM k newV rest
   else AddM k' v' (insertItem k v rest)
 
-%inline public export
+public export
 insertItemBox : Eq a => a -> BoxInt -> Multiset BoxInt a -> Multiset BoxInt a
 insertItemBox k (MkBoxInt v) ZeroM =
   case v of
