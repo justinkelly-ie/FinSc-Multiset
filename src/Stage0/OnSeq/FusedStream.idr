@@ -322,6 +322,11 @@ fusedConcat {a} (MkStream {s=sOuter} nextOuter seedOuter) =
       Skip seedInner' => Skip (ConcatHaveInner so nextInner seedInner')
       Yield x seedInner' => Yield x (ConcatHaveInner so nextInner seedInner')
 
+||| Deforested stream monadic bind / flatMap operator.
+%inline public export
+flatMapStream : (a -> FusedStream b) -> FusedStream a -> FusedStream b
+flatMapStream f strm = fusedConcat (mapStream f strm)
+
 ||| Appends two deforested streams together without intermediate heap allocation.
 %inline public export
 appendStream : FusedStream a -> FusedStream a -> FusedStream a

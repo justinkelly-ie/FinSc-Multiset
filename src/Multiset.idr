@@ -8,6 +8,7 @@ import public Stage0.LMultiset
 import public Stage0.DepMultiset
 import public Stage0.PrimeMultiset
 import public Stage0.IntPolynumber
+import public Stage0.StreamPolynumber
 import public Stage0.LinearBuffer
 import public Stage0.Interfaces
 import public Stage0.Singleton.Bit
