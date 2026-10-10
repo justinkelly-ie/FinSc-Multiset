@@ -3,9 +3,13 @@ module Stage1.Polynumber
 import Stage0.BoxInt
 import Stage0.BoxNat
 import Stage0.StructuralFuel
+import Stage0.StreamPolynumber
+import Stage0.OnSeq.FusedStream as FS
+import Stage1.MultisetTree
 import Stage1.Order.Preorder
 import Data.List
 import Data.Nat
+import Data.Fuel
 import Language.Reflection
 
 %default total
@@ -449,3 +453,128 @@ export
 %macro
 makePolynumber : List Integer -> Elab TTImp
 makePolynumber cs = pure (genPolyAST cs)
+
+------------------------------------------------------------------------
+-- 9. WILDBERGER SUPPORT & DUALITY BRIDGES (STREAMING & MULTISET TREE)
+------------------------------------------------------------------------
+
+||| Extracts the active support degrees where coeff /= 0 (Wildberger finite support).
+public export
+supportPolynumber : Polynumber -> List Nat
+supportPolynumber (MkPolynumber cs) = go 0 cs
+  where
+    go : Nat -> List BoxInt -> List Nat
+    go _ [] = []
+    go deg (c :: rest) =
+      if unwrapBox c /= 0
+         then deg :: go (S deg) rest
+         else go (S deg) rest
+
+||| Converts a dense Polynumber into a deforested StreamPolynumber.
+public export
+toStreamPoly : Polynumber -> StreamPolynumber
+toStreamPoly (MkPolynumber cs) =
+  FS.filterMapStream filterNonZero (FS.unfoldStream step (Z, cs))
+  where
+    step : (Nat, List BoxInt) -> FS.Step (Nat, List BoxInt) (Nat, BoxInt)
+    step (_, []) = FS.Done
+    step (deg, c :: rest) = FS.Yield (deg, c) (S deg, rest)
+
+    filterNonZero : (Nat, BoxInt) -> Maybe (Nat, BoxInt)
+    filterNonZero (deg, c) = if unwrapBox c /= 0 then Just (deg, c) else Nothing
+
+||| Reconstructs a dense Polynumber from a StreamPolynumber under fuel.
+public export
+fromStreamPoly : Fuel -> StreamPolynumber -> Polynumber
+fromStreamPoly fuel strm =
+  let terms = FS.foldStreamFuel fuel insertTerm (the (List BoxInt) []) strm
+  in trimPolynumber (MkPolynumber terms)
+  where
+    insertAt : Nat -> BoxInt -> List BoxInt -> List BoxInt
+    insertAt Z c [] = [c]
+    insertAt Z c (x :: xs) = (addBox x c) :: xs
+    insertAt (S k) c [] = (intToBoxInt 0) :: insertAt k c []
+    insertAt (S k) c (x :: xs) = x :: insertAt k c xs
+
+    insertTerm : List BoxInt -> (Nat, BoxInt) -> List BoxInt
+    insertTerm acc (deg, c) = insertAt deg c acc
+
+||| Converts a dense Polynumber with positive coefficients into an O(log N) BoxSpecTree.
+public export
+polyToBoxSpecTree : Polynumber -> BoxSpecTree
+polyToBoxSpecTree (MkPolynumber cs) = go 0 cs Leaf
+  where
+    go : Nat -> List BoxInt -> BoxSpecTree -> BoxSpecTree
+    go _ [] tree = tree
+    go deg (c :: rest) tree =
+      let val = unwrapBox c
+          tree' = if val > 0
+                     then insertTokenTree (fromNatBoxSpec deg) (integerToNat val) tree
+                     else tree
+      in go (S deg) rest tree'
+
+||| Converts an O(log N) BoxSpecTree back into a dense Polynumber.
+public export
+boxSpecTreeToPoly : BoxSpecTree -> Polynumber
+boxSpecTreeToPoly tree =
+  let pairs = foldTreeR (\spec, count, acc => (boxSize spec, natToBoxInt count) :: acc) (the (List (Nat, BoxInt)) []) tree
+  in foldl (\acc, (deg, c) => addPolynumber acc (monomialPolynumber c deg)) zeroPolynumber pairs
+
+||| Converts an O(log N) BoxSpecTree into a deforested StreamPolynumber.
+public export
+boxSpecTreeToStreamPoly : BoxSpecTree -> StreamPolynumber
+boxSpecTreeToStreamPoly tree =
+  FS.mapStream (\(spec, count) => (boxSize spec, natToBoxInt count)) (streamMultisetTreeDirect tree)
+
+||| Converts a StreamPolynumber with positive terms into an O(log N) BoxSpecTree under fuel.
+public export
+streamPolyToBoxSpecTree : Fuel -> StreamPolynumber -> BoxSpecTree
+streamPolyToBoxSpecTree fuel strm =
+  FS.foldStreamFuel fuel (\tree, (deg, c) =>
+    let val = unwrapBox c
+    in if val > 0
+          then insertTokenTree (fromNatBoxSpec deg) (integerToNat val) tree
+          else tree
+  ) Leaf strm
+
+------------------------------------------------------------------------
+-- 10. POLYSUPPORT & DUALITY AUDIT WITNESSES (RULE 01)
+------------------------------------------------------------------------
+
+||| Audits that supportPolynumber correctly extracts active non-zero degree indices:
+||| For P(x) = 5*x^3 - 2*x + 7, Supp(P) = [0, 1, 3] (degree 2 has coefficient 0).
+public export
+auditPolySupportProof : Bool
+auditPolySupportProof =
+  let p = addPolynumber (constantPolynumber (intToBoxInt 7))
+          (addPolynumber (monomialPolynumber (intToBoxInt (-2)) 1)
+                         (monomialPolynumber (intToBoxInt 5) 3))
+      supp = supportPolynumber p
+  in supp == [0, 1, 3]
+
+||| Audits the round-trip equivalence between dense Polynumber and StreamPolynumber:
+||| fromStreamPoly (toStreamPoly p) == p.
+public export
+auditPolyStreamRoundTripProof : Bool
+auditPolyStreamRoundTripProof =
+  let p = addPolynumber (constantPolynumber (intToBoxInt 3))
+          (addPolynumber (monomialPolynumber (intToBoxInt 4) 1)
+                         (monomialPolynumber (intToBoxInt 5) 2))
+      strm = toStreamPoly p
+      p' = fromStreamPoly (limit 10) strm
+  in p == p'
+
+||| Audits the round-trip equivalence between dense Polynumber and BoxSpecTree:
+||| boxSpecTreeToPoly (polyToBoxSpecTree p) == p for positive coefficients.
+public export
+auditPolyTreeEquivalenceProof : Bool
+auditPolyTreeEquivalenceProof =
+  let p = addPolynumber (constantPolynumber (intToBoxInt 2))
+          (addPolynumber (monomialPolynumber (intToBoxInt 4) 1)
+                         (monomialPolynumber (intToBoxInt 3) 2))
+      tree = polyToBoxSpecTree p
+      p' = boxSpecTreeToPoly tree
+      c0 = lookupTokenTree (fromNatBoxSpec 0) tree
+      c1 = lookupTokenTree (fromNatBoxSpec 1) tree
+      c2 = lookupTokenTree (fromNatBoxSpec 2) tree
+  in (p == p') && (c0 == 2) && (c1 == 4) && (c2 == 3)
