@@ -1,6 +1,8 @@
 module Stage1.TypeTheory.Smoothness
 
 import public Stage0.BoxInt
+import public Stage0.PrimeMultiset
+import public Stage0.OnSeq.FusedStream
 import public Stage1.TypeTheory.MultisetLevel
 import Data.Nat
 import Data.List
@@ -36,6 +38,26 @@ primesUnderBound : (bound : Nat) -> List Integer
 primesUnderBound bound =
   let lim = cast {to = Integer} bound
   in primesUpToCandidate (S bound) 2 lim
+
+------------------------------------------------------------------------
+-- 1B. DEFORESTED STREAMING OF PRIMES (Zero Intermediate Heap Allocations)
+------------------------------------------------------------------------
+
+||| Generates a deforested stream of natural numbers in range [start, limit].
+public export
+streamRange : (start : Nat) -> (limit : Nat) -> FusedStream Nat
+streamRange start limit = unfoldStream next start
+  where
+    next : Nat -> Step Nat Nat
+    next curr =
+      if curr > limit then Done
+      else Yield curr (S curr)
+
+||| Generates primes up to a given bound as a deforested stream without intermediate List allocation.
+public export
+streamPrimesUnderBound : (bound : Nat) -> FusedStream Nat
+streamPrimesUnderBound bound =
+  filterStream (\p => isPrimeCandidate bound 2 (cast {to = Integer} p)) (streamRange 2 bound)
 
 ------------------------------------------------------------------------
 -- 2. GENERIC SMOOTHNESS TRANSFORMATION & WITNESSES
@@ -74,6 +96,20 @@ public export
 SmoothWitness : (bound : Nat) -> (n : Nat) -> Type
 SmoothWitness bound n = (isSmoothNat bound n == True) = True
 
+||| Indexed smooth dimension witness record for types indexed by dimension n.
+public export
+record SmoothDimensionWitness (bound : Nat) (n : Nat) where
+  constructor MkSmoothDimensionWitness
+  0 smoothPrf : SmoothWitness bound n
+
+public export
+{bound, n : Nat} -> Eq (SmoothDimensionWitness bound n) where
+  _ == _ = True
+
+public export
+{bound, n : Nat} -> Show (SmoothDimensionWitness bound n) where
+  show (MkSmoothDimensionWitness _) = "SmoothDimensionWitness(" ++ show bound ++ ", " ++ show n ++ ")"
+
 ||| Validated smooth dimension as a dependent pair (Sigma-type).
 ||| Guarantees at compile-time that any dimension element carries its correctness certificate.
 public export
@@ -81,12 +117,20 @@ SmoothDimension : (bound : Nat) -> Type
 SmoothDimension bound = (n : Nat ** SmoothWitness bound n)
 
 public export
-Eq (SmoothDimension bound) where
+{bound : Nat} -> Eq (SmoothDimension bound) where
   (n1 ** _) == (n2 ** _) = n1 == n2
 
 public export
-Show (SmoothDimension bound) where
+{bound : Nat} -> Show (SmoothDimension bound) where
   show (n ** _) = "SmoothDimension(" ++ show n ++ ")"
+
+||| Constructive prime multiset carrier bundling a dimension with its verified prime decomposition.
+public export
+record SmoothCarrier (bound : Nat) where
+  constructor MkSmoothCarrier
+  carrierDimension : Nat
+  primeFactors     : PrimeMultiset
+  0 smoothWitness  : SmoothWitness bound carrierDimension
 
 ------------------------------------------------------------------------
 -- 3. CANONICAL PHYSICAL HORIZON & PRIMITIVE WITNESSES
@@ -97,10 +141,15 @@ public export
 CosmicSmoothHorizon : Nat
 CosmicSmoothHorizon = 13
 
-||| Cosmological smooth dimension carrier.
+||| Cosmological smooth dimension carrier (Sigma-pair).
 public export
 CosmicSmoothDimension : Type
 CosmicSmoothDimension = SmoothDimension CosmicSmoothHorizon
+
+||| Cosmological indexed smooth dimension witness.
+public export
+CosmicSmoothDimensionWitness : (n : Nat) -> Type
+CosmicSmoothDimensionWitness n = SmoothDimensionWitness CosmicSmoothHorizon n
 
 ||| Canonical 13-smooth witness for dimension 2.
 public export
@@ -151,3 +200,57 @@ dimObserver = (the Nat 39 ** Refl)
 public export
 dimPrimorial210 : CosmicSmoothDimension
 dimPrimorial210 = (the Nat 210 ** Refl)
+
+------------------------------------------------------------------------
+-- 4. BACKWARD-COMPATIBILITY ALIASES (Transition Bridge)
+------------------------------------------------------------------------
+
+||| Backward-compatible alias for 13-smooth predicate.
+public export
+is13SmoothNat : Nat -> Bool
+is13SmoothNat = isSmoothNat CosmicSmoothHorizon
+
+||| Backward-compatible alias for 13-smooth type-level witness.
+public export
+Smooth13Witness : Nat -> Type
+Smooth13Witness = SmoothWitness CosmicSmoothHorizon
+
+||| Backward-compatible alias for indexed 13-smooth dimension record.
+public export
+Smooth13Dimension : Nat -> Type
+Smooth13Dimension = SmoothDimensionWitness CosmicSmoothHorizon
+
+||| Backward-compatible constructor alias for indexed 13-smooth dimension.
+public export
+mkSmooth13Dimension : {n : Nat} -> Smooth13Witness n -> Smooth13Dimension n
+mkSmooth13Dimension prf = MkSmoothDimensionWitness prf
+
+||| Backward-compatible projection to CosmicSmoothDimension Sigma-pair.
+public export
+0 toSmoothDimension13 : Smooth13Dimension n -> CosmicSmoothDimension
+toSmoothDimension13 (MkSmoothDimensionWitness prf) = (n ** prf)
+
+||| Backward-compatible primitive witness instances.
+public export
+0 prfSmooth13_2 : Smooth13Witness 2
+prfSmooth13_2 = prfSmooth2
+
+public export
+0 prfSmooth13_4 : Smooth13Witness 4
+prfSmooth13_4 = prfSmooth4
+
+public export
+0 prfSmooth13_6 : Smooth13Witness 6
+prfSmooth13_6 = prfSmooth6
+
+public export
+0 prfSmooth13_12 : Smooth13Witness 12
+prfSmooth13_12 = prfSmooth12
+
+public export
+0 prfSmooth13_18 : Smooth13Witness 18
+prfSmooth13_18 = prfSmooth18
+
+public export
+0 prfSmooth13_210 : Smooth13Witness 210
+prfSmooth13_210 = prfSmooth210

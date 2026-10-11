@@ -28,7 +28,6 @@ import public Stage1.TypeTheory.TwoLevel
 import public Stage1.TypeTheory.Staging
 import public Stage1.TypeTheory.MultisetLevel
 import public Stage1.TypeTheory.Smoothness
-import public Stage1.TypeTheory.Smooth13
 import public Stage1.OnSeq
 import public Stage1.OnSeq.Staging
 import public Stage1.OnSeq.MultisetStaging
