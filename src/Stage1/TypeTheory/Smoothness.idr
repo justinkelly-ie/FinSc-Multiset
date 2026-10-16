@@ -96,38 +96,38 @@ public export
 SmoothWitness : (bound : Nat) -> (n : Nat) -> Type
 SmoothWitness bound n = (isSmoothNat bound n == True) = True
 
-||| Indexed smooth dimension witness record for types indexed by dimension n.
+||| Indexed dimension witness record for types indexed by dimension n.
 public export
-record SmoothDimensionWitness (bound : Nat) (n : Nat) where
-  constructor MkSmoothDimensionWitness
+record DimensionWitness (bound : Nat) (n : Nat) where
+  constructor MkDimensionWitness
   0 smoothPrf : SmoothWitness bound n
 
 public export
-{bound, n : Nat} -> Eq (SmoothDimensionWitness bound n) where
+{bound, n : Nat} -> Eq (DimensionWitness bound n) where
   _ == _ = True
 
 public export
-{bound, n : Nat} -> Show (SmoothDimensionWitness bound n) where
-  show (MkSmoothDimensionWitness _) = "SmoothDimensionWitness(" ++ show bound ++ ", " ++ show n ++ ")"
+{bound, n : Nat} -> Show (DimensionWitness bound n) where
+  show (MkDimensionWitness _) = "DimensionWitness(" ++ show bound ++ ", " ++ show n ++ ")"
 
-||| Validated smooth dimension as a dependent pair (Sigma-type).
+||| Validated dimension as a dependent pair (Sigma-type).
 ||| Guarantees at compile-time that any dimension element carries its correctness certificate.
 public export
-SmoothDimension : (bound : Nat) -> Type
-SmoothDimension bound = (n : Nat ** SmoothWitness bound n)
+Dimension : (bound : Nat) -> Type
+Dimension bound = (n : Nat ** SmoothWitness bound n)
 
 public export
-{bound : Nat} -> Eq (SmoothDimension bound) where
+{bound : Nat} -> Eq (Dimension bound) where
   (n1 ** _) == (n2 ** _) = n1 == n2
 
 public export
-{bound : Nat} -> Show (SmoothDimension bound) where
-  show (n ** _) = "SmoothDimension(" ++ show n ++ ")"
+{bound : Nat} -> Show (Dimension bound) where
+  show (n ** _) = "Dimension(" ++ show n ++ ")"
 
 ||| Constructive prime multiset carrier bundling a dimension with its verified prime decomposition.
 public export
-record SmoothCarrier (bound : Nat) where
-  constructor MkSmoothCarrier
+record DimensionCarrier (bound : Nat) where
+  constructor MkDimensionCarrier
   carrierDimension : Nat
   primeFactors     : PrimeMultiset
   0 smoothWitness  : SmoothWitness bound carrierDimension
@@ -143,13 +143,13 @@ CosmicSmoothHorizon = 13
 
 ||| Cosmological smooth dimension carrier (Sigma-pair).
 public export
-CosmicSmoothDimension : Type
-CosmicSmoothDimension = SmoothDimension CosmicSmoothHorizon
+CosmicDimension : Type
+CosmicDimension = Dimension CosmicSmoothHorizon
 
-||| Cosmological indexed smooth dimension witness.
+||| Cosmological indexed dimension witness.
 public export
-CosmicSmoothDimensionWitness : (n : Nat) -> Type
-CosmicSmoothDimensionWitness n = SmoothDimensionWitness CosmicSmoothHorizon n
+CosmicDimensionWitness : (n : Nat) -> Type
+CosmicDimensionWitness n = DimensionWitness CosmicSmoothHorizon n
 
 ||| Canonical 13-smooth witness for dimension 2.
 public export
@@ -193,64 +193,11 @@ prfDecoherent137 = Refl
 
 ||| Canonical validated observer epoch dimension (Sigma-pair).
 public export
-dimObserver : CosmicSmoothDimension
+dimObserver : CosmicDimension
 dimObserver = (the Nat 39 ** Refl)
 
 ||| Canonical validated Primorial 210 cosmic ground state dimension (Sigma-pair).
 public export
-dimPrimorial210 : CosmicSmoothDimension
+dimPrimorial210 : CosmicDimension
 dimPrimorial210 = (the Nat 210 ** Refl)
 
-------------------------------------------------------------------------
--- 4. BACKWARD-COMPATIBILITY ALIASES (Transition Bridge)
-------------------------------------------------------------------------
-
-||| Backward-compatible alias for 13-smooth predicate.
-public export
-is13SmoothNat : Nat -> Bool
-is13SmoothNat = isSmoothNat CosmicSmoothHorizon
-
-||| Backward-compatible alias for 13-smooth type-level witness.
-public export
-Smooth13Witness : Nat -> Type
-Smooth13Witness = SmoothWitness CosmicSmoothHorizon
-
-||| Backward-compatible alias for indexed 13-smooth dimension record.
-public export
-Smooth13Dimension : Nat -> Type
-Smooth13Dimension = SmoothDimensionWitness CosmicSmoothHorizon
-
-||| Backward-compatible constructor alias for indexed 13-smooth dimension.
-public export
-mkSmooth13Dimension : {n : Nat} -> Smooth13Witness n -> Smooth13Dimension n
-mkSmooth13Dimension prf = MkSmoothDimensionWitness prf
-
-||| Backward-compatible projection to CosmicSmoothDimension Sigma-pair.
-public export
-0 toSmoothDimension13 : Smooth13Dimension n -> CosmicSmoothDimension
-toSmoothDimension13 (MkSmoothDimensionWitness prf) = (n ** prf)
-
-||| Backward-compatible primitive witness instances.
-public export
-0 prfSmooth13_2 : Smooth13Witness 2
-prfSmooth13_2 = prfSmooth2
-
-public export
-0 prfSmooth13_4 : Smooth13Witness 4
-prfSmooth13_4 = prfSmooth4
-
-public export
-0 prfSmooth13_6 : Smooth13Witness 6
-prfSmooth13_6 = prfSmooth6
-
-public export
-0 prfSmooth13_12 : Smooth13Witness 12
-prfSmooth13_12 = prfSmooth12
-
-public export
-0 prfSmooth13_18 : Smooth13Witness 18
-prfSmooth13_18 = prfSmooth18
-
-public export
-0 prfSmooth13_210 : Smooth13Witness 210
-prfSmooth13_210 = prfSmooth210
