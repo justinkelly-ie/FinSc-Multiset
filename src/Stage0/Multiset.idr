@@ -310,7 +310,6 @@ boxToMultiset : Eq a => Box a -> Multiset BoxInt a
 boxToMultiset (MkBox items) = fromListBox items
 
 ||| Lookups the multiplicity of an element in a multiset.
-%inline
 public export
 lookupBox : Eq a => a -> Box a -> BoxInt
 lookupBox _ (MkBox []) = intToBoxInt 0
@@ -335,7 +334,6 @@ consolidateBox (MkBox items) = MkBox (go items [])
                else go rest ((x, newW) :: filteredAcc)
 
 ||| Inserts or updates the multiplicity of an element.
-%inline
 public export
 insertBox : Eq a => a -> BoxInt -> Box a -> Box a
 insertBox x w (MkBox xs) =
@@ -347,7 +345,6 @@ insertBox x w (MkBox xs) =
        else MkBox ((x, newWeight) :: filtered)
 
 ||| Multiset Union (pouring containers together): adds multiplicities.
-%inline
 public export
 unionBox : Eq a => Box a -> Box a -> Box a
 unionBox (MkBox []) ys = ys
@@ -363,7 +360,6 @@ Eq a => Monoid (Box a) where
   neutral = emptyBox
 
 ||| Multiset Difference: subtracts multiplicities (bounded below by 0).
-%inline
 public export
 subBox : Eq a => Box a -> Box a -> Box a
 subBox (MkBox []) _ = MkBox []
