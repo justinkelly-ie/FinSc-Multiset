@@ -6,6 +6,7 @@ import public Stage0.OnSeq.FusedStream
 import public Stage1.TypeTheory.MultisetLevel
 import Data.Nat
 import Data.List
+import Data.Maybe
 
 %default total
 
@@ -129,7 +130,7 @@ public export
 record DimensionCarrier (bound : Nat) where
   constructor MkDimensionCarrier
   carrierDimension : Nat
-  primeFactors     : PrimeMultiset
+  primeFactors     : GohPrimeMultiset
   0 smoothWitness  : SmoothWitness bound carrierDimension
 
 ||| Constructive decidability of the smoothness property under prime bound.
@@ -312,6 +313,34 @@ public export
 dimHolographic216 : CosmicDimension
 dimHolographic216 = (the Nat 216 ** Refl)
 
+||| Safely lifts a validated Dimension to a DimensionCarrier if 13-smooth.
+public export
+toDimensionCarrier : Dimension CosmicSmoothHorizon -> Maybe (DimensionCarrier CosmicSmoothHorizon)
+toDimensionCarrier (n ** prf) =
+  case factorizeGohSmooth n of
+    Just factors => Just (MkDimensionCarrier n factors prf)
+    Nothing      => Nothing
+
+||| Constructive mapping from any constructivist Goh prime to its 13-smooth certificate.
+public export
+gohPrimeWitness : GohPrime p -> SmoothWitness CosmicSmoothHorizon p
+gohPrimeWitness Prime2  = prfSmooth2
+gohPrimeWitness Prime3  = Refl
+gohPrimeWitness Prime5  = Refl
+gohPrimeWitness Prime7  = Refl
+gohPrimeWitness Prime11 = Refl
+gohPrimeWitness Prime13 = Refl
+
+||| Certified dimension corresponding directly to a Goh prime.
+public export
+gohPrimeDimension : {p : Nat} -> GohPrime p -> CosmicDimension
+gohPrimeDimension prf = (p ** gohPrimeWitness prf)
+
+||| Certified dimension corresponding directly to an existential AnyGohPrime pair.
+public export
+anyGohPrimeDimension : AnyGohPrime -> CosmicDimension
+anyGohPrimeDimension (p ** prf) = (p ** gohPrimeWitness prf)
+
 ------------------------------------------------------------------------
 -- 4. DEPENDENT DIMENSION-DERIVED STRUCTURAL GOH FUEL & INVARIANT PROOFS
 ------------------------------------------------------------------------
@@ -359,4 +388,27 @@ public export
 0 prfObserverFuelMatchesProduct :
   dimensionGohFuel Stage1.TypeTheory.Smoothness.dimObserver = gohFuel 39
 prfObserverFuelMatchesProduct = Refl
+
+||| Static compile-time proofs verifying that canonical cosmic dimensions
+||| factorize cleanly into certified 13-smooth GohPrimeMultisets.
+public export
+0 prfElliptic27Carrier : isJust (factorizeGohSmooth 27) = True
+prfElliptic27Carrier = Refl
+
+public export
+0 prfHyperbolic128Carrier : isJust (factorizeGohSmooth 128) = True
+prfHyperbolic128Carrier = Refl
+
+public export
+0 prfParabolic55Carrier : isJust (factorizeGohSmooth 55) = True
+prfParabolic55Carrier = Refl
+
+public export
+0 prfPrimorial210Carrier : isJust (factorizeGohSmooth 210) = True
+prfPrimorial210Carrier = Refl
+
+public export
+0 prfObserver39Carrier : isJust (factorizeGohSmooth 39) = True
+prfObserver39Carrier = Refl
+
 

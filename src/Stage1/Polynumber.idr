@@ -11,6 +11,7 @@ import Data.List
 import Data.Nat
 import Data.Fuel
 import Language.Reflection
+import public Data.Vect
 
 %default total
 
@@ -578,3 +579,104 @@ auditPolyTreeEquivalenceProof =
       c1 = lookupTokenTree (fromNatBoxSpec 1) tree
       c2 = lookupTokenTree (fromNatBoxSpec 2) tree
   in (p == p') && (c0 == 2) && (c1 == 4) && (c2 == 3)
+
+------------------------------------------------------------------------
+-- 11. DEGREE-CERTIFIED POLYNOMIAL MULTISET CONTAINERS (DEP-POLYNUMBERS)
+------------------------------------------------------------------------
+
+||| A Polynumber whose maximum degree is certified at the type level.
+||| Contains a vector of (S deg) coefficients for degrees 0 .. deg.
+public export
+record DepPolynumber (deg : Nat) where
+  constructor MkDepPolynumber
+  polyCoeffs : Vect (S deg) BoxInt
+
+public export
+Eq (DepPolynumber deg) where
+  (MkDepPolynumber c1) == (MkDepPolynumber c2) = c1 == c2
+
+public export
+Show (DepPolynumber deg) where
+  show (MkDepPolynumber cs) =
+    "DepPolynumber(" ++ show (map unwrapBox (toList cs)) ++ ")"
+
+||| Creates a constant DepPolynumber (degree 0).
+public export
+constantDepPoly : BoxInt -> DepPolynumber 0
+constantDepPoly c = MkDepPolynumber [c]
+
+||| Helper to build a monomial coefficient vector of length (S deg) with leading coefficient c.
+public export
+monomialCoeffs : BoxInt -> (deg : Nat) -> Vect (S deg) BoxInt
+monomialCoeffs c 0 = [c]
+monomialCoeffs c (S k) = intToBoxInt 0 :: monomialCoeffs c k
+
+||| Creates a monomial DepPolynumber: c * x^deg.
+public export
+monomialDepPoly : BoxInt -> (deg : Nat) -> DepPolynumber deg
+monomialDepPoly c deg = MkDepPolynumber (monomialCoeffs c deg)
+
+||| Addition of two DepPolynumbers with identical certified degree.
+public export
+addDepPolynumber : DepPolynumber deg -> DepPolynumber deg -> DepPolynumber deg
+addDepPolynumber (MkDepPolynumber c1) (MkDepPolynumber c2) =
+  MkDepPolynumber (zipWith (+) c1 c2)
+
+||| Scalar multiplication of a DepPolynumber.
+public export
+scaleDepPolynumber : BoxInt -> DepPolynumber deg -> DepPolynumber deg
+scaleDepPolynumber s (MkDepPolynumber cs) =
+  MkDepPolynumber (map (* s) cs)
+
+||| Negation of a DepPolynumber.
+public export
+negateDepPolynumber : DepPolynumber deg -> DepPolynumber deg
+negateDepPolynumber (MkDepPolynumber cs) =
+  MkDepPolynumber (map negBox cs)
+
+||| Subtraction of two DepPolynumbers with identical certified degree.
+public export
+subDepPolynumber : DepPolynumber deg -> DepPolynumber deg -> DepPolynumber deg
+subDepPolynumber (MkDepPolynumber c1) (MkDepPolynumber c2) =
+  MkDepPolynumber (zipWith (-) c1 c2)
+
+||| Evaluates a DepPolynumber at an integer value using Horner's method.
+public export
+evalDepPolynumber : DepPolynumber deg -> BoxInt -> BoxInt
+evalDepPolynumber (MkDepPolynumber cs) x =
+  foldr (\c, acc => c + (acc * x)) (intToBoxInt 0) (toList cs)
+
+||| Converts a DepPolynumber to an unindexed Polynumber.
+public export
+toPolynumber : DepPolynumber deg -> Polynumber
+toPolynumber (MkDepPolynumber cs) = MkPolynumber (toList cs)
+
+||| Converts an unindexed list of coefficients into a vector padded to length n with a default.
+public export
+fromListPadded : BoxInt -> (n : Nat) -> List BoxInt -> Vect n BoxInt
+fromListPadded _ 0 _ = []
+fromListPadded def (S k) [] = def :: fromListPadded def k []
+fromListPadded def (S k) (x :: xs) = x :: fromListPadded def k xs
+
+||| Converts an unindexed Polynumber to a DepPolynumber padded or truncated to degree deg.
+public export
+fromPolynumber : (deg : Nat) -> Polynumber -> DepPolynumber deg
+fromPolynumber deg (MkPolynumber cs) =
+  MkDepPolynumber (fromListPadded (intToBoxInt 0) (S deg) cs)
+
+||| Computes polynomial multiplication of two DepPolynumbers with additive degree guarantee.
+public export
+mulDepPolynumber : {d1, d2 : Nat} -> DepPolynumber d1 -> DepPolynumber d2 -> DepPolynumber (d1 + d2)
+mulDepPolynumber {d1} {d2} p1 p2 =
+  let unindexed = mulPolynumber (toPolynumber p1) (toPolynumber p2)
+  in fromPolynumber (d1 + d2) unindexed
+
+||| Audits that mulDepPolynumber preserves exact coefficients across degree addition:
+||| (2 + 3x) * (4 + 5x) = 8 + 22x + 15x^2.
+public export
+auditDepPolyMulProof : Bool
+auditDepPolyMulProof =
+  let p = MkDepPolynumber [intToBoxInt 2, intToBoxInt 3]
+      q = MkDepPolynumber [intToBoxInt 4, intToBoxInt 5]
+      res = mulDepPolynumber p q
+  in toList res.polyCoeffs == [intToBoxInt 8, intToBoxInt 22, intToBoxInt 15]
