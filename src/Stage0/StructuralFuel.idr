@@ -41,6 +41,26 @@ public export
     (computeVMSize 3 + computeDESize 7 + triangularSum 10) = 210
 prfMasterGohBudgetMatchesFactorization = Refl
 
+||| Formal compile-time witness certifying Elliptic VM spatial capacity: 3^3 = 27.
+public export
+0 prfEllipticCapacity27 : computeVMSize 3 = 27
+prfEllipticCapacity27 = Refl
+
+||| Formal compile-time witness certifying Hyperbolic DE ROM bit depth capacity: 2^7 = 128.
+public export
+0 prfHyperbolicCapacity128 : computeDESize 7 = 128
+prfHyperbolicCapacity128 = Refl
+
+||| Formal compile-time witness certifying Parabolic DM triangular residue: T_10 = 55.
+public export
+0 prfParabolicCapacity55 : triangularSum 10 = 55
+prfParabolicCapacity55 = Refl
+
+||| Formal compile-time witness certifying the exact Primorial 210 partition: 27 + 128 + 55 = 210.
+public export
+0 prfPrimorial210Partition : (27 + 128 + 55) = 210
+prfPrimorial210Partition = Refl
+
 --------------------------------------------------------------------------------
 -- 2. GOH FACTORISATION STRUCTURAL FUEL GENERATORS (BOXNAT & NAT)
 --------------------------------------------------------------------------------

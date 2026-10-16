@@ -312,3 +312,51 @@ public export
 dimHolographic216 : CosmicDimension
 dimHolographic216 = (the Nat 216 ** Refl)
 
+------------------------------------------------------------------------
+-- 4. DEPENDENT DIMENSION-DERIVED STRUCTURAL GOH FUEL & INVARIANT PROOFS
+------------------------------------------------------------------------
+
+||| Derives structural Goh fuel directly from a certified CosmicDimension Sigma-pair.
+public export
+dimensionGohFuel : CosmicDimension -> BoxNat
+dimensionGohFuel (dim ** _) = gohFuel dim
+
+||| Derives structural Nat fuel directly from a certified CosmicDimension Sigma-pair.
+public export
+dimensionNatFuel : CosmicDimension -> Nat
+dimensionNatFuel (dim ** _) = boxNatToNat (gohFuel dim)
+
+||| Static compile-time witness: Elliptic lattice fuel derived from dimElliptic27
+||| definitionally equals ellipticGohFuel (Rule 01, Rule 03, Rule 04).
+public export
+0 prfEllipticFuelEquiv :
+  dimensionGohFuel Stage1.TypeTheory.Smoothness.dimElliptic27 = Stage0.StructuralFuel.ellipticGohFuel
+prfEllipticFuelEquiv = Refl
+
+||| Static compile-time witness: Hyperbolic spectral fuel derived from dimHyperbolic128
+||| definitionally equals hyperbolicGohFuel.
+public export
+0 prfHyperbolicFuelEquiv :
+  dimensionGohFuel Stage1.TypeTheory.Smoothness.dimHyperbolic128 = Stage0.StructuralFuel.hyperbolicGohFuel
+prfHyperbolicFuelEquiv = Refl
+
+||| Static compile-time witness: Parabolic dissipation fuel derived from dimParabolic55
+||| definitionally equals parabolicGohFuel.
+public export
+0 prfParabolicFuelEquiv :
+  dimensionGohFuel Stage1.TypeTheory.Smoothness.dimParabolic55 = Stage0.StructuralFuel.parabolicGohFuel
+prfParabolicFuelEquiv = Refl
+
+||| Static compile-time witness: Primorial 210 master ground fuel derived from dimPrimorial210
+||| definitionally equals masterSubstrateGohFuel.
+public export
+0 prfPrimorialFuelEquiv :
+  dimensionGohFuel Stage1.TypeTheory.Smoothness.dimPrimorial210 = Stage0.StructuralFuel.masterSubstrateGohFuel
+prfPrimorialFuelEquiv = Refl
+
+||| Static compile-time witness: Observer epoch fuel derived from dimObserver (k=38, n=39=3x13).
+public export
+0 prfObserverFuelMatchesProduct :
+  dimensionGohFuel Stage1.TypeTheory.Smoothness.dimObserver = gohFuel 39
+prfObserverFuelMatchesProduct = Refl
+
