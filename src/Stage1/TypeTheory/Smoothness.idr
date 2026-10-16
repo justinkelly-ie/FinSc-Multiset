@@ -132,6 +132,52 @@ record DimensionCarrier (bound : Nat) where
   primeFactors     : PrimeMultiset
   0 smoothWitness  : SmoothWitness bound carrierDimension
 
+||| Constructive decidability of the smoothness property under prime bound.
+public export
+decideSmoothness : (bound : Nat) -> (n : Nat) -> Dec (SmoothWitness bound n)
+decideSmoothness bound n with (isSmoothNat bound n == True)
+  decideSmoothness bound n | True  = Yes Refl
+  decideSmoothness bound n | False = No (\p => case p of Refl impossible)
+
+||| Safely lifts a raw Nat to a certified Dimension Sigma-pair if smooth.
+public export
+toDimension : (bound : Nat) -> (n : Nat) -> Maybe (Dimension bound)
+toDimension bound n with (decideSmoothness bound n)
+  toDimension bound n | Yes prf = Just (n ** prf)
+  toDimension bound n | No _    = Nothing
+
+||| Inductive coherence classification of a scale step n under prime bound.
+||| - GatePure:   n is certified smooth under prime bound, preserving quantum coherence.
+||| - Decoherent: n contains prime factors > bound, draining into thermal dispersion.
+public export
+data CoherenceStatus : (bound : Nat) -> (n : Nat) -> Type where
+  GatePure   : SmoothWitness bound n -> CoherenceStatus bound n
+  Decoherent : (SmoothWitness bound n -> Void) -> CoherenceStatus bound n
+
+public export
+{bound, n : Nat} -> Show (CoherenceStatus bound n) where
+  show (GatePure _)   = "GatePure(" ++ show n ++ ")"
+  show (Decoherent _) = "Decoherent(" ++ show n ++ ")"
+
+||| Evaluates and returns the constructive coherence status witness.
+public export
+decideCoherence : (bound : Nat) -> (n : Nat) -> CoherenceStatus bound n
+decideCoherence bound n with (decideSmoothness bound n)
+  decideCoherence bound n | Yes prf   = GatePure prf
+  decideCoherence bound n | No contra = Decoherent contra
+
+||| Extracts the certified Dimension from a GatePure status.
+public export
+statusToDimension : {bound, n : Nat} -> CoherenceStatus bound n -> Maybe (Dimension bound)
+statusToDimension (GatePure prf) = Just (n ** prf)
+statusToDimension (Decoherent _) = Nothing
+
+||| Boolean projection of coherence status.
+public export
+isStatusGatePure : {bound, n : Nat} -> CoherenceStatus bound n -> Bool
+isStatusGatePure (GatePure _)   = True
+isStatusGatePure (Decoherent _) = False
+
 ------------------------------------------------------------------------
 -- 3. CANONICAL PHYSICAL HORIZON & PRIMITIVE WITNESSES
 ------------------------------------------------------------------------
@@ -156,6 +202,11 @@ public export
 prfSmooth2 : SmoothWitness CosmicSmoothHorizon 2
 prfSmooth2 = Refl
 
+||| Canonical 13-smooth witness for manifest spatial dimension L = 3.
+public export
+prfSmooth3 : SmoothWitness CosmicSmoothHorizon 3
+prfSmooth3 = Refl
+
 ||| Canonical 13-smooth witness for dimension 4.
 public export
 prfSmooth4 : SmoothWitness CosmicSmoothHorizon 4
@@ -176,28 +227,88 @@ public export
 prfSmooth18 : SmoothWitness CosmicSmoothHorizon 18
 prfSmooth18 = Refl
 
+||| Canonical 13-smooth witness for elliptic lattice capacity 27 (3^3).
+public export
+prfSmooth27 : SmoothWitness CosmicSmoothHorizon 27
+prfSmooth27 = Refl
+
 ||| Canonical 13-smooth witness for observer scale dimension 39 (3 * 13).
 public export
 prfSmooth39 : SmoothWitness CosmicSmoothHorizon 39
 prfSmooth39 = Refl
+
+||| Canonical 13-smooth witness for holographic boundary surface area 54 (6 * 3^2).
+public export
+prfSmooth54 : SmoothWitness CosmicSmoothHorizon 54
+prfSmooth54 = Refl
+
+||| Canonical 13-smooth witness for parabolic residue dimension 55 (T_10 = 55).
+public export
+prfSmooth55 : SmoothWitness CosmicSmoothHorizon 55
+prfSmooth55 = Refl
+
+||| Canonical 13-smooth witness for hyperbolic ROM capacity 128 (2^7).
+public export
+prfSmooth128 : SmoothWitness CosmicSmoothHorizon 128
+prfSmooth128 = Refl
 
 ||| Canonical 13-smooth witness for Primorial 210 ground state (2 * 3 * 5 * 7).
 public export
 prfSmooth210 : SmoothWitness CosmicSmoothHorizon 210
 prfSmooth210 = Refl
 
+||| Canonical 13-smooth witness for multi-sector holographic capacity 216 (4 * 54).
+public export
+prfSmooth216 : SmoothWitness CosmicSmoothHorizon 216
+prfSmooth216 = Refl
+
 ||| Canonical proof certifying that 137 (Fine-Structure Constant / Grid Wall) is decoherent.
 public export
 prfDecoherent137 : isSmoothNat CosmicSmoothHorizon 137 = False
 prfDecoherent137 = Refl
 
-||| Canonical validated observer epoch dimension (Sigma-pair).
+||| Canonical refutation witness that 137 is smooth.
+public export
+contraSmooth137 : SmoothWitness CosmicSmoothHorizon 137 -> Void
+contraSmooth137 p = case p of Refl impossible
+
+||| Canonical validated manifest spatial dimension L = 3 (Sigma-pair).
+public export
+dimManifest3 : CosmicDimension
+dimManifest3 = (the Nat 3 ** Refl)
+
+||| Canonical validated elliptic lattice capacity dimension 27 (Sigma-pair).
+public export
+dimElliptic27 : CosmicDimension
+dimElliptic27 = (the Nat 27 ** Refl)
+
+||| Canonical validated observer epoch dimension 39 (Sigma-pair).
 public export
 dimObserver : CosmicDimension
 dimObserver = (the Nat 39 ** Refl)
+
+||| Canonical validated holographic boundary surface area dimension 54 (Sigma-pair).
+public export
+dimHolographic54 : CosmicDimension
+dimHolographic54 = (the Nat 54 ** Refl)
+
+||| Canonical validated parabolic dissipation sink dimension 55 (Sigma-pair).
+public export
+dimParabolic55 : CosmicDimension
+dimParabolic55 = (the Nat 55 ** Refl)
+
+||| Canonical validated hyperbolic ROM capacity dimension 128 (Sigma-pair).
+public export
+dimHyperbolic128 : CosmicDimension
+dimHyperbolic128 = (the Nat 128 ** Refl)
 
 ||| Canonical validated Primorial 210 cosmic ground state dimension (Sigma-pair).
 public export
 dimPrimorial210 : CosmicDimension
 dimPrimorial210 = (the Nat 210 ** Refl)
+
+||| Canonical validated multi-sector holographic capacity dimension 216 (Sigma-pair).
+public export
+dimHolographic216 : CosmicDimension
+dimHolographic216 = (the Nat 216 ** Refl)
 
