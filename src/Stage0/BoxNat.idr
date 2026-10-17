@@ -10,125 +10,111 @@ import public Stage0.BoxInt
 %default total
 
 ------------------------------------------------------------------------
--- 1. BOXNAT RLE TALLY MULTISET
+-- 1. BOXNAT UNBOXED SCALAR RECORD
 ------------------------------------------------------------------------
 
-||| A Box Arithmetic Natural Multiset (BoxNat)
-||| Parameterized over discrete Nat counts with unit element ()
+||| A Box Natural represents discrete non-negative counts, particle numbers,
+||| and structural dimensions in Wildberger's Box Arithmetic.
 public export
-BoxNat : Type
-BoxNat = Multiset Nat ()
+record BoxNat where
+  constructor MkBoxNat
+  value : Nat
 
-||| Computes the total Nat tally of a BoxNat.
-public export
+||| Extracts raw underlying Nat term from boxed representation in O(1) time.
+%inline public export
+unwrapBoxNat : BoxNat -> Nat
+unwrapBoxNat (MkBoxNat v) = v
+
+||| O(1) projection to Nat.
+%inline public export
 boxNatToNat : BoxNat -> Nat
-boxNatToNat ZeroM = 0
-boxNatToNat (AddM () c xs) = c + boxNatToNat xs
+boxNatToNat (MkBoxNat v) = v
 
-||| Creates a BoxNat from a Nat.
-public export
+||| O(1) constructor lifting Nat into BoxNat.
+%inline public export
 natToBoxNat : Nat -> BoxNat
-natToBoxNat Z = ZeroM
-natToBoxNat n = AddM () n ZeroM
+natToBoxNat n = MkBoxNat n
 
 ||| Converts a BoxNat to a signed BoxInt.
-public export
+%inline public export
 boxNatToBoxInt : BoxNat -> BoxInt
-boxNatToBoxInt bn = natToBoxInt (boxNatToNat bn)
+boxNatToBoxInt (MkBoxNat n) = natToBoxInt n
 
 ||| Converts a non-negative BoxInt to a BoxNat.
 public export
 boxIntToBoxNat : BoxInt -> BoxNat
 boxIntToBoxNat (MkBoxInt v) =
-  if v <= 0 then ZeroM else natToBoxNat (integerToNat v)
+  if v <= 0 then MkBoxNat 0 else MkBoxNat (integerToNat v)
 
-||| Converts a BoxNat tally into structural evaluation Fuel.
-public export
+||| Converts a BoxNat directly to structural evaluation Fuel.
+%inline public export
 boxNatToFuel : BoxNat -> Fuel
-boxNatToFuel bn = limit (boxNatToNat bn)
+boxNatToFuel (MkBoxNat n) = limit n
 
 ------------------------------------------------------------------------
--- 2. EXACT CONSTRUCTIVE ARITHMETIC OPERATORS
+-- 2. EXACT MONOMORPHIC ARITHMETIC OPERATORS
 ------------------------------------------------------------------------
 
-||| Adds two BoxNat multisets (lazy structural merge).
-public export
+%inline public export
 boxNatAdd : BoxNat -> BoxNat -> BoxNat
-boxNatAdd xs ys = addMultiset xs ys
+boxNatAdd (MkBoxNat a) (MkBoxNat b) = MkBoxNat (a + b)
 
-||| Linear BoxNat addition preserving QTT multiplicity.
 public export
 boxNatAddLinear : (1 a : BoxNat) -> (1 b : BoxNat) -> BoxNat
-boxNatAddLinear a b = laddMultiset a b
+boxNatAddLinear (MkBoxNat a) (MkBoxNat b) = MkBoxNat (a + b)
 
-||| Subtraction of BoxNat with truncation at zero.
-public export
+%inline public export
 boxNatSub : BoxNat -> BoxNat -> BoxNat
-boxNatSub a b =
-  let na = boxNatToNat a
-      nb = boxNatToNat b
-  in natToBoxNat (minus na nb)
+boxNatSub (MkBoxNat a) (MkBoxNat b) = MkBoxNat (minus a b)
 
-||| Multiplication of BoxNat values.
-public export
+%inline public export
 boxNatMul : BoxNat -> BoxNat -> BoxNat
-boxNatMul a b =
-  let na = boxNatToNat a
-      nb = boxNatToNat b
-  in natToBoxNat (na * nb)
+boxNatMul (MkBoxNat a) (MkBoxNat b) = MkBoxNat (a * b)
 
-||| Normalizes a BoxNat by coalescing duplicate () counts into a single RLE node.
-public export
+%inline public export
 normalizeBoxNat : BoxNat -> BoxNat
-normalizeBoxNat xs =
-  let totalCount = boxNatToNat xs
-  in natToBoxNat totalCount
+normalizeBoxNat bn = bn
 
 public export
 Eq BoxNat where
-  xs == ys = boxNatToNat xs == boxNatToNat ys
+  (MkBoxNat a) == (MkBoxNat b) = a == b
 
 public export
 Ord BoxNat where
-  compare xs ys = compare (boxNatToNat xs) (boxNatToNat ys)
+  compare (MkBoxNat a) (MkBoxNat b) = compare a b
 
 public export
 Show BoxNat where
-  show xs = "BoxNat(" ++ show (boxNatToNat xs) ++ ")"
+  show (MkBoxNat n) = "BoxNat(" ++ show n ++ ")"
 
 ------------------------------------------------------------------------
--- 3. QTT 0 ERASED PROOFS & INVARIANTS
+-- 3. QTT 0 ERASED PROOFS & DEFINITIONAL INVARIANTS
 ------------------------------------------------------------------------
 
-||| Zero is the left identity for BoxNat addition.
+||| Zero is the left identity for BoxNat addition (reduces definitionally via Refl).
 public export
-0 prfBoxNatAddZeroLeft : (b : BoxNat) -> boxNatAdd ZeroM b = b
-prfBoxNatAddZeroLeft _ = Refl
+0 prfBoxNatAddZeroLeft : (b : BoxNat) -> boxNatAdd (MkBoxNat 0) b = b
+prfBoxNatAddZeroLeft (MkBoxNat n) = Refl
 
 ||| Zero produces 0 Nat tally.
 public export
 0 prfNatToBoxNatZero : boxNatToNat (natToBoxNat 0) = 0
 prfNatToBoxNatZero = Refl
 
-||| Round-trip conversion preserves Nat values.
+||| Round-trip conversion preserves Nat values definitionally without induction!
 public export
 0 prfBoxNatRoundTrip : (n : Nat) -> boxNatToNat (natToBoxNat n) = n
-prfBoxNatRoundTrip Z = Refl
-prfBoxNatRoundTrip (S k) = plusZeroRightNeutral (S k)
+prfBoxNatRoundTrip n = Refl
 
------------------------------------------------------------------------
+------------------------------------------------------------------------
 -- 4. LINEAR INSTANCES
------------------------------------------------------------------------
+------------------------------------------------------------------------
 
-||| Linear BoxNat Consumption
 public export
 implementation LConsumable BoxNat where
-  lconsume = consumeMultiset
+  lconsume (MkBoxNat _) = ()
 
-||| Linear BoxNat Duplication
 public export
 implementation LComonoid BoxNat where
-  lcomult ZeroM = Builtin.(#) ZeroM ZeroM
-  lcomult (AddM () c rest) =
-    let Builtin.(#) r1 r2 = lcomult rest
-    in Builtin.(#) (AddM () c r1) (AddM () c r2)
+  lcomult (MkBoxNat n) = Builtin.(#) (MkBoxNat n) (MkBoxNat n)
+
