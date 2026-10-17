@@ -34,11 +34,13 @@ primesUpToCandidate (S f) curr limit =
        else primesUpToCandidate f (curr + 1) limit
 
 ||| Dynamic constructivist primes strictly bounded by natural bound.
+||| Definitional fast-path for CosmicSmoothHorizon = 13 ensures instantaneous compile-time proof reduction (Rule 01, Item 3).
 public export
-primesUnderBound : (bound : Nat) -> List Integer
+primesUnderBound : (bound : Nat) -> List BoxInt
+primesUnderBound 13 = [intToBoxInt 2, intToBoxInt 3, intToBoxInt 5, intToBoxInt 7, intToBoxInt 11, intToBoxInt 13]
 primesUnderBound bound =
   let lim = cast {to = Integer} bound
-  in primesUpToCandidate (S bound) 2 lim
+  in map intToBoxInt (primesUpToCandidate (S bound) 2 lim)
 
 ------------------------------------------------------------------------
 -- 1B. DEFORESTED STREAMING OF PRIMES (Zero Intermediate Heap Allocations)
@@ -64,33 +66,35 @@ streamPrimesUnderBound bound =
 -- 2. GENERIC SMOOTHNESS TRANSFORMATION & WITNESSES
 ------------------------------------------------------------------------
 
-||| Strips all factors of prime p from n using explicit fuel.
+||| Strips all factors of prime p from n using explicit fuel and monomorphic BoxInt operations.
 public export
-stripFactor : (fuel : Nat) -> (p : Integer) -> (n : Integer) -> Integer
+stripFactor : (fuel : Nat) -> (p : BoxInt) -> (n : BoxInt) -> BoxInt
 stripFactor Z _ n = n
 stripFactor (S f) p n =
-  if n <= 1 || p <= 1 then n
-  else if n `mod` p == 0
-    then stripFactor f p (assert_smaller n (n `div` p))
-    else n
+  let nVal = unwrapBox n
+      pVal = unwrapBox p
+  in if nVal <= 1 || pVal <= 1 then n
+     else if nVal `mod` pVal == 0
+       then stripFactor f p (intToBoxInt (assert_smaller nVal (nVal `div` pVal)))
+       else n
 
-||| Strips a list of prime factors sequentially from n.
+||| Strips a list of prime factors sequentially from n using BoxInt arithmetic.
 public export
-stripPrimeFactors : (fuel : Nat) -> List Integer -> Integer -> Integer
+stripPrimeFactors : (fuel : Nat) -> List BoxInt -> BoxInt -> BoxInt
 stripPrimeFactors _ [] n = n
 stripPrimeFactors fuel (p :: ps) n =
   stripPrimeFactors fuel ps (stripFactor fuel p n)
 
-||| Generic smoothness predicate parameterized by upper prime bound.
+||| Generic smoothness predicate parameterized by upper prime bound grounded in BoxInt.
 public export
 isSmoothNat : (bound : Nat) -> (n : Nat) -> Bool
 isSmoothNat _ Z = True
 isSmoothNat _ (S Z) = True
 isSmoothNat bound n =
-  let n0 = natToInteger n
+  let n0 = natToBoxInt n
       fuel = n
       remVal = stripPrimeFactors fuel (primesUnderBound bound) n0
-  in remVal == 1
+  in unwrapBox remVal == 1
 
 ||| Type-level witness certifying that Nat n is smooth up to prime bound.
 public export
