@@ -2,6 +2,7 @@ module Stage1.TypeTheory.Smoothness
 
 import public Stage0.BoxInt
 import public Stage0.PrimeMultiset
+import public Stage0.StructuralFuel
 import public Stage0.OnSeq.FusedStream
 import public Stage1.TypeTheory.MultisetLevel
 import Data.Nat
@@ -14,24 +15,24 @@ import Data.Maybe
 -- 1. CONSTRUCTIVE PRIME GENERATION UNDER BOUND
 ------------------------------------------------------------------------
 
-||| Deterministic primality trial candidate with explicit fuel.
+||| Deterministic primality trial candidate using native constructivist Nat and BoxInt arithmetic.
 public export
-isPrimeCandidate : (fuel : Nat) -> (d : Integer) -> (n : Integer) -> Bool
+isPrimeCandidate : (fuel : Nat) -> (d : Nat) -> (n : Nat) -> Bool
 isPrimeCandidate Z _ _ = False
 isPrimeCandidate (S f) d n =
-  if d * d > n then True
-  else if n `mod` d == 0 then False
-  else isPrimeCandidate f (d + 1) n
+  if (d * d) > n then True
+  else if boxEq (modBox (natToBoxInt n) (natToBoxInt d)) (intToBoxInt 0) then False
+  else isPrimeCandidate f (S d) n
 
-||| Generates primes up to a given limit using structural fuel.
+||| Generates primes up to a given limit using structural Nat fuel.
 public export
-primesUpToCandidate : (fuel : Nat) -> (curr : Integer) -> (limit : Integer) -> List Integer
+primesUpToCandidate : (fuel : Nat) -> (curr : Nat) -> (limit : Nat) -> List Nat
 primesUpToCandidate Z _ _ = []
 primesUpToCandidate (S f) curr limit =
   if curr > limit then []
-  else if isPrimeCandidate (integerToNat limit) 2 curr
-       then curr :: primesUpToCandidate f (curr + 1) limit
-       else primesUpToCandidate f (curr + 1) limit
+  else if isPrimeCandidate limit 2 curr
+       then curr :: primesUpToCandidate f (S curr) limit
+       else primesUpToCandidate f (S curr) limit
 
 ||| Dynamic constructivist primes strictly bounded by natural bound.
 ||| Definitional fast-path for CosmicSmoothHorizon = 13 ensures instantaneous compile-time proof reduction (Rule 01, Item 3).
@@ -39,8 +40,7 @@ public export
 primesUnderBound : (bound : Nat) -> List BoxInt
 primesUnderBound 13 = [intToBoxInt 2, intToBoxInt 3, intToBoxInt 5, intToBoxInt 7, intToBoxInt 11, intToBoxInt 13]
 primesUnderBound bound =
-  let lim = cast {to = Integer} bound
-  in map intToBoxInt (primesUpToCandidate (S bound) 2 lim)
+  map natToBoxInt (primesUpToCandidate (S bound) 2 bound)
 
 ------------------------------------------------------------------------
 -- 1B. DEFORESTED STREAMING OF PRIMES (Zero Intermediate Heap Allocations)
@@ -60,7 +60,14 @@ streamRange start limit = unfoldStream next start
 public export
 streamPrimesUnderBound : (bound : Nat) -> FusedStream Nat
 streamPrimesUnderBound bound =
-  filterStream (\p => isPrimeCandidate bound 2 (cast {to = Integer} p)) (streamRange 2 bound)
+  filterStream (\p => isPrimeCandidate bound 2 p) (streamRange 2 bound)
+
+||| Generates primes up to bound as a list from deforested prime stream using model-indexed GohFuel.
+public export
+primesUnderBoundStream : (bound : Nat) -> List BoxInt
+primesUnderBoundStream 13 = [intToBoxInt 2, intToBoxInt 3, intToBoxInt 5, intToBoxInt 7, intToBoxInt 11, intToBoxInt 13]
+primesUnderBoundStream bound =
+  map natToBoxInt (runFueledStreamFuelModel (gohFuelForCapacity bound) (streamPrimesUnderBound bound))
 
 ------------------------------------------------------------------------
 -- 2. GENERIC SMOOTHNESS TRANSFORMATION & WITNESSES
@@ -71,12 +78,15 @@ public export
 stripFactor : (fuel : Nat) -> (p : BoxInt) -> (n : BoxInt) -> BoxInt
 stripFactor Z _ n = n
 stripFactor (S f) p n =
-  let nVal = unwrapBox n
-      pVal = unwrapBox p
-  in if nVal <= 1 || pVal <= 1 then n
-     else if nVal `mod` pVal == 0
-       then stripFactor f p (intToBoxInt (assert_smaller nVal (nVal `div` pVal)))
-       else n
+  if boxLTE n (intToBoxInt 1) || boxLTE p (intToBoxInt 1) then n
+  else if boxEq (modBox n p) (intToBoxInt 0)
+    then stripFactor f p (divBox n p)
+    else n
+
+||| Strips all factors of prime p from n using model-indexed GohFuel.
+public export
+stripFactorFuelModel : GohFuel cap -> (p : BoxInt) -> (n : BoxInt) -> BoxInt
+stripFactorFuelModel fuel p n = stripFactor (gohSteps fuel) p n
 
 ||| Strips a list of prime factors sequentially from n using BoxInt arithmetic.
 public export
@@ -85,6 +95,11 @@ stripPrimeFactors _ [] n = n
 stripPrimeFactors fuel (p :: ps) n =
   stripPrimeFactors fuel ps (stripFactor fuel p n)
 
+||| Strips a list of prime factors sequentially from n using model-indexed GohFuel.
+public export
+stripPrimeFactorsFuelModel : GohFuel cap -> List BoxInt -> BoxInt -> BoxInt
+stripPrimeFactorsFuelModel fuel primes n = stripPrimeFactors (gohSteps fuel) primes n
+
 ||| Generic smoothness predicate parameterized by upper prime bound grounded in BoxInt.
 public export
 isSmoothNat : (bound : Nat) -> (n : Nat) -> Bool
@@ -92,9 +107,9 @@ isSmoothNat _ Z = True
 isSmoothNat _ (S Z) = True
 isSmoothNat bound n =
   let n0 = natToBoxInt n
-      fuel = gohSteps (gohFuelForCapacity n)
-      remVal = stripPrimeFactors fuel (primesUnderBound bound) n0
-  in unwrapBox remVal == 1
+      fuel = gohFuelForCapacity n
+      remVal = stripPrimeFactorsFuelModel fuel (primesUnderBound bound) n0
+  in boxEq remVal (intToBoxInt 1)
 
 ||| Type-level witness certifying that Nat n is smooth up to prime bound.
 public export
