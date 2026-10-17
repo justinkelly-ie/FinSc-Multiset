@@ -312,7 +312,7 @@ divModPolyHelper (S fuel) quotient remainder divisor =
 public export
 divModPolynumber : Polynumber -> Polynumber -> (Polynumber, Polynumber)
 divModPolynumber dividend divisor = 
-  let f = boxNatToNat (gohFuel (1 + polynumberDegree dividend + polynumberDegree divisor))
+  let f = gohSteps (gohFuelForCapacity (1 + polynumberDegree dividend + polynumberDegree divisor))
   in divModPolyHelper f zeroPolynumber (trimPolynumber dividend) (trimPolynumber divisor)
 
 ------------------------------------------------------------------------

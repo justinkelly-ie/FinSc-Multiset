@@ -221,12 +221,17 @@ foldStreamFuel fuel fn acc0 (MkStream {s} next seed) = loop fuel seed acc0
       Yield x st' => loop f' st' (fn currentAcc x)
 
 ||| Deforested stream left fold accumulator bounded by model-derived Master Substrate Primorial Ground State capacity (Rule 03).
-||| For custom fuel envelopes, use foldStreamBoxNat, foldStreamGoh, or foldStreamNat directly.
+||| For custom fuel envelopes, use foldStreamFuelModel, foldStreamGoh, or foldStreamNat directly.
 public export
 foldStream : (b -> a -> b) -> b -> FusedStream a -> b
-foldStream f acc0 strm = foldStreamNat (boxNatToNat masterSubstrateGohFuel) f acc0 strm
+foldStream f acc0 strm = foldStreamNat (gohSteps masterSubstrateGohFuelModel) f acc0 strm
 
-||| Total stream fold accumulator using BoxNat Goh factorisation fuel.
+||| Total stream fold accumulator using model-indexed GohFuel.
+public export
+foldStreamFuelModel : GohFuel cap -> (b -> a -> b) -> b -> FusedStream a -> b
+foldStreamFuelModel fuel f acc0 strm = foldStreamNat (gohSteps fuel) f acc0 strm
+
+||| Total stream fold accumulator using BoxNat Goh factorisation fuel (backward compatible).
 public export
 foldStreamBoxNat : BoxNat -> (b -> a -> b) -> b -> FusedStream a -> b
 foldStreamBoxNat bn f acc0 strm = foldStreamNat (boxNatToNat bn) f acc0 strm
@@ -234,9 +239,15 @@ foldStreamBoxNat bn f acc0 strm = foldStreamNat (boxNatToNat bn) f acc0 strm
 ||| Total stream fold accumulator using model-derived Goh fuel for a given size hint.
 public export
 foldStreamGoh : (sizeHint : Nat) -> (b -> a -> b) -> b -> FusedStream a -> b
-foldStreamGoh sizeHint f acc0 strm = foldStreamBoxNat (gohFuel sizeHint) f acc0 strm
+foldStreamGoh sizeHint f acc0 strm = foldStreamNat (gohFuelNat sizeHint) f acc0 strm
 
-||| Evaluates a stream generator directly into an accumulator using BoxNat Goh factorisation fuel.
+||| Evaluates a stream generator directly into an accumulator using model-indexed GohFuel.
+public export
+fusedHylomorphismModel : GohFuel cap -> (s -> Step s a) -> (a -> b -> b) -> b -> s -> b
+fusedHylomorphismModel fuel next stepAcc acc0 seed =
+  fusedHylomorphismNat (gohSteps fuel) next stepAcc acc0 seed
+
+||| Evaluates a stream generator directly into an accumulator using BoxNat Goh factorisation fuel (backward compatible).
 public export
 fusedHylomorphismBoxNat : BoxNat -> (s -> Step s a) -> (a -> b -> b) -> b -> s -> b
 fusedHylomorphismBoxNat bn next stepAcc acc0 seed =
@@ -246,7 +257,7 @@ fusedHylomorphismBoxNat bn next stepAcc acc0 seed =
 public export
 fusedHylomorphismGoh : (sizeHint : Nat) -> (s -> Step s a) -> (a -> b -> b) -> b -> s -> b
 fusedHylomorphismGoh sizeHint next stepAcc acc0 seed =
-  fusedHylomorphismBoxNat (gohFuel sizeHint) next stepAcc acc0 seed
+  fusedHylomorphismNat (gohFuelNat sizeHint) next stepAcc acc0 seed
 
 public export
 Applicative FusedStream where

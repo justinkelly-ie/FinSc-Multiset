@@ -92,7 +92,7 @@ isSmoothNat _ Z = True
 isSmoothNat _ (S Z) = True
 isSmoothNat bound n =
   let n0 = natToBoxInt n
-      fuel = n
+      fuel = gohSteps (gohFuelForCapacity n)
       remVal = stripPrimeFactors fuel (primesUnderBound bound) n0
   in unwrapBox remVal == 1
 
@@ -349,15 +349,46 @@ anyGohPrimeDimension (p ** prf) = (p ** gohPrimeWitness prf)
 -- 4. DEPENDENT DIMENSION-DERIVED STRUCTURAL GOH FUEL & INVARIANT PROOFS
 ------------------------------------------------------------------------
 
+||| Model-derived Goh fuel indexed directly by a certified CosmicDimension Sigma-pair:
+public export
+GohFuelDim : CosmicDimension -> Type
+GohFuelDim (dim ** _) = GohFuel dim
+
+||| Canonical fuel generator for a certified cosmic dimension:
+%inline public export
+gohFuelForDim : (dim : CosmicDimension) -> GohFuel (fst dim)
+gohFuelForDim (cap ** _) = gohFuelForCapacity cap
+
+||| Definitional compile-time reflection proofs verifying exact fuel steps across cosmic dimensions:
+public export
+0 prfDimEllipticGohFuel : (gohFuelForDim Stage1.TypeTheory.Smoothness.dimElliptic27).fuelSteps = 42
+prfDimEllipticGohFuel = Refl
+
+public export
+0 prfDimHyperbolicGohFuel : (gohFuelForDim Stage1.TypeTheory.Smoothness.dimHyperbolic128).fuelSteps = 193
+prfDimHyperbolicGohFuel = Refl
+
+public export
+0 prfDimParabolicGohFuel : (gohFuelForDim Stage1.TypeTheory.Smoothness.dimParabolic55).fuelSteps = 84
+prfDimParabolicGohFuel = Refl
+
+public export
+0 prfDimPrimorialGohFuel : (gohFuelForDim Stage1.TypeTheory.Smoothness.dimPrimorial210).fuelSteps = 316
+prfDimPrimorialGohFuel = Refl
+
+public export
+0 prfDimObserverGohFuel : (gohFuelForDim Stage1.TypeTheory.Smoothness.dimObserver).fuelSteps = 60
+prfDimObserverGohFuel = Refl
+
 ||| Derives structural Goh fuel directly from a certified CosmicDimension Sigma-pair.
 public export
 dimensionGohFuel : CosmicDimension -> BoxNat
 dimensionGohFuel (dim ** _) = gohFuel dim
 
-||| Derives structural Nat fuel directly from a certified CosmicDimension Sigma-pair.
+||| Derives structural Nat fuel directly from a certified CosmicDimension Sigma-pair without multiset unwrapping.
 public export
 dimensionNatFuel : CosmicDimension -> Nat
-dimensionNatFuel (dim ** _) = boxNatToNat (gohFuel dim)
+dimensionNatFuel dim = (gohFuelForDim dim).fuelSteps
 
 ||| Static compile-time witness: Elliptic lattice fuel derived from dimElliptic27
 ||| definitionally equals ellipticGohFuel (Rule 01, Rule 03, Rule 04).

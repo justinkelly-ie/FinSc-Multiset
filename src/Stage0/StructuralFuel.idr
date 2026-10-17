@@ -72,34 +72,102 @@ half Z = Z
 half (S Z) = Z
 half (S (S k)) = S (half k)
 
+||| Canonical Goh factorisation formula computing exact fuel steps natively in Nat:
+||| Fuel(N) = N + floor(N/2) + 2
+public export
+gohFuelNat : Nat -> Nat
+gohFuelNat Z = 1
+gohFuelNat (S k) = S (S k + S (half k))
+
+||| First-class constructivist Goh Fuel indexed directly by model capacity.
+||| Guaranteed zero-allocation Peano integer carrier for recursive evaluators.
+public export
+record GohFuel (capacity : Nat) where
+  constructor MkGohFuel
+  fuelSteps : Nat
+
+public export
+Eq (GohFuel cap) where
+  (MkGohFuel s1) == (MkGohFuel s2) = s1 == s2
+
+public export
+Show (GohFuel cap) where
+  show (MkGohFuel s) = "GohFuel(" ++ show s ++ " steps)"
+
+||| Canonical smart constructor generating exact fuel from capacity:
+%inline public export
+gohFuelForCapacity : (capacity : Nat) -> GohFuel capacity
+gohFuelForCapacity cap = MkGohFuel (gohFuelNat cap)
+
+||| Zero-cost projection to raw steps for loop pattern-matching (Z and S f):
+%inline public export
+gohSteps : GohFuel cap -> Nat
+gohSteps f = f.fuelSteps
+
+||| Model-derived Elliptic Confinement Fuel (3^3 = 27 VM bound states).
+%inline public export
+ellipticGohFuelModel : GohFuel 27
+ellipticGohFuelModel = gohFuelForCapacity 27
+
+||| Model-derived Hyperbolic Spectral Fuel (2^7 = 128 DE spectral modes).
+%inline public export
+hyperbolicGohFuelModel : GohFuel 128
+hyperbolicGohFuelModel = gohFuelForCapacity 128
+
+||| Model-derived Parabolic Dissipation Drain Fuel (T_10 = 55 DM channels).
+%inline public export
+parabolicGohFuelModel : GohFuel 55
+parabolicGohFuelModel = gohFuelForCapacity 55
+
+||| Model-derived Master Substrate Primorial Ground State Fuel (210 Master Budget).
+%inline public export
+masterSubstrateGohFuelModel : GohFuel 210
+masterSubstrateGohFuelModel = gohFuelForCapacity 210
+
+||| Definitional compile-time reflection witnesses verifying exact step counts:
+public export
+0 prfEllipticGohFuelModelSteps : Stage0.StructuralFuel.ellipticGohFuelModel.fuelSteps = 42
+prfEllipticGohFuelModelSteps = Refl
+
+public export
+0 prfHyperbolicGohFuelModelSteps : Stage0.StructuralFuel.hyperbolicGohFuelModel.fuelSteps = 193
+prfHyperbolicGohFuelModelSteps = Refl
+
+public export
+0 prfParabolicGohFuelModelSteps : Stage0.StructuralFuel.parabolicGohFuelModel.fuelSteps = 84
+prfParabolicGohFuelModelSteps = Refl
+
+public export
+0 prfMasterSubstrateGohFuelModelSteps : Stage0.StructuralFuel.masterSubstrateGohFuelModel.fuelSteps = 316
+prfMasterSubstrateGohFuelModelSteps = Refl
+
 ||| Canonical structural fuel derived from Goh factorisation as a BoxNat multiset tally.
 ||| Bounded by N plus divisor count and gate parity offset:
 public export
 gohFuel : Nat -> BoxNat
-gohFuel Z = natToBoxNat 1
-gohFuel (S k) = natToBoxNat (S (S k + S (half k)))
+gohFuel n = natToBoxNat (gohFuelNat n)
 
 ||| Canonical structural fuel operating directly on BoxNat inputs.
 public export
 gohFuelBox : BoxNat -> BoxNat
 gohFuelBox bn = gohFuel (boxNatToNat bn)
 
-||| Model-derived Elliptic Confinement Fuel (3^3 = 27 VM bound states).
+||| Legacy BoxNat-wrapped Elliptic Confinement Fuel (3^3 = 27 VM bound states).
 public export
 ellipticGohFuel : BoxNat
 ellipticGohFuel = gohFuel (computeVMSize 3)
 
-||| Model-derived Hyperbolic Spectral Fuel (2^7 = 128 DE spectral modes).
+||| Legacy BoxNat-wrapped Hyperbolic Spectral Fuel (2^7 = 128 DE spectral modes).
 public export
 hyperbolicGohFuel : BoxNat
 hyperbolicGohFuel = gohFuel (computeDESize 7)
 
-||| Model-derived Parabolic Dissipation Drain Fuel (T_10 = 55 DM channels).
+||| Legacy BoxNat-wrapped Parabolic Dissipation Drain Fuel (T_10 = 55 DM channels).
 public export
 parabolicGohFuel : BoxNat
 parabolicGohFuel = gohFuel (triangularSum 10)
 
-||| Model-derived Master Substrate Primorial Ground State Fuel (210 Master Budget).
+||| Legacy BoxNat-wrapped Master Substrate Primorial Ground State Fuel (210 Master Budget).
 public export
 masterSubstrateGohFuel : BoxNat
 masterSubstrateGohFuel = gohFuel (computeVMSize 3 + computeDESize 7 + triangularSum 10)
