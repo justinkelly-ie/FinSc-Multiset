@@ -126,6 +126,12 @@ runFueledStreamNat fuel (MkStream {s} step s0) = loop fuel s0
       Skip st' => loop f' st'
       Yield x st' => x :: loop f' st'
 
+||| Model-indexed GohFuel stream evaluation producing a List container.
+public export
+%inline
+runFueledStreamFuelModel : GohFuel cap -> FusedStream a -> List a
+runFueledStreamFuelModel fuel = runFueledStreamNat (gohSteps fuel)
+
 ------------------------------------------------------------------------
 -- DEFORESTED STREAM FUSION COMBINATOR LIBRARY
 ------------------------------------------------------------------------
