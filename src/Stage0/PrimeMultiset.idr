@@ -153,6 +153,25 @@ public export
 gohDyadicFixedPoint : GohDyadicFixedPoint
 gohDyadicFixedPoint = MkGohDyadicFixedPoint Prime2 gohPrimeSum2_2 gohPrimeProduct2_2 Refl
 
+public export
+gohPrimeProduct5_7 : GohPrimeProduct 5 7 35
+gohPrimeProduct5_7 = MkGohPrimeProduct Prime5 Prime7 Refl
+
+||| Certified Primorial 210 Ground State Product: p_4# = 2 * 3 * 5 * 7 = 210.
+||| Factorizes as (2 * 3) * (5 * 7) = 6 * 35 = 210.
+public export
+record GohPrimorial210 where
+  constructor MkGohPrimorial210
+  0 prod2_3     : GohPrimeProduct 2 3 6
+  0 prod5_7     : GohPrimeProduct 5 7 35
+  0 prod6_35    : (the Nat (6 * 35)) = 210
+  0 budgetSum   : (the Nat (27 + 128 + 55)) = 210
+
+public export
+gohPrimorial210 : GohPrimorial210
+gohPrimorial210 = MkGohPrimorial210 gohPrimeProduct2_3 gohPrimeProduct5_7 Refl Refl
+
+
 
 --------------------------------------------------------------------------------
 -- 2. CERTIFIED 13-SMOOTH GOH PRIME MULTISET
