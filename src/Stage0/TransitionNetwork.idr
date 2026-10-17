@@ -81,6 +81,12 @@ runTransitionTrajectory : Eq s => Fuel -> TransitionChannel s -> TransitionState
 runTransitionTrajectory f channel initState =
   foldStreamFuel f (\_, nextSt => nextSt) initState (streamTransitionTrajectory channel initState)
 
+||| Runs a transition trajectory using stream fold over Nat fuel.
+public export
+runTransitionTrajectoryNat : Eq s => Nat -> TransitionChannel s -> TransitionState s -> TransitionState s
+runTransitionTrajectoryNat fuelSteps channel initState =
+  foldStreamNat fuelSteps (\_, nextSt => nextSt) initState (streamTransitionTrajectory channel initState)
+
 ------------------------------------------------------------------------
 -- 3. LINEAR CONSERVATION LAW WITNESSES
 ------------------------------------------------------------------------
@@ -108,7 +114,7 @@ auditTransitionNetworkProof : Bool
 auditTransitionNetworkProof =
   let initSt : TransitionState Nat = AddM 1 (intToBoxInt 10) (AddM 2 (intToBoxInt 0) ZeroM)
       rxn : TransitionChannel Nat = MkChannel 1 [MkDelta 1 (intToBoxInt (-1)), MkDelta 2 (intToBoxInt 1)] (intToBoxInt 1)
-      finalSt = runTransitionTrajectory (limit 5) rxn initSt
+      finalSt = runTransitionTrajectoryNat 5 rxn initSt
       c1 = multiplicity 1 finalSt
       c2 = multiplicity 2 finalSt
       tot = c1 + c2

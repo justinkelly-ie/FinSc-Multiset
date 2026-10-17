@@ -687,6 +687,12 @@ evalStreamHylomorphism : Fuel -> (a -> b -> b) -> b -> FusedStream a -> b
 evalStreamHylomorphism f stepAcc acc0 (MkStream next seed) =
   fusedHylomorphism f next stepAcc acc0 seed
 
+||| Evaluates a stream catamorphism fold over a FusedStream over Nat fuel.
+public export
+evalStreamHylomorphismNat : Nat -> (a -> b -> b) -> b -> FusedStream a -> b
+evalStreamHylomorphismNat fuel stepAcc acc0 (MkStream next seed) =
+  fusedHylomorphismNat fuel next stepAcc acc0 seed
+
 ||| Evaluates a stream catamorphism fold in parallel over left and right stream partitions.
 public export
 fusedParallelStreamFold : Fuel -> (a -> b -> b) -> b -> (b -> b -> b) -> List a -> b
@@ -696,13 +702,27 @@ fusedParallelStreamFold f stepAcc acc0 combineBin items =
       rightRes = evalStreamHylomorphism f stepAcc acc0 rightStrm
   in combineBin leftRes rightRes
 
+||| Evaluates a stream catamorphism fold in parallel over left and right stream partitions over Nat fuel.
+public export
+fusedParallelStreamFoldNat : Nat -> (a -> b -> b) -> b -> (b -> b -> b) -> List a -> b
+fusedParallelStreamFoldNat fuel stepAcc acc0 combineBin items =
+  let (leftStrm, rightStrm) = splitStreamHalf items
+      leftRes  = evalStreamHylomorphismNat fuel stepAcc acc0 leftStrm
+      rightRes = evalStreamHylomorphismNat fuel stepAcc acc0 rightStrm
+  in combineBin leftRes rightRes
+
+||| Evaluates a stream catamorphism fold in parallel over model-indexed GohFuel.
+public export
+fusedParallelStreamFoldFuelModel : GohFuel cap -> (a -> b -> b) -> b -> (b -> b -> b) -> List a -> b
+fusedParallelStreamFoldFuelModel fuel = fusedParallelStreamFoldNat (gohSteps fuel)
+
 ||| Audit witness verifying parallel stream partitioning fold equivalence.
 public export
 auditParallelStreamPartitionProof : Bool
 auditParallelStreamPartitionProof =
   let items : List Int = [1, 2, 3, 4, 5, 6, 7, 8]
       seqRes = foldl (+) 0 items
-      parRes = fusedParallelStreamFold (limit (length items)) (+) 0 (+) items
+      parRes = fusedParallelStreamFoldNat (length items) (+) 0 (+) items
   in seqRes == parRes
 
 

@@ -529,6 +529,22 @@ fromStreamPoly fuel strm =
     insertTerm : List BoxInt -> (Nat, BoxInt) -> List BoxInt
     insertTerm acc (deg, c) = insertAt deg c acc
 
+||| Reconstructs a dense Polynumber from a StreamPolynumber over Nat fuel.
+public export
+fromStreamPolyNat : Nat -> StreamPolynumber -> Polynumber
+fromStreamPolyNat fuelSteps strm =
+  let terms = FS.foldStreamNat fuelSteps insertTerm (the (List BoxInt) []) strm
+  in trimPolynumber (MkPolynumber terms)
+  where
+    insertAt : Nat -> BoxInt -> List BoxInt -> List BoxInt
+    insertAt Z c [] = [c]
+    insertAt Z c (x :: xs) = (addBox x c) :: xs
+    insertAt (S k) c [] = (intToBoxInt 0) :: insertAt k c []
+    insertAt (S k) c (x :: xs) = x :: insertAt k c xs
+
+    insertTerm : List BoxInt -> (Nat, BoxInt) -> List BoxInt
+    insertTerm acc (deg, c) = insertAt deg c acc
+
 ||| Converts a dense Polynumber with positive coefficients into an O(log N) BoxSpecTree.
 public export
 polyToBoxSpecTree : Polynumber -> BoxSpecTree
@@ -591,7 +607,7 @@ auditPolyStreamRoundTripProof =
           (addPolynumber (monomialPolynumber (intToBoxInt 4) 1)
                          (monomialPolynumber (intToBoxInt 5) 2))
       strm = toStreamPoly p
-      p' = fromStreamPoly (limit 10) strm
+      p' = fromStreamPolyNat 10 strm
   in p == p'
 
 ||| Audits the round-trip equivalence between dense Polynumber and BoxSpecTree:

@@ -52,6 +52,16 @@ public export
 streamPolyToList : Fuel -> StreamPolynumber -> List (Nat, BoxInt)
 streamPolyToList f p = runFueledStream f p
 
+||| Unfolds a StreamPolynumber into a list of sparse terms with Nat fuel.
+public export
+streamPolyToListNat : (fuel : Nat) -> StreamPolynumber -> List (Nat, BoxInt)
+streamPolyToListNat fuel p = runFueledStreamNat fuel p
+
+||| Unfolds a StreamPolynumber into a list of sparse terms with model-indexed GohFuel.
+public export
+streamPolyToListFuelModel : GohFuel cap -> StreamPolynumber -> List (Nat, BoxInt)
+streamPolyToListFuelModel fuel = streamPolyToListNat (gohSteps fuel)
+
 ------------------------------------------------------------------------
 -- 2. WILDBERGER SUPPORT STREAM EXTRACTION (RULE 04 SECTION 8)
 ------------------------------------------------------------------------
@@ -153,7 +163,7 @@ auditStreamPolyDerivProof : Bool
 auditStreamPolyDerivProof =
   let p = streamPolyFromList [(2, MkBoxInt 3), (1, MkBoxInt 5), (0, MkBoxInt 7)]
       dp = streamPolyDeriv p
-      res = streamPolyToList (limit 10) dp
+      res = streamPolyToListNat 10 dp
   in res == [(1, MkBoxInt 6), (0, MkBoxInt 5)]
 
 ||| Verifies Wildberger Caret algebra: (x^2) ^ (x^3) = x^6.
@@ -163,7 +173,7 @@ auditStreamPolyCaretProof =
   let p1 = streamPolyMonomial 2 (MkBoxInt 1)
       p2 = streamPolyMonomial 3 (MkBoxInt 1)
       pCaret = streamPolyCaret p1 p2
-      res = streamPolyToList (limit 5) pCaret
+      res = streamPolyToListNat 5 pCaret
   in res == [(6, MkBoxInt 1)]
 
 ||| Verifies Cauchy convolution and evaluation: (x + 2) * (x + 3) evaluated at x = 4 is 42.
@@ -183,7 +193,7 @@ public export
 auditStreamPolyEddingtonScaleProof : Bool
 auditStreamPolyEddingtonScaleProof =
   let m38 = streamPolyMonomial 38 (MkBoxInt 1)
-      supp = runFueledStream (limit 5) (supportStreamPoly m38)
+      supp = runFueledStreamNat 5 (supportStreamPoly m38)
       dm38 = streamPolyDeriv m38
-      dTerms = streamPolyToList (limit 5) dm38
+      dTerms = streamPolyToListNat 5 dm38
   in supp == [38] && dTerms == [(37, MkBoxInt 38)]
