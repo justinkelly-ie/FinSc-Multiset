@@ -225,35 +225,64 @@ verifyDerivativeDegreeBound = Refl
 ||| S_3(s) = 9s - 24s² + 16s³
 ||| S_4(s) = 16s - 112s² + 224s³ - 128s⁴
 ||| Recurrence: S_n(s) = 2(1 - 2s) * S_{n-1}(s) - S_{n-2}(s) + 2s (for n >= 2)
+||| Single step in the Wildberger Multiple Spread recurrence:
+||| S_{n+1}(s) = 2(1 - 2s) * S_n(s) - S_{n-1}(s) + 2s = (2 - 4s) * S_n(s) - S_{n-1}(s) + 2s.
+public export
+spreadRecurrenceStep : Polynumber -> Polynumber -> Polynumber
+spreadRecurrenceStep sPrev2 sPrev1 =
+  let factor = addPolynumber (constantPolynumber (intToBoxInt 2))
+                             (monomialPolynumber (intToBoxInt (-4)) 1) -- 2(1 - 2s) = 2 - 4s
+      term1  = mulPolynumber factor sPrev1
+      linearS = monomialPolynumber (intToBoxInt 2) 1 -- + 2s
+  in addPolynumber (subPolynumber term1 sPrev2) linearS
+
+||| Tail-recursive companion stepper computing the n-th Spread Polynumber in linear O(N) operations.
+public export
+spreadPolynumberIter : (k : Nat) -> (prev2 : Polynumber) -> (prev1 : Polynumber) -> Polynumber
+spreadPolynumberIter Z prev2 _ = prev2
+spreadPolynumberIter (S Z) _ prev1 = prev1
+spreadPolynumberIter (S (S remaining)) prev2 prev1 =
+  let next = spreadRecurrenceStep prev2 prev1
+  in spreadPolynumberIter (S remaining) prev1 next
+
+||| Generates the n-th Wildberger Spread Polynumber S_n(s) in linear O(N) operations (Rule 04, Item 4):
+||| S_0(s) = 0
+||| S_1(s) = s
+||| S_2(s) = 4s - 4s²
+||| S_3(s) = 9s - 24s² + 16s³
+||| S_4(s) = 16s - 112s² + 224s³ - 128s⁴
+||| Recurrence: S_n(s) = 2(1 - 2s) * S_{n-1}(s) - S_{n-2}(s) + 2s (for n >= 2)
 public export
 spreadPolynumber : (n : Nat) -> Polynumber
 spreadPolynumber Z = zeroPolynumber
 spreadPolynumber (S Z) = monomialPolynumber (intToBoxInt 1) 1
 spreadPolynumber (S (S Z)) =
-  -- S_2(s) = 4s - 4s^2
   addPolynumber (monomialPolynumber (intToBoxInt 4) 1)
                 (monomialPolynumber (intToBoxInt (-4)) 2)
 spreadPolynumber (S (S (S Z))) =
-  -- S_3(s) = 9s - 24s^2 + 16s^3
   addPolynumber (monomialPolynumber (intToBoxInt 9) 1)
                 (addPolynumber (monomialPolynumber (intToBoxInt (-24)) 2)
                                (monomialPolynumber (intToBoxInt 16) 3))
 spreadPolynumber (S (S (S (S Z)))) =
-  -- S_4(s) = 16s - 112s^2 + 224s^3 - 128s^4
   addPolynumber (monomialPolynumber (intToBoxInt 16) 1)
                 (addPolynumber (monomialPolynumber (intToBoxInt (-112)) 2)
                                (addPolynumber (monomialPolynumber (intToBoxInt 224) 3)
                                               (monomialPolynumber (intToBoxInt (-128)) 4)))
 spreadPolynumber (S (S (S (S (S k))))) =
-  -- For higher n, generate recursive step
-  let sPrev1 = spreadPolynumber (S (S (S (S k))))
-      sPrev2 = spreadPolynumber (S (S (S k)))
-      factor = addPolynumber (constantPolynumber (intToBoxInt 2))
-                             (monomialPolynumber (intToBoxInt (-4)) 1) -- 2(1 - 2s) = 2 - 4s
-      term1  = mulPolynumber factor sPrev1
-      term2  = sPrev2
-      linearS = monomialPolynumber (intToBoxInt 2) 1 -- + 2s
-  in addPolynumber (subPolynumber term1 term2) linearS
+  spreadPolynumberIter (S (S (S (S (S k))))) zeroPolynumber (monomialPolynumber (intToBoxInt 1) 1)
+
+||| Generates the sequence of Wildberger Spread Polynumbers as a deforested stream
+||| with O(1) auxiliary registers (Rule 04, Item 4).
+public export
+spreadRecurrenceStream : FusedStream (Nat, Polynumber)
+spreadRecurrenceStream = FS.unfoldStream nextSpread (Z, zeroPolynumber, monomialPolynumber (intToBoxInt 1) 1)
+  where
+    nextSpread : (Nat, Polynumber, Polynumber) -> FS.Step (Nat, Polynumber, Polynumber) (Nat, Polynumber)
+    nextSpread (Z, s0, s1) = FS.Yield (0, s0) (1, s0, s1)
+    nextSpread (S Z, s0, s1) = FS.Yield (1, s1) (2, s0, s1)
+    nextSpread (S (S k), sPrev2, sPrev1) =
+      let sNext = spreadRecurrenceStep sPrev2 sPrev1
+      in FS.Yield (S (S k), sNext) (S (S (S k)), sPrev1, sNext)
 
 ------------------------------------------------------------------------
 -- 4. CYCLOTOMIC DIVISION & REMAINDER FOLDING ALGORITHM
@@ -680,3 +709,77 @@ auditDepPolyMulProof =
       q = MkDepPolynumber [intToBoxInt 4, intToBoxInt 5]
       res = mulDepPolynumber p q
   in toList res.polyCoeffs == [intToBoxInt 8, intToBoxInt 22, intToBoxInt 15]
+
+||| Generates the n-th Wildberger Spread Polynumber with compile-time certified degree n (Rule 03, Item 7):
+||| deg(S_n(s)) = n.
+public export
+spreadDepPolynumber : (n : Nat) -> DepPolynumber n
+spreadDepPolynumber Z = MkDepPolynumber [intToBoxInt 0]
+spreadDepPolynumber (S Z) = MkDepPolynumber [intToBoxInt 0, intToBoxInt 1]
+spreadDepPolynumber n = fromPolynumber n (spreadPolynumber n)
+
+||| Helper to formally differentiate coefficient vector: d/dx(c_k * x^k) = (k * c_k) * x^(k-1).
+public export
+differentiateDepCoeffs : Nat -> Vect k BoxInt -> Vect k BoxInt
+differentiateDepCoeffs _ [] = []
+differentiateDepCoeffs deg (c :: cs) =
+  (natToBoxInt deg * c) :: differentiateDepCoeffs (S deg) cs
+
+||| Computes the exact formal derivative of a DepPolynumber,
+||| proving at compile time that differentiation strictly reduces degree by 1.
+public export
+differentiateDepPoly : DepPolynumber (S deg) -> DepPolynumber deg
+differentiateDepPoly (MkDepPolynumber (_ :: cs)) =
+  MkDepPolynumber (differentiateDepCoeffs 1 cs)
+
+||| The Level-2 Caret product on DepPolynumbers with multiplicative degree certification:
+||| deg(P ^ Q) = deg(P) * deg(Q).
+public export
+caretDepPoly : {d1, d2 : Nat} -> DepPolynumber d1 -> DepPolynumber d2 -> DepPolynumber (d1 * d2)
+caretDepPoly {d1} {d2} p1 p2 =
+  let unindexed = caretPolynumber (toPolynumber p1) (toPolynumber p2)
+  in fromPolynumber (d1 * d2) unindexed
+
+||| Converts a DepPolynumber directly to a deforested StreamPolynumber.
+public export
+toStreamDepPoly : DepPolynumber deg -> StreamPolynumber
+toStreamDepPoly p = toStreamPoly (toPolynumber p)
+
+||| Converts a DepPolynumber with positive coefficients to an O(log N) BoxSpecTree.
+public export
+depPolyToBoxSpecTree : DepPolynumber deg -> BoxSpecTree
+depPolyToBoxSpecTree p = polyToBoxSpecTree (toPolynumber p)
+
+||| The 137th Cyclotomic Polynomial with certified degree 136:
+||| Φ₁₃₇(x) = 1 + x + x² + ... + x¹³⁶ (137 unit stages).
+public export
+cyclotomic137DepPoly : DepPolynumber 136
+cyclotomic137DepPoly = MkDepPolynumber (replicate 137 (intToBoxInt 1))
+
+||| Audits that differentiateDepPoly strictly reduces degree and evaluates correctly:
+||| d/dx (4x^2 + 3x + 2) = 8x + 3.
+public export
+auditDepPolyDiffProof : Bool
+auditDepPolyDiffProof =
+  let p : DepPolynumber 2 = MkDepPolynumber [intToBoxInt 2, intToBoxInt 3, intToBoxInt 4]
+      dp : DepPolynumber 1 = differentiateDepPoly p
+  in toList dp.polyCoeffs == [intToBoxInt 3, intToBoxInt 8]
+
+public export
+0 verifyDepPolyDiff :
+  toList (differentiateDepPoly (MkDepPolynumber [intToBoxInt 2, intToBoxInt 3, intToBoxInt 4])).polyCoeffs =
+  [intToBoxInt 3, intToBoxInt 8]
+verifyDepPolyDiff = Refl
+
+||| Audits that spreadDepPolynumber 2 matches S_2(s) = 4s - 4s^2.
+public export
+0 verifySpreadDepPoly2 :
+  toList (spreadDepPolynumber 2).polyCoeffs = [intToBoxInt 0, intToBoxInt 4, intToBoxInt (-4)]
+verifySpreadDepPoly2 = Refl
+
+||| Audits that cyclotomic137DepPoly has degree 136 and leading coefficient 1.
+public export
+0 verifyCyclotomic137Degree :
+  Data.Vect.last Stage1.Polynumber.cyclotomic137DepPoly.polyCoeffs = intToBoxInt 1
+verifyCyclotomic137Degree = Refl
+

@@ -2,6 +2,7 @@ module Stage1.MultisetTree
 
 import Stage0.BoxInt
 import Stage0.Multiset
+import Stage0.PrimeMultiset
 import Data.Vect
 import Language.Reflection
 import Stage0.OnSeq.FusedStream
@@ -398,5 +399,35 @@ public export
 %macro
 auditTreeDirectStreaming : Elab (Stage1.MultisetTree.auditTreeDirectStreamingProof = True)
 auditTreeDirectStreaming = pure Refl
+
+||| Converts a certified 13-smooth GohPrimeMultiset into an O(log N) balanced MultisetTree.
+public export
+toMultisetTreeGoh : GohPrimeMultiset -> MultisetTree AnyGohPrime
+toMultisetTreeGoh m =
+  let t1 = if m.exp2 > 0 then insertTokenTree anyPrime2 m.exp2 Leaf else Leaf
+      t2 = if m.exp3 > 0 then insertTokenTree anyPrime3 m.exp3 t1 else t1
+      t3 = if m.exp5 > 0 then insertTokenTree anyPrime5 m.exp5 t2 else t2
+      t4 = if m.exp7 > 0 then insertTokenTree anyPrime7 m.exp7 t3 else t3
+      t5 = if m.exp11 > 0 then insertTokenTree anyPrime11 m.exp11 t4 else t4
+      t6 = if m.exp13 > 0 then insertTokenTree anyPrime13 m.exp13 t5 else t5
+  in t6
+
+||| Audit witness verifying that toMultisetTreeGoh preserves total token count and structure.
+public export
+auditPrimeMultisetTreeProof : Bool
+auditPrimeMultisetTreeProof =
+  let m = MkGohPrimeMultiset 1 1 1 1 0 0 -- Primorial 210 = 2 * 3 * 5 * 7
+      tree = toMultisetTreeGoh m
+      cnt2 = lookupTokenTree anyPrime2 tree
+      cnt7 = lookupTokenTree anyPrime7 tree
+      cnt11 = lookupTokenTree anyPrime11 tree
+      totalTokens = treeTokenSum tree
+  in (cnt2 == 1) && (cnt7 == 1) && (cnt11 == 0) && (totalTokens == 4)
+
+public export
+%macro
+auditPrimeMultisetTree : Elab (Stage1.MultisetTree.auditPrimeMultisetTreeProof = True)
+auditPrimeMultisetTree = pure Refl
+
 
 

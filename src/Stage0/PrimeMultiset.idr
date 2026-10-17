@@ -2,6 +2,7 @@ module Stage0.PrimeMultiset
 
 import public Stage0.BoxInt
 import public Stage0.Multiset
+import public Stage0.OnSeq.FusedStream
 import Data.Vect
 import Data.Nat
 import Decidable.Equality
@@ -81,6 +82,10 @@ toGohPrime p = case decideGohPrime p of
 public export
 Eq AnyGohPrime where
   (p1 ** _) == (p2 ** _) = p1 == p2
+
+public export
+Ord AnyGohPrime where
+  compare (p1 ** _) (p2 ** _) = compare p1 p2
 
 public export
 Show AnyGohPrime where
@@ -179,36 +184,65 @@ toBoxMultiset m =
       b6 = if m.exp13 > 0 then insertBox anyPrime13 (MkBoxInt (cast m.exp13)) b5 else b5
   in b6
 
+||| Evaluates the total prime valuation degree: sum of all exponents.
+public export
+totalGohPrimeDegree : GohPrimeMultiset -> Nat
+totalGohPrimeDegree m = m.exp2 + m.exp3 + m.exp5 + m.exp7 + m.exp11 + m.exp13
+
+||| Directly streams active non-zero (AnyGohPrime, BoxInt) terms in O(1) auxiliary registers
+||| without intermediate heap allocation or List conversion (Rule 04, Item 8).
+public export
+streamGohPrimeMultiset : GohPrimeMultiset -> FusedStream (AnyGohPrime, BoxInt)
+streamGohPrimeMultiset m = MkStream step 0
+  where
+    step : Nat -> Step Nat (AnyGohPrime, BoxInt)
+    step 0 = if m.exp2 > 0 then Yield (anyPrime2, natToBoxInt m.exp2) 1 else Skip 1
+    step 1 = if m.exp3 > 0 then Yield (anyPrime3, natToBoxInt m.exp3) 2 else Skip 2
+    step 2 = if m.exp5 > 0 then Yield (anyPrime5, natToBoxInt m.exp5) 3 else Skip 3
+    step 3 = if m.exp7 > 0 then Yield (anyPrime7, natToBoxInt m.exp7) 4 else Skip 4
+    step 4 = if m.exp11 > 0 then Yield (anyPrime11, natToBoxInt m.exp11) 5 else Skip 5
+    step 5 = if m.exp13 > 0 then Yield (anyPrime13, natToBoxInt m.exp13) 6 else Skip 6
+    step _ = Done
+
 --------------------------------------------------------------------------------
 -- 3. CERTIFIED SMOOTH FACTORIZATION ALGORITHM
 --------------------------------------------------------------------------------
 
-||| Extracts the exponent of a given prime factor from an Integer using explicit fuel.
+||| Extracts the exponent of a given prime factor from a BoxInt using explicit fuel
+||| and monomorphic BoxInt operations (divBox, modBox, boxLTE) (Rule 01, Item 3).
 public export
-extractPrime : (fuel : Nat) -> (p : Integer) -> (n : Integer) -> (Nat, Integer)
-extractPrime Z _ n = (0, n)
-extractPrime (S fuel) p n =
-  if n <= 1 || p <= 1 then (0, n)
-  else if n `mod` p == 0
-    then let (k, rem) = extractPrime fuel p (n `div` p)
+extractPrimeBox : (fuel : Nat) -> (p : BoxInt) -> (n : BoxInt) -> (Nat, BoxInt)
+extractPrimeBox Z _ n = (0, n)
+extractPrimeBox (S fuel) p n =
+  if boxLTE n (intToBoxInt 1) || boxLTE p (intToBoxInt 1) then (0, n)
+  else if unwrapBox (modBox n p) == 0
+    then let (k, rem) = extractPrimeBox fuel p (divBox n p)
          in (S k, rem)
     else (0, n)
 
-||| General trial division factorization across the Goh prime basis {2, 3, 5, 7, 11, 13}.
+||| Legacy integer extraction alias preserving backward API compatibility.
+public export
+extractPrime : (fuel : Nat) -> (p : Integer) -> (n : Integer) -> (Nat, Integer)
+extractPrime fuel p n =
+  let (k, remBox) = extractPrimeBox fuel (intToBoxInt p) (intToBoxInt n)
+  in (k, unwrapBox remBox)
+
+||| General trial division factorization across the Goh prime basis {2, 3, 5, 7, 11, 13}
+||| grounded entirely in BoxInt arithmetic.
 public export
 factorizeGohGeneral : Nat -> Maybe GohPrimeMultiset
 factorizeGohGeneral Z = Just emptyGohPrimeMultiset
 factorizeGohGeneral (S Z) = Just emptyGohPrimeMultiset
 factorizeGohGeneral (S k) =
-  let n0 = natToInteger (S k)
+  let n0 = natToBoxInt (S k)
       fuel = S k
-      (e2,  n1) = extractPrime fuel 2 n0
-      (e3,  n2) = extractPrime fuel 3 n1
-      (e5,  n3) = extractPrime fuel 5 n2
-      (e7,  n4) = extractPrime fuel 7 n3
-      (e11, n5) = extractPrime fuel 11 n4
-      (e13, n6) = extractPrime fuel 13 n5
-  in if n6 == 1
+      (e2,  n1) = extractPrimeBox fuel (intToBoxInt 2) n0
+      (e3,  n2) = extractPrimeBox fuel (intToBoxInt 3) n1
+      (e5,  n3) = extractPrimeBox fuel (intToBoxInt 5) n2
+      (e7,  n4) = extractPrimeBox fuel (intToBoxInt 7) n3
+      (e11, n5) = extractPrimeBox fuel (intToBoxInt 11) n4
+      (e13, n6) = extractPrimeBox fuel (intToBoxInt 13) n5
+  in if boxEq n6 (intToBoxInt 1)
        then Just (MkGohPrimeMultiset e2 e3 e5 e7 e11 e13)
        else Nothing
 
@@ -297,3 +331,15 @@ verifyGoh13Factorization = Refl
 public export
 0 verifyObserver39Factorization : factorizeGohSmooth 39 = Just (MkGohPrimeMultiset 0 1 0 0 0 1)
 verifyObserver39Factorization = Refl
+
+||| Static compile-time proof verifying extractPrimeBox on canonical prime 3:
+||| 18 / 3 = 6 -> 6 / 3 = 2 (exponent 2, remainder 2).
+public export
+0 verifyExtractPrimeBox : extractPrimeBox 5 (intToBoxInt 3) (intToBoxInt 18) = (2, intToBoxInt 2)
+verifyExtractPrimeBox = Refl
+
+||| Static compile-time proof verifying totalGohPrimeDegree of Primorial 210 = 4 (2*3*5*7).
+public export
+0 verifyPrimorial210Degree : totalGohPrimeDegree (MkGohPrimeMultiset 1 1 1 1 0 0) = 4
+verifyPrimorial210Degree = Refl
+
