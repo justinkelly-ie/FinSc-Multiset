@@ -92,6 +92,69 @@ Show AnyGohPrime where
   show (p ** _) = "GohPrime(" ++ show p ++ ")"
 
 --------------------------------------------------------------------------------
+-- 1.1 DEPENDENT GOH PRIME ALGEBRA (SUM, PRODUCT & DYADIC FIXED POINT)
+--------------------------------------------------------------------------------
+
+||| Certified additive composition of two constructivist Goh primes: p + q = sumVal.
+public export
+data GohPrimeSum : (p : Nat) -> (q : Nat) -> (sumVal : Nat) -> Type where
+  MkGohPrimeSum : (0 pr1 : GohPrime p) -> (0 pr2 : GohPrime q) -> (0 prf : p + q = sumVal) -> GohPrimeSum p q sumVal
+
+||| Certified multiplicative composition of two constructivist Goh primes: p * q = prod.
+public export
+data GohPrimeProduct : (p : Nat) -> (q : Nat) -> (prod : Nat) -> Type where
+  MkGohPrimeProduct : (0 pr1 : GohPrime p) -> (0 pr2 : GohPrime q) -> (0 prf : p * q = prod) -> GohPrimeProduct p q prod
+
+-- Canonical prime sum instances:
+public export
+gohPrimeSum2_2 : GohPrimeSum 2 2 4
+gohPrimeSum2_2 = MkGohPrimeSum Prime2 Prime2 Refl
+
+public export
+gohPrimeSum2_3 : GohPrimeSum 2 3 5
+gohPrimeSum2_3 = MkGohPrimeSum Prime2 Prime3 Refl
+
+public export
+gohPrimeSum2_5 : GohPrimeSum 2 5 7
+gohPrimeSum2_5 = MkGohPrimeSum Prime2 Prime5 Refl
+
+public export
+gohPrimeSum3_5 : GohPrimeSum 3 5 8
+gohPrimeSum3_5 = MkGohPrimeSum Prime3 Prime5 Refl
+
+public export
+gohPrimeSum2_11 : GohPrimeSum 2 11 13
+gohPrimeSum2_11 = MkGohPrimeSum Prime2 Prime11 Refl
+
+-- Canonical prime product instances:
+public export
+gohPrimeProduct2_2 : GohPrimeProduct 2 2 4
+gohPrimeProduct2_2 = MkGohPrimeProduct Prime2 Prime2 Refl
+
+public export
+gohPrimeProduct2_3 : GohPrimeProduct 2 3 6
+gohPrimeProduct2_3 = MkGohPrimeProduct Prime2 Prime3 Refl
+
+public export
+gohPrimeProduct3_13 : GohPrimeProduct 3 13 39
+gohPrimeProduct3_13 = MkGohPrimeProduct Prime3 Prime13 Refl
+
+||| The Dyadic Fixed Point: Addition and multiplication of GohPrime 2 definitionally coincide at 4:
+||| 2 + 2 = 2 * 2 = 2^2 = 4.
+public export
+record GohDyadicFixedPoint where
+  constructor MkGohDyadicFixedPoint
+  0 primeWitness   : GohPrime 2
+  0 sumWitness     : GohPrimeSum 2 2 4
+  0 productWitness : GohPrimeProduct 2 2 4
+  0 fixedPointPrf  : (the Nat (2 + 2)) = (the Nat (2 * 2))
+
+public export
+gohDyadicFixedPoint : GohDyadicFixedPoint
+gohDyadicFixedPoint = MkGohDyadicFixedPoint Prime2 gohPrimeSum2_2 gohPrimeProduct2_2 Refl
+
+
+--------------------------------------------------------------------------------
 -- 2. CERTIFIED 13-SMOOTH GOH PRIME MULTISET
 --------------------------------------------------------------------------------
 
