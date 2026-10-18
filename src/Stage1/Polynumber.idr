@@ -61,7 +61,7 @@ trimList [] = []
 trimList (x :: xs) = 
   let rest = trimList xs
   in case rest of
-       [] => if unwrapBox x == 0 then [] else [x]
+       [] => if boxIsZero x then [] else [x]
        _  => x :: rest
 
 ||| Strips trailing zero coefficients to normalize the polynumber container.
@@ -97,13 +97,18 @@ zeroPolynumber = MkPolynumber []
 ||| Creates a constant monomial polynumber: c * x^0.
 public export
 constantPolynumber : BoxInt -> Polynumber
-constantPolynumber c = trimPolynumber (MkPolynumber [c])
+constantPolynumber c =
+  if boxIsZero c
+    then zeroPolynumber
+    else MkPolynumber [c]
 
 ||| Creates a single monomial term polynumber: c * x^deg.
 public export
 monomialPolynumber : BoxInt -> Nat -> Polynumber
-monomialPolynumber c deg = 
-  trimPolynumber (MkPolynumber (replicate deg (intToBoxInt 0) ++ [c]))
+monomialPolynumber c deg =
+  if boxIsZero c
+    then zeroPolynumber
+    else MkPolynumber (replicate deg (intToBoxInt 0) ++ [c])
 
 ||| Addition of polynumbers: pours term containers together and adds matching degrees.
 public export
@@ -296,7 +301,7 @@ divModPolyHelper Z quotient remainder _ = (quotient, remainder)
 divModPolyHelper (S fuel) quotient remainder divisor =
   let (remLeadCoeff, remLeadDeg) = leadingTerm remainder
       (divLeadCoeff, divLeadDeg) = leadingTerm divisor
-  in if remLeadDeg < divLeadDeg || unwrapBox remLeadCoeff == 0 || unwrapBox divLeadCoeff == 0
+  in if remLeadDeg < divLeadDeg || boxIsZero remLeadCoeff || boxIsZero divLeadCoeff
        then (quotient, remainder)
        else
          let qCoeff = remLeadCoeff `div` divLeadCoeff
@@ -351,7 +356,7 @@ public export
 toSparseHelper : Nat -> List BoxInt -> List (Nat, BoxInt)
 toSparseHelper deg [] = []
 toSparseHelper deg (c :: rest) =
-  if unwrapBox c /= 0
+  if boxIsNonZero c
     then (deg, c) :: toSparseHelper (S deg) rest
     else toSparseHelper (S deg) rest
 
@@ -496,7 +501,7 @@ supportPolynumber (MkPolynumber cs) = go 0 cs
     go : Nat -> List BoxInt -> List Nat
     go _ [] = []
     go deg (c :: rest) =
-      if unwrapBox c /= 0
+      if boxIsNonZero c
          then deg :: go (S deg) rest
          else go (S deg) rest
 
@@ -504,14 +509,14 @@ supportPolynumber (MkPolynumber cs) = go 0 cs
 public export
 toStreamPoly : Polynumber -> StreamPolynumber
 toStreamPoly (MkPolynumber cs) =
-  FS.filterMapStream filterNonZero (FS.unfoldStream step (Z, cs))
+  FS.unfoldStream step (Z, cs)
   where
     step : (Nat, List BoxInt) -> FS.Step (Nat, List BoxInt) (Nat, BoxInt)
     step (_, []) = FS.Done
-    step (deg, c :: rest) = FS.Yield (deg, c) (S deg, rest)
-
-    filterNonZero : (Nat, BoxInt) -> Maybe (Nat, BoxInt)
-    filterNonZero (deg, c) = if unwrapBox c /= 0 then Just (deg, c) else Nothing
+    step (deg, c :: rest) =
+      if boxIsNonZero c
+        then FS.Yield (deg, c) (S deg, rest)
+        else FS.Skip (S deg, rest)
 
 ||| Reconstructs a dense Polynumber from a StreamPolynumber under fuel.
 public export
@@ -553,9 +558,9 @@ polyToBoxSpecTree (MkPolynumber cs) = go 0 cs Leaf
     go : Nat -> List BoxInt -> BoxSpecTree -> BoxSpecTree
     go _ [] tree = tree
     go deg (c :: rest) tree =
-      let val = unwrapBox c
-          tree' = if val > 0
-                     then insertTokenTree (fromNatBoxSpec deg) (integerToNat val) tree
+      let n = boxToNat c
+          tree' = if n > 0
+                     then insertTokenTree (fromNatBoxSpec deg) n tree
                      else tree
       in go (S deg) rest tree'
 
@@ -577,9 +582,9 @@ public export
 streamPolyToBoxSpecTree : Fuel -> StreamPolynumber -> BoxSpecTree
 streamPolyToBoxSpecTree fuel strm =
   FS.foldStreamFuel fuel (\tree, (deg, c) =>
-    let val = unwrapBox c
-    in if val > 0
-          then insertTokenTree (fromNatBoxSpec deg) (integerToNat val) tree
+    let n = boxToNat c
+    in if n > 0
+          then insertTokenTree (fromNatBoxSpec deg) n tree
           else tree
   ) Leaf strm
 
