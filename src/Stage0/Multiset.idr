@@ -147,6 +147,17 @@ fiberPullback fiberMap (AddM y v ys) =
   let fiberItems = foldr (\x, acc => AddM x v acc) ZeroM (fiberMap y)
   in addMultiset fiberItems (fiberPullback fiberMap ys)
 
+||| Categorical monadic bind (Kleisli extension) directly on Multiset,
+||| eliminating intermediate List allocations during categorical fiber pullbacks.
+public export
+bindMultiset : (Num c, Eq c) => (b -> Multiset c a) -> Multiset c b -> Multiset c a
+bindMultiset f xs = xs >>= f
+
+||| Pure Multiset fiber pullback operator directly between Multiset fibers without intermediate List allocations.
+public export
+fiberPullbackMultiset : (Num c, Eq c) => (b -> Multiset c a) -> Multiset c b -> Multiset c a
+fiberPullbackMultiset = bindMultiset
+
 ||| Intuitive zoomInMultiset operator: expands coarse macro-multiset tokens to micro-multiset token fibers (Technical: fiberPullback / f_pull / f^*).
 public export
 zoomInMultiset : (Num c, Eq c) => (b -> List a) -> Multiset c b -> Multiset c a
