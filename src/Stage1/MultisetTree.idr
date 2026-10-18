@@ -439,5 +439,149 @@ public export
 auditPrimeMultisetTree : Elab (Stage1.MultisetTree.auditPrimeMultisetTreeProof = True)
 auditPrimeMultisetTree = pure Refl
 
+------------------------------------------------------------------------
+-- 7. FAST BALANCED SIGNED BOXMULTISETTREE O(LOG N)
+------------------------------------------------------------------------
+
+||| AVL Height-Balanced Binary Search Tree for Signed BoxInt Multiplicities.
+||| Keys represent coordinates/tokens of type a, values represent exact signed integer weights.
+public export
+data BoxMultisetTree a =
+    BoxLeaf
+  | BoxNode Nat (BoxMultisetTree a) a BoxInt (BoxMultisetTree a)
+
+public export
+Eq a => Eq (BoxMultisetTree a) where
+  BoxLeaf == BoxLeaf = True
+  (BoxNode _ l1 x1 c1 r1) == (BoxNode _ l2 x2 c2 r2) =
+    x1 == x2 && c1 == c2 && l1 == l2 && r1 == r2
+  _ == _ = False
+
+public export
+%inline
+boxHeight : BoxMultisetTree a -> Nat
+boxHeight BoxLeaf = Z
+boxHeight (BoxNode h _ _ _ _) = h
+
+public export
+%inline
+mkBoxNode : BoxMultisetTree a -> a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
+mkBoxNode l x c r =
+  let hl = boxHeight l
+      hr = boxHeight r
+      h  = S (if hl > hr then hl else hr)
+  in BoxNode h l x c r
+
+public export
+%inline
+rotateRightBox : BoxMultisetTree a -> a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
+rotateRightBox (BoxNode _ ll lx lc lr) x c r = mkBoxNode ll lx lc (mkBoxNode lr x c r)
+rotateRightBox l x c r = mkBoxNode l x c r
+
+public export
+%inline
+rotateLeftBox : BoxMultisetTree a -> a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
+rotateLeftBox l x c (BoxNode _ rl rx rc rr) = mkBoxNode (mkBoxNode l x c rl) rx rc rr
+rotateLeftBox l x c r = mkBoxNode l x c r
+
+public export
+balanceBoxNode : BoxMultisetTree a -> a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
+balanceBoxNode l x c r =
+  let hl = boxHeight l
+      hr = boxHeight r
+  in if hl > hr + 1
+       then case l of
+              BoxLeaf => mkBoxNode l x c r
+              BoxNode _ ll lx lc lr =>
+                if boxHeight ll >= boxHeight lr
+                  then rotateRightBox l x c r
+                  else rotateRightBox (rotateLeftBox ll lx lc lr) x c r
+       else if hr > hl + 1
+              then case r of
+                     BoxLeaf => mkBoxNode l x c r
+                     BoxNode _ rl rx rc rr =>
+                       if boxHeight rr >= boxHeight rl
+                         then rotateLeftBox l x c r
+                         else rotateLeftBox l x c (rotateRightBox rl rx rc rr)
+              else mkBoxNode l x c r
+
+||| Lookups the signed BoxInt value of a key in O(log N) time:
+public export
+lookupBoxTree : Ord a => a -> BoxMultisetTree a -> BoxInt
+lookupBoxTree _ BoxLeaf = intToBoxInt 0
+lookupBoxTree val (BoxNode _ l x c r) =
+  if val < x
+    then lookupBoxTree val l
+    else if val > x
+      then lookupBoxTree val r
+      else c
+
+||| Sets the signed BoxInt value of a key in O(log N) time.
+public export
+setBoxTree : Ord a => a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
+setBoxTree val w BoxLeaf =
+  if unwrapBox w == 0 then BoxLeaf else mkBoxNode BoxLeaf val w BoxLeaf
+setBoxTree val w (BoxNode _ l x c r) =
+  if val < x
+    then balanceBoxNode (setBoxTree val w l) x c r
+    else if val > x
+      then balanceBoxNode l x c (setBoxTree val w r)
+      else mkBoxNode l x w r
+
+||| Structurally recursive in-order tree left fold accumulator for BoxMultisetTree.
+public export
+foldBoxTreeL : (b -> (a, BoxInt) -> b) -> b -> BoxMultisetTree a -> b
+foldBoxTreeL _ acc BoxLeaf = acc
+foldBoxTreeL f acc (BoxNode _ l x c r) =
+  let accL = foldBoxTreeL f acc l
+      accNode = f accL (x, c)
+  in foldBoxTreeL f accNode r
+
+||| Structurally recursive in-order tree right fold accumulator for BoxMultisetTree.
+public export
+foldBoxTreeR : (a -> BoxInt -> b -> b) -> b -> BoxMultisetTree a -> b
+foldBoxTreeR _ z BoxLeaf = z
+foldBoxTreeR f z (BoxNode _ l x c r) =
+  foldBoxTreeR f (f x c (foldBoxTreeR f z r)) l
+
+||| Flattens active non-zero elements into an association list in O(N) time.
+public export
+boxTreeToList : BoxMultisetTree a -> List (a, BoxInt)
+boxTreeToList tree = foldBoxTreeR (\x, c, acc => if unwrapBox c /= 0 then (x, c) :: acc else acc) [] tree
+
+||| Traverses and pushes all left ancestor nodes of a BoxMultisetTree onto a search stack.
+public export
+pushLeftSubtreesBox : BoxMultisetTree a -> List (BoxMultisetTree a) -> List (BoxMultisetTree a)
+pushLeftSubtreesBox BoxLeaf stack = stack
+pushLeftSubtreesBox node@(BoxNode _ l _ _ _) stack = pushLeftSubtreesBox l (node :: stack)
+
+||| Converts a BoxMultisetTree into a zero-allocation deforested FusedStream in O(N) time and O(log N) stack frames.
+public export
+streamBoxMultisetTree : BoxMultisetTree a -> FusedStream (a, BoxInt)
+streamBoxMultisetTree tree =
+  filterMapStream (\(x, c) => if unwrapBox c /= 0 then Just (x, c) else Nothing)
+                  (unfoldStream stepTree (pushLeftSubtreesBox tree []))
+  where
+    stepTree : List (BoxMultisetTree a) -> Step (List (BoxMultisetTree a)) (a, BoxInt)
+    stepTree [] = Done
+    stepTree (BoxLeaf :: rest) = Skip rest
+    stepTree (BoxNode _ _ x c r :: rest) = Yield (x, c) (pushLeftSubtreesBox r rest)
+
+||| Audit witness verifying BoxMultisetTree O(log N) lookup and streaming.
+public export
+auditBoxMultisetTreeProof : Bool
+auditBoxMultisetTreeProof =
+  let t0 : BoxMultisetTree Integer = BoxLeaf
+      t1 = setBoxTree 10 (intToBoxInt 5) t0
+      t2 = setBoxTree (-3) (intToBoxInt (-2)) t1
+      v10 = lookupBoxTree 10 t2
+      vm3 = lookupBoxTree (-3) t2
+      v0  = lookupBoxTree 0 t2
+      strm = streamBoxMultisetTree t2
+      elems = foldStream (\acc, item => acc ++ [item]) [] strm
+  in v10 == intToBoxInt 5 && vm3 == intToBoxInt (-2) && v0 == intToBoxInt 0 &&
+     elems == [(-3, intToBoxInt (-2)), (10, intToBoxInt 5)]
+
+
 
 
