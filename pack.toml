@@ -1,7 +1,7 @@
 [package]
-name = "FinSc-Multiset-Core"
-version = "0.3.3"
-ipkg = "FinSc-Multiset-Core.ipkg"
+name = "FinSc-Multiset"
+version = "0.4.0"
+ipkg = "FinSc-Multiset.ipkg"
 
 [custom.all.FinSc-Multiset]
 type = "local"
