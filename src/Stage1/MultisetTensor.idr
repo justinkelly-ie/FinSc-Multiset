@@ -28,6 +28,16 @@ tensorProduct (AddM x w1 restX) ys =
     scaleRow itemA weightA (AddM itemB weightB restY) =
       AddM (itemA, itemB) (weightA * weightB) (scaleRow itemA weightA restY)
 
+||| Canonical Operator Tensor Product (A ⊗_Op B):
+||| Computes the monoidal tensor product of two multiset operators:
+||| (c1 -> r1) ⊗ (c2 -> r2) => ((c1, c2) -> (r1, r2)).
+||| Re-associates row-col pairs directly in the symmetric monoidal category of multisets without ad-hoc arithmetic.
+public export
+tensorOperator : MultisetTensor r1 c1 -> MultisetTensor r2 c2 -> MultisetTensor (r1, r2) (c1, c2)
+tensorOperator m1 m2 =
+  mapMultiset (\((r1, c1), (r2, c2)) => ((r1, r2), (c1, c2))) (tensorProduct m1 m2)
+
+
 ||| Transposes an Adjoint Multiset Tensor (A^T): (a, b) -> (b, a).
 public export
 transposeTensor : MultisetTensor a b -> MultisetTensor b a

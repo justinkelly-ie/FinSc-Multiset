@@ -383,6 +383,20 @@ public export
 flatMapStream : (a -> FusedStream b) -> FusedStream a -> FusedStream b
 flatMapStream f strm = fusedConcat (mapStream f strm)
 
+||| Cartesian product of two deforested streams with zero intermediate heap allocation.
+public export
+streamCartesian : FusedStream a -> FusedStream b -> FusedStream (a, b)
+streamCartesian strA strB =
+  flatMapStream (\x => mapStream (\y => (x, y)) strB) strA
+
+||| Deforested tensor product of weighted streams:
+||| Multiplies element weights (wx * wy) while pairing tokens (x, y).
+public export
+streamTensorProduct : FusedStream (a, BoxInt) -> FusedStream (b, BoxInt) -> FusedStream ((a, b), BoxInt)
+streamTensorProduct strA strB =
+  mapStream (\((x, wx), (y, wy)) => ((x, y), wx * wy)) (streamCartesian strA strB)
+
+
 ||| Appends two deforested streams together without intermediate heap allocation.
 %inline public export
 appendStream : FusedStream a -> FusedStream a -> FusedStream a
