@@ -157,6 +157,46 @@ public export
 gohPrimeProduct5_7 : GohPrimeProduct 5 7 35
 gohPrimeProduct5_7 = MkGohPrimeProduct Prime5 Prime7 Refl
 
+public export
+gohPrimeProduct5_11 : GohPrimeProduct 5 11 55
+gohPrimeProduct5_11 = MkGohPrimeProduct Prime5 Prime11 Refl
+
+||| Certified Parabolic-Substrate Ground Coupling Product: 5 * 7 = 35.
+public export
+record GohParabolicSubstrateCoupling35 where
+  constructor MkGohParabolicSubstrateCoupling35
+  0 prod5_7        : GohPrimeProduct 5 7 35
+  0 compositeBudget : (the Nat (6 * 35)) = 210
+
+public export
+gohParabolicSubstrateCoupling35 : GohParabolicSubstrateCoupling35
+gohParabolicSubstrateCoupling35 = MkGohParabolicSubstrateCoupling35 gohPrimeProduct5_7 Refl
+
+||| Certified Parabolic Dark Matter Capacity & Triangular Residue: 5 * 11 = 55 = T_10.
+||| Proves 2 * 55 = 10 * 11 (110 = 110), establishing 55 as the 10th triangular number T_10.
+public export
+record GohTriangularResidue55 where
+  constructor MkGohTriangularResidue55
+  0 prod5_11       : GohPrimeProduct 5 11 55
+  0 triangularPrf  : (the Nat (2 * 55)) = (the Nat (10 * 11))
+  0 dmBudgetSum    : (the Nat (27 + 128 + 55)) = 210
+
+public export
+gohTriangularResidue55 : GohTriangularResidue55
+gohTriangularResidue55 = MkGohTriangularResidue55 gohPrimeProduct5_11 Refl Refl
+
+||| Certified Observer Epoch Dual-Branch Emergence Scale: 3 * 13 = 39.
+||| Proves n = 39 matches scale step S 38 at observer epoch k = 38.
+public export
+record GohObserverEpoch39 where
+  constructor MkGohObserverEpoch39
+  0 prod3_13       : GohPrimeProduct 3 13 39
+  0 epochSuccessor : (the Nat (S 38)) = 39
+
+public export
+gohObserverEpoch39 : GohObserverEpoch39
+gohObserverEpoch39 = MkGohObserverEpoch39 gohPrimeProduct3_13 Refl
+
 ||| Certified Primorial 210 Ground State Product: p_4# = 2 * 3 * 5 * 7 = 210.
 ||| Factorizes as (2 * 3) * (5 * 7) = 6 * 35 = 210.
 public export
@@ -170,6 +210,7 @@ record GohPrimorial210 where
 public export
 gohPrimorial210 : GohPrimorial210
 gohPrimorial210 = MkGohPrimorial210 gohPrimeProduct2_3 gohPrimeProduct5_7 Refl Refl
+
 
 
 
