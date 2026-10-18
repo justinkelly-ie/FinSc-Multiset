@@ -424,7 +424,7 @@ extractPrimeBox : (fuel : Nat) -> (p : BoxInt) -> (n : BoxInt) -> (Nat, BoxInt)
 extractPrimeBox Z _ n = (0, n)
 extractPrimeBox (S fuel) p n =
   if boxLTE n (intToBoxInt 1) || boxLTE p (intToBoxInt 1) then (0, n)
-  else if unwrapBox (modBox n p) == 0
+  else if boxIsZero (modBox n p)
     then let (k, rem) = extractPrimeBox fuel p (divBox n p)
          in (S k, rem)
     else (0, n)

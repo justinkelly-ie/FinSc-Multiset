@@ -120,7 +120,7 @@ lookupTokenTree val (Node _ l x c r) =
 public export
 fromBoxMultiset : Ord a => Box a -> MultisetTree a
 fromBoxMultiset (MkBox items) =
-  foldl (\acc, (x, w) => insertTokenTree x (integerToNat (unwrapBox w)) acc) Leaf items
+  foldl (\acc, (x, w) => insertTokenTree x (boxToNat w) acc) Leaf items
 
 ||| Converts a balanced MultisetTree back into a linear Box multiset:
 public export
@@ -520,7 +520,7 @@ lookupBoxTree val (BoxNode _ l x c r) =
 public export
 setBoxTree : Ord a => a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
 setBoxTree val w BoxLeaf =
-  if unwrapBox w == 0 then BoxLeaf else mkBoxNode BoxLeaf val w BoxLeaf
+  if boxIsZero w then BoxLeaf else mkBoxNode BoxLeaf val w BoxLeaf
 setBoxTree val w (BoxNode _ l x c r) =
   if val < x
     then balanceBoxNode (setBoxTree val w l) x c r
@@ -547,7 +547,7 @@ foldBoxTreeR f z (BoxNode _ l x c r) =
 ||| Flattens active non-zero elements into an association list in O(N) time.
 public export
 boxTreeToList : BoxMultisetTree a -> List (a, BoxInt)
-boxTreeToList tree = foldBoxTreeR (\x, c, acc => if unwrapBox c /= 0 then (x, c) :: acc else acc) [] tree
+boxTreeToList tree = foldBoxTreeR (\x, c, acc => if boxIsNonZero c then (x, c) :: acc else acc) [] tree
 
 ||| Traverses and pushes all left ancestor nodes of a BoxMultisetTree onto a search stack.
 public export
@@ -559,7 +559,7 @@ pushLeftSubtreesBox node@(BoxNode _ l _ _ _) stack = pushLeftSubtreesBox l (node
 public export
 streamBoxMultisetTree : BoxMultisetTree a -> FusedStream (a, BoxInt)
 streamBoxMultisetTree tree =
-  filterMapStream (\(x, c) => if unwrapBox c /= 0 then Just (x, c) else Nothing)
+  filterMapStream (\(x, c) => if boxIsNonZero c then Just (x, c) else Nothing)
                   (unfoldStream stepTree (pushLeftSubtreesBox tree []))
   where
     stepTree : List (BoxMultisetTree a) -> Step (List (BoxMultisetTree a)) (a, BoxInt)

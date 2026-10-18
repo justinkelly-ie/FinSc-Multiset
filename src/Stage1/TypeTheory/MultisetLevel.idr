@@ -100,7 +100,7 @@ public export
 spliceIntensionalToBox : Eq a => IntensionalBox a -> Box a
 spliceIntensionalToBox (MkIntensionalBox supp gen) =
   let rawPairs = map (\x => (x, gen x)) supp
-      filtered = filter (\(_, w) => unwrapBox w /= 0) rawPairs
+      filtered = filter (\(_, w) => boxIsNonZero w) rawPairs
   in consolidateBox (MkBox filtered)
 
 ||| Definitional inverse law for intensional multiset term evaluation.
@@ -134,7 +134,7 @@ spliceIntensionalStreamToBoxNat fuel (MkIntensionalStreamBox strm gen) =
   foldStreamNat fuel
     (\acc, x =>
       let w = gen x
-      in if unwrapBox w == 0 then acc else insertBox x w acc)
+      in if boxIsZero w then acc else insertBox x w acc)
     emptyBox
     strm
 
@@ -155,5 +155,5 @@ auditIntensionalStreamBoxProof =
       w1 = lookupBox (the Nat 1) resBox
       w2 = lookupBox (the Nat 2) resBox
       w3 = lookupBox (the Nat 3) resBox
-  in (unwrapBox w1 == 1) && (unwrapBox w2 == 0) && (unwrapBox w3 == 3)
+  in (w1 == intToBoxInt 1) && boxIsZero w2 && (w3 == intToBoxInt 3)
 

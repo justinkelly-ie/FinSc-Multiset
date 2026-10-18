@@ -23,7 +23,12 @@ public export
 writeLinearBuffer : {capacity : Nat} -> (1 buf : LinearBuffer capacity) -> (idx : Fin capacity) -> (val : BoxInt) -> LinearBuffer capacity
 writeLinearBuffer (MkLinearBuffer tok) idx val = MkLinearBuffer (replaceAt idx val tok)
 
+||| Extracts total BoxInt value across buffer.
+public export
+bufferTotalValueBox : {capacity : Nat} -> LinearBuffer capacity -> BoxInt
+bufferTotalValueBox (MkLinearBuffer tok) = foldl (+) (intToBoxInt 0) tok
+
 ||| Extracts total integer value across buffer.
 public export
 bufferTotalValue : {capacity : Nat} -> LinearBuffer capacity -> Integer
-bufferTotalValue (MkLinearBuffer tok) = foldl (\acc, b => acc + unwrapBox b) 0 tok
+bufferTotalValue buf = unwrapBox (bufferTotalValueBox buf)

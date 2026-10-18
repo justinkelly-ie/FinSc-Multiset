@@ -182,6 +182,5 @@ record NonZeroBoxInt where
 public export
 toNonZeroBoxInt : BoxInt -> Maybe NonZeroBoxInt
 toNonZeroBoxInt b =
-  let n = unwrapBox b
-  in if n == 0 then Nothing
-     else Just (MkNonZeroBoxInt b)
+  if boxIsZero b then Nothing
+  else Just (MkNonZeroBoxInt b)

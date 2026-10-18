@@ -307,7 +307,7 @@ unixelBox x w = MkBox [(x, w)]
 %inline public export
 insertBoxFast : a -> BoxInt -> Box a -> Box a
 insertBoxFast x w (MkBox xs) =
-  if unwrapBox w == 0 then MkBox xs else MkBox ((x, w) :: xs)
+  if boxIsZero w then MkBox xs else MkBox ((x, w) :: xs)
 
 ||| Converts a Multiset BoxInt a into a Box a.
 public export
@@ -336,11 +336,11 @@ consolidateBox (MkBox items) = MkBox (go items [])
     go [] acc = acc
     go ((x, w) :: rest) acc =
       case lookupBox x (MkBox acc) of
-        (MkBoxInt 0) => if unwrapBox w == 0 then go rest acc else go rest ((x, w) :: acc)
+        (MkBoxInt 0) => if boxIsZero w then go rest acc else go rest ((x, w) :: acc)
         currentW =>
           let newW = currentW + w
               filteredAcc = filter (\(k, _) => k /= x) acc
-          in if unwrapBox newW == 0
+          in if boxIsZero newW
                then go rest filteredAcc
                else go rest ((x, newW) :: filteredAcc)
 
@@ -351,7 +351,7 @@ insertBox x w (MkBox xs) =
   let current = lookupBox x (MkBox xs)
       newWeight = current + w
       filtered = filter (\(k, _) => k /= x) xs
-  in if unwrapBox newWeight == 0
+  in if boxIsZero newWeight
        then MkBox filtered
        else MkBox ((x, newWeight) :: filtered)
 
@@ -378,7 +378,7 @@ subBox (MkBox ((k, w) :: xs)) ys =
   let subW = lookupBox k ys
       remW = w - subW
       (MkBox rest) = subBox (MkBox xs) ys
-  in if unwrapBox remW > 0 then MkBox ((k, remW) :: rest) else MkBox rest
+  in if remW > intToBoxInt 0 then MkBox ((k, remW) :: rest) else MkBox rest
 
 ||| Computes total multiset mass: sum of all item multiplicities.
 public export
@@ -402,15 +402,14 @@ intersectBox (MkBox xs) (MkBox ys) =
             w2 = lookupBox k (MkBox ys)
             minW = if w1 <= w2 then w1 else w2
         in (k, minW)) commonKeys
-  in MkBox (filter (\(_, w) => unwrapBox w > 0) itemsList)
+  in MkBox (filter (\(_, w) => w > intToBoxInt 0) itemsList)
 
 ||| Computes total mass of common shared tokens between two multisets |A ∩ B|.
 public export
 boxIntersectionMass : Eq a => Box a -> Box a -> Nat
 boxIntersectionMass a b =
   let inter = intersectBox a b
-      mass = unwrapBox (totalMassBox inter)
-  in if mass <= 0 then 0 else integerToNat mass
+  in boxToNat (totalMassBox inter)
 
 ||| Computes total union mass |A ∪ B| = sum max(w_A, w_B).
 public export
@@ -421,8 +420,7 @@ boxUnionMass (MkBox xs) (MkBox ys) =
         let w1 = lookupBox k (MkBox xs)
             w2 = lookupBox k (MkBox ys)
             maxW = if w1 >= w2 then w1 else w2
-            mw = unwrapBox maxW
-        in if mw <= 0 then 0 else integerToNat mw) allKeys
+        in boxToNat maxW) allKeys
   in sum maxWeights
 
 ||| Multiset Symmetric Difference Information Distance.
@@ -433,6 +431,6 @@ boxSymmetricDifference (MkBox xs) (MkBox ys) =
       diffs = map (\k =>
         let w1 = lookupBox k (MkBox xs)
             w2 = lookupBox k (MkBox ys)
-            d = unwrapBox (if w1 >= w2 then w1 - w2 else w2 - w1)
-        in integerToNat (if d >= 0 then d else -d)) allKeys
+            diff = if w1 >= w2 then w1 - w2 else w2 - w1
+        in boxToNat diff) allKeys
   in sum diffs

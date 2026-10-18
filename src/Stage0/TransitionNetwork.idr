@@ -53,7 +53,7 @@ applyDelta : Eq s => TransitionState s -> StoichiometryDelta s -> TransitionStat
 applyDelta state (MkDelta sp ch) =
   let cur = multiplicity sp state
       newVal = cur + ch
-      clamped = if unwrapBox newVal < 0 then intToBoxInt 0 else newVal
+      clamped = if newVal < intToBoxInt 0 then intToBoxInt 0 else newVal
   in update sp clamped state
   where
     update : s -> BoxInt -> Multiset BoxInt s -> Multiset BoxInt s
@@ -106,7 +106,7 @@ isConservativeDelta weights deltas =
                             case lookup sp weights of
                               Just w => acc + (w * ch)
                               Nothing => acc) (intToBoxInt 0) deltas
-  in unwrapBox totalDelta == 0
+  in boxIsZero totalDelta
 
 ||| Compile-time audit witness verifying universal transition network preservation.
 public export
@@ -118,4 +118,4 @@ auditTransitionNetworkProof =
       c1 = multiplicity 1 finalSt
       c2 = multiplicity 2 finalSt
       tot = c1 + c2
-  in unwrapBox c1 == 5 && unwrapBox c2 == 5 && unwrapBox tot == 10
+  in c1 == intToBoxInt 5 && c2 == intToBoxInt 5 && tot == intToBoxInt 10

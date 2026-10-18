@@ -52,7 +52,7 @@ Eq Polynumber where
 public export
 Show Polynumber where
   show (MkPolynumber cs) = 
-    "Polynumber(" ++ show (map unwrapBox cs) ++ ")"
+    "Polynumber(" ++ show cs ++ ")"
 
 ||| Structurally recursive list trimmer eliminating trailing zeros without reverse/dropWhile.
 public export
@@ -648,7 +648,7 @@ Eq (DepPolynumber deg) where
 public export
 Show (DepPolynumber deg) where
   show (MkDepPolynumber cs) =
-    "DepPolynumber(" ++ show (map unwrapBox (toList cs)) ++ ")"
+    "DepPolynumber(" ++ show (toList cs) ++ ")"
 
 ||| Creates a constant DepPolynumber (degree 0).
 public export

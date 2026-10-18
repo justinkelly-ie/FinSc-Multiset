@@ -29,7 +29,7 @@ streamPolyZero = stream []
 public export
 streamPolyConstant : BoxInt -> StreamPolynumber
 streamPolyConstant c =
-  if unwrapBox c == 0
+  if boxIsZero c
      then stream []
      else stream [(0, c)]
 
@@ -37,7 +37,7 @@ streamPolyConstant c =
 public export
 streamPolyMonomial : Nat -> BoxInt -> StreamPolynumber
 streamPolyMonomial deg c =
-  if unwrapBox c == 0
+  if boxIsZero c
      then stream []
      else stream [(deg, c)]
 
@@ -45,7 +45,7 @@ streamPolyMonomial deg c =
 public export
 streamPolyFromList : List (Nat, BoxInt) -> StreamPolynumber
 streamPolyFromList terms =
-  filterMapStream (\(d, c) => if unwrapBox c == 0 then Nothing else Just (d, c)) (stream terms)
+  filterMapStream (\(d, c) => if boxIsZero c then Nothing else Just (d, c)) (stream terms)
 
 ||| Unfolds a StreamPolynumber into a list of sparse terms under structural fuel bounds.
 public export
@@ -72,7 +72,7 @@ streamPolyToListFuelModel fuel = streamPolyToListNat (gohSteps fuel)
 public export
 supportStreamPoly : StreamPolynumber -> FusedStream Nat
 supportStreamPoly =
-  filterMapStream (\(d, c) => if unwrapBox c == 0 then Nothing else Just d)
+  filterMapStream (\(d, c) => if boxIsZero c then Nothing else Just d)
 
 ------------------------------------------------------------------------
 -- 3. SPARSE STREAMING POLYNOMIAL ALGEBRA
@@ -82,11 +82,11 @@ supportStreamPoly =
 public export
 streamPolyScale : BoxInt -> StreamPolynumber -> StreamPolynumber
 streamPolyScale s strm =
-  if unwrapBox s == 0
+  if boxIsZero s
      then stream []
      else filterMapStream (\(d, c) =>
             let sc = mulBox s c
-            in if unwrapBox sc == 0 then Nothing else Just (d, sc)) strm
+            in if boxIsZero sc then Nothing else Just (d, sc)) strm
 
 ||| Polynomial addition via deforested stream concatenation.
 ||| Monomials of like degree consolidate under evaluation or conversion.
@@ -122,7 +122,7 @@ streamPolyDeriv = filterMapStream stepDeriv
     stepDeriv (S k, c) =
       let nBox = natToBoxInt (S k)
           newCoeff = mulBox nBox c
-      in if unwrapBox newCoeff == 0 then Nothing else Just (k, newCoeff)
+      in if boxIsZero newCoeff then Nothing else Just (k, newCoeff)
 
 ------------------------------------------------------------------------
 -- 4. DEFORESTED POLYNOMIAL EVALUATION

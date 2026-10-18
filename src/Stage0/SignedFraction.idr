@@ -133,8 +133,7 @@ Show MSetFraction where
 public export
 fromBoxIntPair : (BoxInt, BoxInt) -> MSetFraction
 fromBoxIntPair (n, d) =
-  let dVal = unwrapBox d
-      posD = mkPosNat (integerToNat (abs dVal))
+  let posD = mkPosNat (boxToNat (absBox d))
   in MkMSF n posD
 
 
