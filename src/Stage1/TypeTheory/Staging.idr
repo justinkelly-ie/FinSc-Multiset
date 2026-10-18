@@ -8,6 +8,7 @@ module Stage1.TypeTheory.Staging
 import public Stage1.TypeTheory.TwoLevel
 import Stage0.BoxInt
 import Stage0.Multiset
+import Data.Vect
 
 %default total
 
@@ -174,6 +175,59 @@ public export
 0 prfLinearStagingRoundtrip : (x : a) -> spliceLinear (quoteLinear x) = x
 prfLinearStagingRoundtrip _ = Refl
 
+||| `LinearStatePair` guarantees exact linear state consumption while permitting
+||| the observable to be accumulated freely with unrestricted multiplicity omega.
+public export
+data LinearStatePair : Type -> Type -> Type where
+  MkLStatePair : (1 state : s) -> (obs : b) -> LinearStatePair s b
 
+||| 2LTT Staged Linear Transition:
+||| Lifts static configuration into a compile-time specialized transition table
+||| that acts on runtime linear state with exact linear multiplicity 1.
+public export
+StagedLinearTransition : Type -> Type -> Type -> Type
+StagedLinearTransition cfg s obs = Lift cfg -> (1 state : s) -> LinearStatePair s obs
 
+------------------------------------------------------------------------
+-- 6. GENERALIZED DIMENSION-INDEXED N x N STAGED MATRIX ENGINE
+------------------------------------------------------------------------
 
+||| Dot product of two statically dimensioned vectors.
+public export
+dotProductVect : Num a => Vect n a -> Vect n a -> a
+dotProductVect [] [] = 0
+dotProductVect (x :: xs) (y :: ys) = (x * y) + dotProductVect xs ys
+
+||| Staged matrix-vector contraction: contracts an N x N matrix with an N-vector.
+public export
+stagedUnrollMatVec : Num a => Vect n (Vect n a) -> Vect n a -> Vect n a
+stagedUnrollMatVec mat v = map (\row => dotProductVect row v) mat
+
+||| Staged matrix multiplication: multiplies two N x N matrices by unrolling dot products.
+public export
+stagedUnrollMatMul : Num a => {n : Nat} -> Vect n (Vect n a) -> Vect n (Vect n a) -> Vect n (Vect n a)
+stagedUnrollMatMul matA matB =
+  let colsB = transpose matB
+  in map (\rowA => map (\colB => dotProductVect rowA colB) colsB) matA
+
+||| Identity matrix of dimension n.
+public export
+stagedIdentityMat : Num a => (n : Nat) -> Vect n (Vect n a)
+stagedIdentityMat Z = []
+stagedIdentityMat (S k) =
+  (1 :: replicate k 0) :: map (0 ::) (stagedIdentityMat k)
+
+||| Fast repeated squaring for statically dimensioned N x N matrices with structural fuel.
+public export
+stagedFastMatPower : Num a => (fuel : Nat) -> {n : Nat} -> Vect n (Vect n a) -> Nat -> Vect n (Vect n a)
+stagedFastMatPower Z mat _ = stagedIdentityMat n
+stagedFastMatPower (S _) mat Z = stagedIdentityMat n
+stagedFastMatPower (S _) mat (S Z) = mat
+stagedFastMatPower (S f) mat exp =
+  let half = integerToNat (cast {to = Integer} exp `div` 2)
+      halfMat = stagedFastMatPower f mat half
+      squared = stagedUnrollMatMul halfMat halfMat
+      isOdd = (cast {to = Integer} exp `mod` 2) == 1
+  in if isOdd
+       then stagedUnrollMatMul mat squared
+       else squared

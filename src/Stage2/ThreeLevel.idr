@@ -55,6 +55,35 @@ Show a => Show (ParameterizedCycleState u e a) where
 -- 3. 3LTT HYPER-CYCLE REFLECTION FUNCTOR (INTER-CYCLE ADJUNCTION)
 ------------------------------------------------------------------------
 
+||| Maps a tensor product with HyperCycleLevel into a tensor product with StrictLevel.
+public export
+hyperCycleToStrictTensorIso : MultisetTensor (HyperCycleLevel a) b -> MultisetTensor a (StrictLevel b)
+hyperCycleToStrictTensorIso ZeroM = ZeroM
+hyperCycleToStrictTensorIso (AddM (MkHyperCycle x, y) w rest) = AddM (x, MkStrict y) w (hyperCycleToStrictTensorIso rest)
+
+||| Inverse tensor map from StrictLevel to HyperCycleLevel.
+public export
+hyperCycleToStrictTensorInv : MultisetTensor a (StrictLevel b) -> MultisetTensor (HyperCycleLevel a) b
+hyperCycleToStrictTensorInv ZeroM = ZeroM
+hyperCycleToStrictTensorInv (AddM (x, MkStrict y) w rest) = AddM (MkHyperCycle x, y) w (hyperCycleToStrictTensorInv rest)
+
+0 proofHyperCycleStrictIso : (t : MultisetTensor (HyperCycleLevel a) b) -> hyperCycleToStrictTensorInv (hyperCycleToStrictTensorIso t) = t
+proofHyperCycleStrictIso ZeroM = Refl
+proofHyperCycleStrictIso (AddM (MkHyperCycle x, y) w rest) = cong (AddM (MkHyperCycle x, y) w) (proofHyperCycleStrictIso rest)
+
+0 proofHyperCycleStrictInv : (u : MultisetTensor a (StrictLevel b)) -> hyperCycleToStrictTensorIso (hyperCycleToStrictTensorInv u) = u
+proofHyperCycleStrictInv ZeroM = Refl
+proofHyperCycleStrictInv (AddM (x, MkStrict y) w rest) = cong (AddM (x, MkStrict y) w) (proofHyperCycleStrictInv rest)
+
+public export
+MultisetAdjunction HyperCycleLevel StrictLevel where
+  leftAdjoint x = MkHyperCycle x
+  rightAdjoint (MkHyperCycle x) = x
+  homTensorIso = hyperCycleToStrictTensorIso
+  homTensorInv = hyperCycleToStrictTensorInv
+  verifyHomIso = proofHyperCycleStrictIso
+  verifyHomInv = proofHyperCycleStrictInv
+
 ||| Formulates the canonical 3LTT Hyper-Cycle Reflection Functor (H ⊣ S):
 ||| Maps Level 3 hyper-cycle states into Level 2 deforested strict trajectories.
 ||| Annotated with QTT 0 for runtime proof erasure.
@@ -64,6 +93,11 @@ interface HyperCycleReflectionFunctor (0 h : Type -> Type) (0 s : Type -> Type) 
 
   ||| QTT 0 Erased Proof: Level 3 HyperCycle state reflects into Level 2 Strict state functorially.
   0 hyperCycleRefl : {0 a : Type} -> (x : h a) -> True = True
+
+public export
+HyperCycleReflectionFunctor HyperCycleLevel StrictLevel where
+  hyperCycleAdjunction = %search
+  hyperCycleRefl _ = Refl
 
 ------------------------------------------------------------------------
 -- 4. GENERIC 3LTT CONJUGATE HYLOMORPHISM

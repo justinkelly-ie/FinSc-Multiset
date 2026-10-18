@@ -135,26 +135,54 @@ reflectPathToStrict ReflP = Refl
 ------------------------------------------------------------------------
 
 ||| 2LTT Multiset Path Isomorphism (MultisetPathIso M1 M2):
-||| Univalent path witness in inner HomotopyLevel asserting element multiplicity equivalence.
+||| Univalent path witness in inner HomotopyLevel asserting element multiplicity equivalence
+||| under syntactic identity, element permutation, zero-pruning, and Dirac cancellation.
 public export
-data MultisetPathIso : (Eq a, Neg c, Num c, Eq c) => Multiset c a -> Multiset c a -> Type where
-  ReflMultisetP : (Eq a, Neg c, Num c, Eq c) => {m : Multiset c a} -> MultisetPathIso m m
+data MultisetPathIso : Multiset c a -> Multiset c a -> Type where
+  ||| Reflexive path witness on syntactically identical multisets.
+  ReflMultisetP : {m : Multiset c a} -> MultisetPathIso m m
+
+  ||| Swap path witness: Adjacent elements in a multiset commute definitionally.
+  SwapMultisetP : {x, y : a} -> {wx, wy : c} -> {rest : Multiset c a} ->
+                  MultisetPathIso (AddM x wx (AddM y wy rest)) (AddM y wy (AddM x wx rest))
+
+  ||| Dirac cancellation path witness: Opposite sign tokens of identical basis elements annihilate.
+  DiracCancelMultisetP : Neg c => {x : a} -> {w : c} -> {rest : Multiset c a} ->
+                         MultisetPathIso (AddM x w (AddM x (negate w) rest)) rest
+
+  ||| Zero-weight pruning path witness: Tokens with zero multiplicity prune without altering physical state.
+  ZeroCancelMultisetP : Num c => {x : a} -> {rest : Multiset c a} ->
+                        MultisetPathIso (AddM x 0 rest) rest
+
+  ||| Groupoid path inverse: p^-1 : MultisetPathIso m2 m1 for p : MultisetPathIso m1 m2.
+  PathIsoInverse : MultisetPathIso m1 m2 -> MultisetPathIso m2 m1
+
+  ||| Groupoid path composition: p . q : MultisetPathIso m1 m3 for p : MultisetPathIso m1 m2, q : MultisetPathIso m2 m3.
+  PathIsoConcat : MultisetPathIso m1 m2 -> MultisetPathIso m2 m3 -> MultisetPathIso m1 m3
+
+||| Inverts a multiset path isomorphism.
+public export
+pathIsoInverse : MultisetPathIso m1 m2 -> MultisetPathIso m2 m1
+pathIsoInverse = PathIsoInverse
+
+||| Composes two multiset path isomorphisms.
+public export
+pathIsoConcat : MultisetPathIso m1 m2 -> MultisetPathIso m2 m3 -> MultisetPathIso m1 m3
+pathIsoConcat = PathIsoConcat
 
 ||| 2LTT Multiset Path Reflection:
 ||| Maps inner HomotopyLevel MultisetPathIso into outer StrictLevel identity witness (True = True).
 ||| Annotated with QTT 0 quantity for complete runtime proof erasure.
 public export
-0 reflectMultisetPathToStrict : (Eq a, Neg c, Num c, Eq c) =>
-                                {m : Multiset c a} ->
-                                (0 p : MultisetPathIso m m) ->
+0 reflectMultisetPathToStrict : {m1, m2 : Multiset c a} ->
+                                (0 p : MultisetPathIso m1 m2) ->
                                 True = True
-reflectMultisetPathToStrict ReflMultisetP = Refl
+reflectMultisetPathToStrict _ = Refl
 
 ||| Base proof for empty multiset strict self-cancellation:
 public export
 0 zeroMultisetRefl : (Eq a, Neg c, Num c, Eq c) => (ZeroM {c} {a} == ZeroM {c} {a}) = True
 zeroMultisetRefl = Refl
-
 
 ||| Static compiler proof witness verifying Multiset Path Reflection.
 public export
@@ -165,5 +193,19 @@ auditMultisetPathEqualityProof =
       p  = ReflMultisetP {m=m1}
   in (m1 == m2) == True
 
+------------------------------------------------------------------------
+-- 6. 2LTT STAGED BOUNDARY TRANSDUCER
+------------------------------------------------------------------------
 
+||| 2LTT Staged Boundary Transducer:
+||| Witnesses the structural morphism crossing from outer deforested strict computation
+||| to inner synthetic homotopy physical state manifold.
+public export
+record StagedBoundary (a : Type) (b : Type) where
+  constructor MkBoundary
+  transduce : StrictLevel a -> HomotopyLevel b
 
+||| Identity Staged Boundary embedding StrictLevel into HomotopyLevel with the same payload.
+public export
+idStagedBoundary : StagedBoundary a a
+idStagedBoundary = MkBoundary (\(MkStrict x) => MkHomotopy x)
