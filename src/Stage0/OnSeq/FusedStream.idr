@@ -177,6 +177,19 @@ public export
 Functor FusedStream where
   map = mapStream
 
+||| Deforested scan over a FusedStream accumulating state and emitting intermediate values (Rule 04 Section 6).
+public export
+scanStream : (b -> a -> b) -> b -> FusedStream a -> FusedStream b
+scanStream f init (MkStream {s} next seed) =
+  MkStream {s = (s, b)}
+    (\(st, acc) => case next st of
+      Done => Done
+      Skip st' => Skip (st', acc)
+      Yield x st' =>
+        let acc' = f acc x
+        in Yield acc' (st', acc'))
+    (seed, init)
+
 ||| Top-level step function for deforested stream filter.
 public export
 filterStep : (a -> Bool) -> (s -> Step s a) -> s -> Step s a
