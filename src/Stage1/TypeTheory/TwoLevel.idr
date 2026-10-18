@@ -170,6 +170,30 @@ public export
 pathIsoConcat : MultisetPathIso m1 m2 -> MultisetPathIso m2 m3 -> MultisetPathIso m1 m3
 pathIsoConcat = PathIsoConcat
 
+------------------------------------------------------------------------
+-- PHYSICAL REACTION PATH ALGEBRA (STREAMING MULTISETS)
+-- Physical reaction trajectories and conservation steps (Homotopy paths).
+------------------------------------------------------------------------
+
+||| Physical Reaction Path: represents a lawful sequence of multiset state transformations
+||| (annihilation, permutation, zero-pruning, or reaction steps).
+||| (Category theoretic counterpart: Homotopy path / 1-cell in multiset groupoid).
+public export
+ReactionPath : Multiset c a -> Multiset c a -> Type
+ReactionPath = MultisetPathIso
+
+||| Chains two successive physical reaction steps.
+||| (Category theoretic counterpart: path concatenation).
+public export
+chainSteps : ReactionPath m1 m2 -> ReactionPath m2 m3 -> ReactionPath m1 m3
+chainSteps = pathIsoConcat
+
+||| Reverses a physical reaction step (conjugate backward reaction).
+||| (Category theoretic counterpart: path inversion).
+public export
+reverseStep : ReactionPath m1 m2 -> ReactionPath m2 m1
+reverseStep = pathIsoInverse
+
 ||| 2LTT Multiset Path Reflection:
 ||| Maps inner HomotopyLevel MultisetPathIso into outer StrictLevel identity witness (True = True).
 ||| Annotated with QTT 0 quantity for complete runtime proof erasure.
