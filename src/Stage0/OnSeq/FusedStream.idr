@@ -50,6 +50,12 @@ public export
 data LinearPair : Type -> Type -> Type where
   MkLPair : (1 x : a) -> (1 y : b) -> LinearPair a b
 
+||| Linear state and unrestricted observable pair (Rule 04).
+||| Guarantees exact linear state consumption while permitting observables to be accumulated freely.
+public export
+data LinearStatePair : Type -> Type -> Type where
+  MkLStatePair : (1 state : s) -> (obs : b) -> LinearStatePair s b
+
 ||| Evaluates a stateful linear step transducer with structural Nat fuel,
 ||| guaranteeing that the linear state is consumed and returned exactly once without leakage.
 public export
@@ -59,6 +65,24 @@ foldLinearStreamNat (S f) fn acc st step = case step st of
   DoneL st' => MkLPair acc st'
   SkipL st' => foldLinearStreamNat f fn acc st' step
   YieldL x st' => foldLinearStreamNat f fn (fn acc x) st' step
+
+||| A linear streaming multiset pipeline where the stream is consumed with QTT 1 multiplicity.
+public export
+data LinearStream : (s : Type) -> (a : Type) -> Type where
+  MkLinearStream : ((1 st : s) -> StepLinear s a) -> (1 activeSeed : s) -> LinearStream s a
+
+||| Evaluates a LinearStream with a fuel bound, accumulating results into an unrestricted list
+||| and returning the consumed linear final state in a LinearStatePair.
+public export
+runLinearStreamFuel : (fuel : Nat) -> (1 str : LinearStream s a) -> LinearStatePair s (List a)
+runLinearStreamFuel Z (MkLinearStream _ seed) = MkLStatePair seed []
+runLinearStreamFuel (S f) (MkLinearStream step seed) = case step seed of
+  DoneL st => MkLStatePair st []
+  SkipL st => runLinearStreamFuel f (MkLinearStream step st)
+  YieldL x st =>
+    let MkLStatePair finalSt rest = runLinearStreamFuel f (MkLinearStream step st)
+    in MkLStatePair finalSt (x :: rest)
+
 
 ||| Step function for converting a List into a stream.
 public export

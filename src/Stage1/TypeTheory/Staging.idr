@@ -8,6 +8,7 @@ module Stage1.TypeTheory.Staging
 import public Stage1.TypeTheory.TwoLevel
 import Stage0.BoxInt
 import Stage0.Multiset
+import Stage0.OnSeq.FusedStream
 import Data.Vect
 
 %default total
@@ -175,11 +176,8 @@ public export
 0 prfLinearStagingRoundtrip : (x : a) -> spliceLinear (quoteLinear x) = x
 prfLinearStagingRoundtrip _ = Refl
 
-||| `LinearStatePair` guarantees exact linear state consumption while permitting
-||| the observable to be accumulated freely with unrestricted multiplicity omega.
-public export
-data LinearStatePair : Type -> Type -> Type where
-  MkLStatePair : (1 state : s) -> (obs : b) -> LinearStatePair s b
+-- Note: LinearStatePair is canonically defined in Stage0.OnSeq.FusedStream
+
 
 ||| 2LTT Staged Linear Transition:
 ||| Lifts static configuration into a compile-time specialized transition table
@@ -187,6 +185,16 @@ data LinearStatePair : Type -> Type -> Type where
 public export
 StagedLinearTransition : Type -> Type -> Type -> Type
 StagedLinearTransition cfg s obs = Lift cfg -> (1 state : s) -> LinearStatePair s obs
+
+||| Folds a LinearStream with an accumulator and returns the linear final state paired with the accumulator.
+public export
+foldLinearStream : (fuel : Nat) -> (acc -> a -> acc) -> acc -> (1 str : LinearStream s a) -> LinearStatePair s acc
+foldLinearStream Z _ acc (MkLinearStream _ seed) = MkLStatePair seed acc
+foldLinearStream (S f) fn acc (MkLinearStream step seed) = case step seed of
+  DoneL st => MkLStatePair st acc
+  SkipL st => foldLinearStream f fn acc (MkLinearStream step st)
+  YieldL x st => foldLinearStream f fn (fn acc x) (MkLinearStream step st)
+
 
 ------------------------------------------------------------------------
 -- 6. GENERALIZED DIMENSION-INDEXED N x N STAGED MATRIX ENGINE
