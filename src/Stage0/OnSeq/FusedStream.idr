@@ -347,24 +347,26 @@ data ConcatState : Type -> Type -> Type where
   ConcatNoInner   : sOuter -> ConcatState sOuter a
   ConcatHaveInner : sOuter -> (sInner -> Step sInner a) -> sInner -> ConcatState sOuter a
 
+||| Top-level transition step for deforested stream concatenation.
+public export
+fusedConcatStep : (sOuter -> Step sOuter (FusedStream a)) -> ConcatState sOuter a -> Step (ConcatState sOuter a) a
+fusedConcatStep nextOuter (ConcatNoInner so) = case nextOuter so of
+  Done => Done
+  Skip so' => Skip (ConcatNoInner so')
+  Yield (MkStream nextInner seedInner) so' => Skip (ConcatHaveInner so' nextInner seedInner)
+fusedConcatStep _ (ConcatHaveInner so nextInner seedInner) = case nextInner seedInner of
+  Done => Skip (ConcatNoInner so)
+  Skip seedInner' => Skip (ConcatHaveInner so nextInner seedInner')
+  Yield x seedInner' => Yield x (ConcatHaveInner so nextInner seedInner')
+
 ||| Deforested stream concat operator with zero heap re-allocation per step.
-%inline public export
+public export
 fusedConcat : FusedStream (FusedStream a) -> FusedStream a
 fusedConcat {a} (MkStream {s=sOuter} nextOuter seedOuter) =
-  MkStream nextStep (ConcatNoInner seedOuter)
-  where
-    nextStep : ConcatState sOuter a -> Step (ConcatState sOuter a) a
-    nextStep (ConcatNoInner so) = case nextOuter so of
-      Done => Done
-      Skip so' => Skip (ConcatNoInner so')
-      Yield (MkStream nextInner seedInner) so' => Skip (ConcatHaveInner so' nextInner seedInner)
-    nextStep (ConcatHaveInner so nextInner seedInner) = case nextInner seedInner of
-      Done => Skip (ConcatNoInner so)
-      Skip seedInner' => Skip (ConcatHaveInner so nextInner seedInner')
-      Yield x seedInner' => Yield x (ConcatHaveInner so nextInner seedInner')
+  MkStream (fusedConcatStep nextOuter) (ConcatNoInner seedOuter)
 
 ||| Deforested stream monadic bind / flatMap operator.
-%inline public export
+public export
 flatMapStream : (a -> FusedStream b) -> FusedStream a -> FusedStream b
 flatMapStream f strm = fusedConcat (mapStream f strm)
 

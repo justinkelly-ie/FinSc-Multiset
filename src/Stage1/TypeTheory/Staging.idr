@@ -195,6 +195,54 @@ foldLinearStream (S f) fn acc (MkLinearStream step seed) = case step seed of
   SkipL st => foldLinearStream f fn acc (MkLinearStream step st)
   YieldL x st => foldLinearStream f fn (fn acc x) (MkLinearStream step st)
 
+------------------------------------------------------------------------
+-- 5B. 2LTT STAGED STREAM FUSION (PHASE 4)
+------------------------------------------------------------------------
+
+||| A 2LTT Staged Stream: represents a stream pipeline where step functions and fusion
+||| occur at the static meta level (Level 1), producing zero-overhead runtime iteration (Level 0).
+public export
+data StagedStream : Type -> Type where
+  MkStagedStream : {0 s : Type} -> (init : Lift s) -> (step : s -> Step s a) -> StagedStream a
+
+||| Lifts a FusedStream into a StagedStream.
+public export
+quoteFusedStream : FusedStream a -> StagedStream a
+quoteFusedStream (MkStream next seed) =
+  MkStagedStream (quote seed) next
+
+||| Folds a StagedStream with static structural fuel.
+public export
+stagedFoldStream : (fuel : Nat) -> (acc -> a -> acc) -> acc -> StagedStream a -> acc
+stagedFoldStream Z _ initAcc _ = initAcc
+stagedFoldStream (S f) fn initAcc (MkStagedStream {s} init step) =
+  go f initAcc (splice init)
+  where
+    go : Nat -> acc -> s -> acc
+    go Z curr _ = curr
+    go (S k) curr st = case step st of
+      Done => curr
+      Skip nextSt => go k curr nextSt
+      Yield x nextSt => go k (fn curr x) nextSt
+
+||| Deforested map over a StagedStream fusing statically at Level 1.
+public export
+mapStagedStream : (a -> b) -> StagedStream a -> StagedStream b
+mapStagedStream f (MkStagedStream init step) =
+  MkStagedStream init (\st => case step st of
+    Done => Done
+    Skip nextSt => Skip nextSt
+    Yield x nextSt => Yield (f x) nextSt)
+
+||| Deforested filter over a StagedStream fusing statically at Level 1.
+public export
+filterStagedStream : (a -> Bool) -> StagedStream a -> StagedStream a
+filterStagedStream p (MkStagedStream init step) =
+  MkStagedStream init (\st => case step st of
+    Done => Done
+    Skip nextSt => Skip nextSt
+    Yield x nextSt => if p x then Yield x nextSt else Skip nextSt)
+
 
 ------------------------------------------------------------------------
 -- 6. GENERALIZED DIMENSION-INDEXED N x N STAGED MATRIX ENGINE
