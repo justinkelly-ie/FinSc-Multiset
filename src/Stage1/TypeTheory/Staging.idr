@@ -7,6 +7,7 @@ module Stage1.TypeTheory.Staging
 
 import public Stage1.TypeTheory.TwoLevel
 import Stage0.BoxInt
+import Stage0.BoxNat
 import Stage0.Multiset
 import Stage0.OnSeq.FusedStream
 import Data.Vect
@@ -280,10 +281,9 @@ stagedFastMatPower Z mat _ = stagedIdentityMat n
 stagedFastMatPower (S _) mat Z = stagedIdentityMat n
 stagedFastMatPower (S _) mat (S Z) = mat
 stagedFastMatPower (S f) mat exp =
-  let half = integerToNat (cast {to = Integer} exp `div` 2)
+  let (half, isOdd) = natHalfAndOdd exp
       halfMat = stagedFastMatPower f mat half
       squared = stagedUnrollMatMul halfMat halfMat
-      isOdd = (cast {to = Integer} exp `mod` 2) == 1
   in if isOdd
        then stagedUnrollMatMul mat squared
        else squared

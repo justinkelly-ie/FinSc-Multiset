@@ -87,6 +87,46 @@ public export
 Show BoxNat where
   show (MkBoxNat n) = "BoxNat(" ++ show n ++ ")"
 
+||| Computes exact integer halving (n / 2) and parity (n % 2 == 1) simultaneously
+||| in a single pass of structural recursion on Nat.
+||| Eliminates all GMP BigInt conversions in binary exponentiation.
+public export
+natHalfAndOdd : Nat -> (Nat, Bool)
+natHalfAndOdd Z = (Z, False)
+natHalfAndOdd (S Z) = (Z, True)
+natHalfAndOdd (S (S n)) =
+  let (h, odd) = natHalfAndOdd n
+  in (S h, odd)
+
+||| Constructive Euclidean division and remainder on Nat with structural fuel.
+||| Returns (quotient, remainder) such that n = q * d + r with r < d.
+||| When d = 0, returns (0, 0) by constructive convention.
+public export
+natDivMod : Nat -> Nat -> (Nat, Nat)
+natDivMod _ Z = (Z, Z)
+natDivMod n d = go n n Z
+  where
+    go : (fuel : Nat) -> Nat -> Nat -> (Nat, Nat)
+    go Z rem q = (q, rem)
+    go (S f) rem q =
+      if rem < d
+        then (q, rem)
+        else go f (minus rem d) (S q)
+
+||| BoxNat division and remainder.
+public export
+boxNatDivMod : BoxNat -> BoxNat -> (BoxNat, BoxNat)
+boxNatDivMod (MkBoxNat n) (MkBoxNat d) =
+  let (q, r) = natDivMod n d
+  in (MkBoxNat q, MkBoxNat r)
+
+||| BoxNat halving and parity.
+public export
+boxNatHalfAndOdd : BoxNat -> (BoxNat, Bool)
+boxNatHalfAndOdd (MkBoxNat n) =
+  let (h, odd) = natHalfAndOdd n
+  in (MkBoxNat h, odd)
+
 ------------------------------------------------------------------------
 -- 3. QTT 0 ERASED PROOFS & DEFINITIONAL INVARIANTS
 ------------------------------------------------------------------------

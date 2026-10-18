@@ -105,11 +105,32 @@ public export
 Cast Integer BoxInt where
   cast = intToBoxInt
 
+||| Returns True if the BoxInt value is exactly zero.
+%inline public export
+boxIsZero : BoxInt -> Bool
+boxIsZero (MkBoxInt v) = v == 0
+
+||| Returns True if the BoxInt value is non-zero.
+%inline public export
+boxIsNonZero : BoxInt -> Bool
+boxIsNonZero (MkBoxInt v) = v /= 0
+
+||| Converts BoxInt to a strictly positive Nat (minimum 1), clamping values <= 0 to 1.
+||| Eliminates division-by-zero risks in physical denominator scales.
+public export
+boxIntToPositiveNat : BoxInt -> Nat
+boxIntToPositiveNat (MkBoxInt v) = if v <= 0 then 1 else integerToNat v
+
 ||| Converts BoxInt to Nat, clamping negative values to 0.
 ||| For absolute-value conversion use absBox first.
-%inline public export
+public export
 boxToNat : BoxInt -> Nat
 boxToNat (MkBoxInt v) = if v <= 0 then 0 else integerToNat v
+
+||| Canonical alias for boxToNat.
+public export
+boxIntToNat : BoxInt -> Nat
+boxIntToNat = boxToNat
 
 public export
 Cast BoxInt Nat where
