@@ -46,9 +46,9 @@ transposeTensor ZeroM = ZeroM
 transposeTensor (AddM (x, y) w rest) = AddM (y, x) w (transposeTensor rest)
 
 ||| Stream Hylomorphic Tensor Contraction (Matrix Multiplication A · B):
-||| Multiplies two multiset tensors A : (a, b) and B : (b, c) -> (a, c)
-||| using a single-pass indexed contraction loop that eliminates quadratic copying passes.
-public export
+||| Multiplies two multiset tensors A : (a, b) and B : (b, c) -> (a, c).
+||| Deprecated: Use `multisetTensorMultOrd` for O((|A| + |B|) log |B|) performance when Ord b is available.
+public export %deprecate
 multisetTensorMult : Eq b => MultisetTensor a b -> MultisetTensor b c -> MultisetTensor a c
 multisetTensorMult tensorA tensorB =
   let indexB = groupByKey tensorB
