@@ -23,16 +23,19 @@ MkBoxelTree : BoxMultisetTree Voxel -> Boxel
 MkBoxelTree t = t
 
 ||| Constructs a canonical Boxel from an association list of Voxels.
+||| @deprecated Use singletonCell + (<+>), streamToCellMultiset, or fromVectCells. Avoid heap List materialization.
 public export
 mkBoxel : List (Voxel, BoxInt) -> Boxel
 mkBoxel = mkCellMultiset
 
 ||| Constructor alias for Boxel from coordinate pairs.
+||| @deprecated Use singletonCell + (<+>), streamToCellMultiset, or fromVectCells. Avoid heap List materialization.
 public export
 MkBoxel : List (Voxel, BoxInt) -> Boxel
 MkBoxel = mkCellMultiset
 
 ||| Extracts voxels association list from a Boxel in O(N).
+||| @deprecated Use streamCellMultiset or foldBoxTreeL directly. Avoid materializing entire multiset as List.
 public export
 voxels : Boxel -> List (Voxel, BoxInt)
 voxels = boxTreeToList
@@ -95,6 +98,7 @@ public export
 lookupVoxelTree : Voxel -> MultisetTree Voxel -> Nat
 lookupVoxelTree = lookupTokenTree
 
+||| @deprecated Use canonicalizeCellMultiset directly on CellMultiset trees.
 public export
 pruneBoxelTerms : List (Voxel, BoxInt) -> List (Voxel, BoxInt)
 pruneBoxelTerms [] = []
@@ -123,17 +127,22 @@ multisetToBoxel m = mkCellMultiset (multisetToList m)
 ------------------------------------------------------------------------
 
 ||| 3D Tensor Outer Product: Vexel (1D ket) x Maxel (2D surface) -> Boxel (3D volume).
+||| Evaluates directly in tree space with zero intermediate List allocations.
 public export
 outerProductVexelMaxel : Vexel -> Maxel -> Boxel
 outerProductVexelMaxel tk tm =
-  let generated = foldBoxTreeL (\accK, (s, sw) =>
-        foldBoxTreeL (\accM, (p, pw) =>
-          (mkVoxel (unwrapUnixel s) (pixelRow p) (pixelCol p), sw * pw) :: accM)
-          accK
-          tm)
-        []
-        tk
-  in mkCellMultiset generated
+  foldBoxTreeL (\accK, (s, sw) =>
+    foldBoxTreeL (\accM, (p, pw) =>
+      let v = mkVoxel (unwrapUnixel s) (pixelRow p) (pixelCol p)
+          w = sw * pw
+      in if boxIsZero w then accM
+         else let cur = lookupBoxTree v accM
+                  newW = cur + w
+              in if boxIsZero newW
+                   then setBoxTree v (intToBoxInt 0) accM
+                   else setBoxTree v newW accM
+    ) accK tm
+  ) BoxLeaf tk
 
 ||| Extracts a 2D Maxel plane slice at a fixed Z-coordinate: Z_k(B) = { [x, y] with w | [x, y, k] in B }
 public export
@@ -187,24 +196,29 @@ sliceBoxelX targetX b =
 -- 4. GRASSMANN WEDGE PRODUCTS & EXTERIOR ALGEBRA
 ------------------------------------------------------------------------
 
-||| Evaluates the Grassmann exterior wedge product of a Vexel and a Maxel into a 3D Boxel:
+||| Evaluates the Grassmann exterior wedge product of a Vexel and a Maxel into a 3D Boxel.
+||| Evaluates directly in tree space with zero intermediate List allocations.
 public export
 wedgeVexelMaxel : Vexel -> Maxel -> Boxel
 wedgeVexelMaxel tu tm =
-  let terms = foldBoxTreeL (\accU, (u, wu) =>
-        let i = unwrapUnixel u
-        in foldBoxTreeL (\accM, (p, wm) =>
-             let j = pixelRow p
-                 k = pixelCol p
-             in if i == j || j == k || i == k
-                  then accM
-                  else let w = wu * wm
-                       in (mkVoxel i j k, w) :: (mkVoxel j i k, -w) :: (mkVoxel j k i, w) :: accM)
-             accU
-             tm)
-        []
-        tu
-  in mkCellMultiset terms
+  let addTerm : Voxel -> BoxInt -> Boxel -> Boxel
+      addTerm v tw acc =
+        let cur = lookupBoxTree v acc
+            nw  = cur + tw
+        in if boxIsZero nw then setBoxTree v (intToBoxInt 0) acc else setBoxTree v nw acc
+  in foldBoxTreeL (\accU, (u, wu) =>
+       let i = unwrapUnixel u
+       in foldBoxTreeL (\accM, (p, wm) =>
+            let j = pixelRow p
+                k = pixelCol p
+            in if i == j || j == k || i == k
+                 then accM
+                 else let w = wu * wm
+                      in addTerm (mkVoxel j k i) w
+                           (addTerm (mkVoxel j i k) (-w)
+                             (addTerm (mkVoxel i j k) w accM))
+          ) accU tm
+     ) BoxLeaf tu
 
 ------------------------------------------------------------------------
 -- 5. 4D SPACETIME HYPERBOXEL TENSORS (Tesseract [x, y, z, t])
@@ -216,16 +230,19 @@ MkHyperBoxelTree : BoxMultisetTree Cell -> HyperBoxel
 MkHyperBoxelTree t = t
 
 ||| Constructs a canonical HyperBoxel from an association list of Cells.
+||| @deprecated Use singletonCell + (<+>), streamToCellMultiset, or fromVectCells. Avoid heap List materialization.
 public export
 mkHyperBoxel : List (Cell, BoxInt) -> HyperBoxel
 mkHyperBoxel = mkCellMultiset
 
 ||| Constructor alias for HyperBoxel from coordinate pairs.
+||| @deprecated Use singletonCell + (<+>), streamToCellMultiset, or fromVectCells. Avoid heap List materialization.
 public export
 MkHyperBoxel : List (Cell, BoxInt) -> HyperBoxel
 MkHyperBoxel = mkCellMultiset
 
 ||| Extracts cells association list from a HyperBoxel in O(N).
+||| @deprecated Use streamCellMultiset or foldBoxTreeL directly. Avoid materializing entire multiset as List.
 public export
 cells : HyperBoxel -> List (Cell, BoxInt)
 cells = boxTreeToList
@@ -257,18 +274,23 @@ sliceHyperBoxelT targetT h =
     h
 
 ||| Outer product of a temporal Vexel and a spatial Boxel: T (x) S -> 4D HyperBoxel.
+||| Evaluates directly in tree space with zero intermediate List allocations.
 public export
 outerProductVexelBoxel : Vexel -> Boxel -> HyperBoxel
 outerProductVexelBoxel tt spaces =
-  let productList = foldBoxTreeL (\accT, (u, wt) =>
-        let t = unwrapUnixel u
-        in foldBoxTreeL (\accS, (v, ws) =>
-             (mkTesseract (voxelX v) (voxelY v) (voxelZ v) t, wt * ws) :: accS)
-             accT
-             spaces)
-        []
-        tt
-  in mkCellMultiset productList
+  foldBoxTreeL (\accT, (u, wt) =>
+    let t = unwrapUnixel u
+    in foldBoxTreeL (\accS, (v, ws) =>
+         let cell = mkTesseract (voxelX v) (voxelY v) (voxelZ v) t
+             w    = wt * ws
+         in if boxIsZero w then accS
+            else let cur = lookupBoxTree cell accS
+                     newW = cur + w
+                 in if boxIsZero newW
+                      then setBoxTree cell (intToBoxInt 0) accS
+                      else setBoxTree cell newW accS
+       ) accT spaces
+  ) BoxLeaf tt
 
 ||| Proves that slicing a 4D HyperBoxel at time t=2 extracts the exact 3D spatial Boxel.
 public export

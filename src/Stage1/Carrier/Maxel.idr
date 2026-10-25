@@ -27,26 +27,31 @@ MkMaxelTree t = t
 
 ||| Direct conversion of a list of Pixel-BoxInt pairs to a signed AVL BoxMultisetTree in O(N log N).
 ||| Prunes zero weights and collapses duplicate Pixels.
+||| @deprecated Use singletonCell + (<+>), streamToCellMultiset, or fromVectCells. Avoid heap List materialization.
 public export
 maxelListToBoxTree : List (Pixel, BoxInt) -> BoxMultisetTree Pixel
 maxelListToBoxTree = mkCellMultiset
 
 ||| Constructs a canonical Maxel from a list of Pixel-BoxInt pairs in O(N log N).
+||| @deprecated Use singletonCell + (<+>), streamToCellMultiset, or fromVectCells. Avoid heap List materialization.
 public export
 mkMaxel : List (Pixel, BoxInt) -> Maxel
 mkMaxel = mkCellMultiset
 
 ||| Canonical constructor alias for Maxel from coordinate pairs.
+||| @deprecated Use singletonCell + (<+>), streamToCellMultiset, or fromVectCells. Avoid heap List materialization.
 public export
 MkMaxel : List (Pixel, BoxInt) -> Maxel
 MkMaxel = mkCellMultiset
 
 ||| Flattens a Maxel to an association list in O(N) time.
+||| @deprecated Use streamCellMultiset or foldBoxTreeL directly. Avoid materializing entire multiset as List.
 public export
 maxelPixels : Maxel -> List (Pixel, BoxInt)
 maxelPixels = boxTreeToList
 
 ||| Projection view of Maxel pixels.
+||| @deprecated Use streamCellMultiset or foldBoxTreeL directly. Avoid materializing entire multiset as List.
 public export
 pixels : Maxel -> List (Pixel, BoxInt)
 pixels = maxelPixels
@@ -646,12 +651,14 @@ implementation MultisetAlgebra Vexel where
 ------------------------------------------------------------------------
 
 ||| Extracts the finite active support of a Maxel as a list of directed edges [i, j].
+||| @deprecated Use supportCellStream (FusedStream). Materializing support as List is forbidden by Rule 04 §8.
 public export
 supportMaxel : Maxel -> List Pixel
 supportMaxel t =
   foldBoxTreeR (\p, w, acc => if boxIsNonZero w then p :: acc else acc) [] t
 
 ||| Extracts the finite active support of a Vexel vector as a list of basis Unixels.
+||| @deprecated Use supportCellStream (FusedStream). Materializing support as List is forbidden by Rule 04 §8.
 public export
 supportVexel : Vexel -> List Unixel
 supportVexel t =
@@ -662,26 +669,23 @@ supportVexel t =
 public export
 parameterizedBlueMetricMaxel : BoxInt -> BoxInt -> Maxel
 parameterizedBlueMetricMaxel x y =
-  MkMaxel [ (mkPixel 1 1, x * x)
-          , (mkPixel 2 2, y * y)
-          ]
+  singletonCell (mkPixel 1 1) (x * x) <+>
+  singletonCell (mkPixel 2 2) (y * y)
 
 ||| 2D Red (Hyperbolic/Relativistic) Metric Maxel parameterized by (x, y):
 public export
 parameterizedRedMetricMaxel : BoxInt -> BoxInt -> Maxel
 parameterizedRedMetricMaxel x y =
-  MkMaxel [ (mkPixel 1 1, x * x)
-          , (mkPixel 2 2, mulBox (intToBoxInt (-1)) (y * y))
-          ]
+  singletonCell (mkPixel 1 1) (x * x) <+>
+  singletonCell (mkPixel 2 2) (mulBox (intToBoxInt (-1)) (y * y))
 
 ||| 2D Green (Parabolic/Null) Metric Maxel parameterized by (x, y):
 public export
 parameterizedGreenMetricMaxel : BoxInt -> BoxInt -> Maxel
 parameterizedGreenMetricMaxel x y =
   let xy = x * y
-  in MkMaxel [ (mkPixel 1 2, xy)
-             , (mkPixel 2 1, xy)
-             ]
+  in singletonCell (mkPixel 1 2) xy <+>
+     singletonCell (mkPixel 2 1) xy
 
 ||| Invariant audit verifying the parameterized chromogeometric operator identity:
 public export
@@ -990,6 +994,7 @@ companionSpreadMaxelN2 s =
   let diag = subBox (intToBoxInt 2) (mulBox (intToBoxInt 4) s)
   in mkMaxel2 diag (intToBoxInt (-1)) (intToBoxInt 1) (intToBoxInt 0)
 
+||| @deprecated Use canonicalizeCellMultiset directly on CellMultiset trees.
 public export
 pruneMaxelTerms : List (Pixel, BoxInt) -> List (Pixel, BoxInt)
 pruneMaxelTerms [] = []

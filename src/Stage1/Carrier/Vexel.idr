@@ -33,26 +33,31 @@ DiscreteVexel = Vexel
 
 ||| Direct conversion of a list of Unixel-BoxInt pairs to a signed AVL BoxMultisetTree in O(N log N).
 ||| Prunes zero weights and collapses duplicate Unixels.
+||| @deprecated Use singletonCell + (<+>), streamToCellMultiset, or fromVectCells. Avoid heap List materialization.
 public export
 vexelListToBoxTree : List (Unixel, BoxInt) -> BoxMultisetTree Unixel
 vexelListToBoxTree = mkCellMultiset
 
 ||| Constructs a canonical Vexel from a list of Unixel-BoxInt pairs in O(N log N).
+||| @deprecated Use singletonCell + (<+>), streamToCellMultiset, or fromVectCells. Avoid heap List materialization.
 public export
 mkVexel : List (Unixel, BoxInt) -> Vexel
 mkVexel = mkCellMultiset
 
 ||| Canonical constructor alias for Vexel from coordinate pairs.
+||| @deprecated Use singletonCell + (<+>), streamToCellMultiset, or fromVectCells. Avoid heap List materialization.
 public export
 MkVexel : List (Unixel, BoxInt) -> Vexel
 MkVexel = mkCellMultiset
 
 ||| Flattens a Vexel to an association list in O(N) time.
+||| @deprecated Use streamCellMultiset or foldBoxTreeL directly. Avoid materializing entire multiset as List.
 public export
 vexelTerms : Vexel -> List (Unixel, BoxInt)
 vexelTerms = boxTreeToList
 
 ||| Projection view of Vexel terms.
+||| @deprecated Use streamCellMultiset or foldBoxTreeL directly. Avoid materializing entire multiset as List.
 public export
 terms : Vexel -> List (Unixel, BoxInt)
 terms = vexelTerms
@@ -319,6 +324,7 @@ public export
 kroneckerVexelN : {n, m : Nat} -> VexelN n -> VexelN m -> VexelN (n * m)
 kroneckerVexelN (MkVexelN u) (MkVexelN v) = MkVexelN (kroneckerVect u v)
 
+||| @deprecated Use canonicalizeCellMultiset directly on CellMultiset trees.
 public export
 pruneVexelTerms : List (Unixel, BoxInt) -> List (Unixel, BoxInt)
 pruneVexelTerms [] = []
@@ -329,10 +335,9 @@ pruneVexelTerms ((s, w) :: rest) =
 public export
 nucleonQuarkVexel : Vexel
 nucleonQuarkVexel =
-  MkVexel [ (mkUnixel 1, intToBoxInt 1)
-          , (mkUnixel 2, intToBoxInt 1)
-          , (mkUnixel 3, intToBoxInt 1)
-          ]
+  singletonCell (mkCell1 1) (intToBoxInt 1) <+>
+  singletonCell (mkCell1 2) (intToBoxInt 1) <+>
+  singletonCell (mkCell1 3) (intToBoxInt 1)
 
 ------------------------------------------------------------------------
 -- POLYNOMIAL BRIDGES: POLYS <-> VEXELS

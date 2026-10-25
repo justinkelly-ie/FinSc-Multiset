@@ -1,6 +1,7 @@
 module Stage1.Basis.Coordinate
 
 import Data.Nat
+import Data.Vect
 import Stage0.BoxInt
 import Stage0.BoxNat
 import Stage0.StructuralFuel
@@ -389,8 +390,37 @@ public export
 emptyCellMultiset : {dim : Nat} -> CellMultiset dim
 emptyCellMultiset = BoxLeaf
 
+||| Direct O(1) singleton construction of a CellMultiset without intermediate List allocation.
+public export
+singletonCell : {dim : Nat} -> CoordCell dim -> BoxInt -> CellMultiset dim
+singletonCell c w =
+  if boxIsZero w then BoxLeaf
+  else BoxNode 1 BoxLeaf c w BoxLeaf
+
+||| Constructs a CellMultiset from a fixed-length Vect of coordinate-weight pairs
+||| with compile-time known length k and structural fuel bounds.
+public export
+fromVectCells : {dim, k : Nat} -> Vect k (CoordCell dim, BoxInt) -> CellMultiset dim
+fromVectCells xs =
+  foldl (\t, (c, w) =>
+          if boxIsZero w then t
+          else let cur = lookupBoxTree c t
+                   newW = cur + w
+               in if boxIsZero newW
+                    then setBoxTree c (intToBoxInt 0) t
+                    else setBoxTree c newW t)
+        BoxLeaf
+        xs
+
+||| Deforested zero-allocation stream extractor for the active support of a CellMultiset.
+||| Emits strictly non-zero basis cells in O(1) auxiliary registers (Rule 04 §8).
+public export
+supportCellStream : {dim : Nat} -> CellMultiset dim -> FusedStream (CoordCell dim)
+supportCellStream t =
+  filterMapStream (\(c, w) => if boxIsNonZero w then Just c else Nothing) (streamBoxMultisetTree t)
+
 ||| Constructs a CellMultiset from a list of coordinate-weight pairs in O(N log N).
-||| Automatically prunes zero weights and collapses duplicate coordinates.
+||| @deprecated Use singletonCell + (<+>), streamToCellMultiset, or fromVectCells. Avoid heap List materialization.
 public export
 mkCellMultiset : {dim : Nat} -> List (CoordCell dim, BoxInt) -> CellMultiset dim
 mkCellMultiset xs =
