@@ -1,5 +1,6 @@
 module Stage1.Basis.Coordinate
 
+import Data.Vect
 import Stage0.BoxInt
 import Stage0.BoxNat
 import Stage0.StructuralFuel
@@ -166,3 +167,128 @@ Ord Tesseract where
 public export
 Show Tesseract where
   show (MkTesseract x y z t) = "[" ++ show x ++ ", " ++ show y ++ ", " ++ show z ++ ", " ++ show t ++ "]"
+
+------------------------------------------------------------------------
+-- 4. DEPENDENT DIMENSION-INDEXED COORDINATE CELLS (COORDCELL)
+------------------------------------------------------------------------
+
+||| Canonical 1-dimensional discrete dimension index.
+public export
+Dim1 : BoxNat
+Dim1 = MkBoxNat 1
+
+||| Canonical 2-dimensional discrete dimension index.
+public export
+Dim2 : BoxNat
+Dim2 = MkBoxNat 2
+
+||| Canonical 3-dimensional discrete dimension index.
+public export
+Dim3 : BoxNat
+Dim3 = MkBoxNat 3
+
+||| Canonical 4-dimensional discrete dimension index.
+public export
+Dim4 : BoxNat
+Dim4 = MkBoxNat 4
+
+||| Canonical 10-dimensional discrete dimension index.
+public export
+Dim10 : BoxNat
+Dim10 = MkBoxNat 10
+
+||| Arbitrary D-dimensional coordinate basis cell, indexed by BoxNat dimension.
+||| Guarantees definitional reduction: for any concrete Dim, `Vect (unwrapBoxNat Dim) Nat`
+||| normalizes directly to `Vect d Nat`.
+public export
+record CoordCell (dim : BoxNat) where
+  constructor MkCoordCell
+  coords : Vect (unwrapBoxNat dim) Nat
+
+public export
+coordCellEq : CoordCell dim -> CoordCell dim -> Bool
+coordCellEq (MkCoordCell cs1) (MkCoordCell cs2) = cs1 == cs2
+
+public export
+Eq (CoordCell dim) where
+  (MkCoordCell cs1) == (MkCoordCell cs2) = cs1 == cs2
+
+public export
+Ord (CoordCell dim) where
+  compare (MkCoordCell cs1) (MkCoordCell cs2) = compare cs1 cs2
+
+public export
+Show (CoordCell dim) where
+  show (MkCoordCell cs) = show cs
+
+------------------------------------------------------------------------
+-- 5. BIDIRECTIONAL CANONICAL LENSES & ROUND-TRIP WITNESSES
+------------------------------------------------------------------------
+
+-- 1D: Unixel <-> CoordCell Dim1
+public export
+unixelToCell : Unixel -> CoordCell Dim1
+unixelToCell (MkUnixel i) = MkCoordCell [i]
+
+public export
+cellToUnixel : CoordCell Dim1 -> Unixel
+cellToUnixel (MkCoordCell [i]) = MkUnixel i
+
+public export
+prfUnixelRoundTrip : (u : Unixel) -> cellToUnixel (unixelToCell u) = u
+prfUnixelRoundTrip (MkUnixel i) = Refl
+
+public export
+prfCellToUnixelRoundTrip : (c : CoordCell Dim1) -> unixelToCell (cellToUnixel c) = c
+prfCellToUnixelRoundTrip (MkCoordCell [i]) = Refl
+
+-- 2D: Pixel <-> CoordCell Dim2
+public export
+pixelToCell : Pixel -> CoordCell Dim2
+pixelToCell (MkPixel r c) = MkCoordCell [r, c]
+
+public export
+cellToPixel : CoordCell Dim2 -> Pixel
+cellToPixel (MkCoordCell [r, c]) = MkPixel r c
+
+public export
+prfPixelRoundTrip : (p : Pixel) -> cellToPixel (pixelToCell p) = p
+prfPixelRoundTrip (MkPixel r c) = Refl
+
+public export
+prfCellToPixelRoundTrip : (c : CoordCell Dim2) -> pixelToCell (cellToPixel c) = c
+prfCellToPixelRoundTrip (MkCoordCell [r, c]) = Refl
+
+-- 3D: Voxel <-> CoordCell Dim3
+public export
+voxelToCell : Voxel -> CoordCell Dim3
+voxelToCell (MkVoxel x y z) = MkCoordCell [x, y, z]
+
+public export
+cellToVoxel : CoordCell Dim3 -> Voxel
+cellToVoxel (MkCoordCell [x, y, z]) = MkVoxel x y z
+
+public export
+prfVoxelRoundTrip : (v : Voxel) -> cellToVoxel (voxelToCell v) = v
+prfVoxelRoundTrip (MkVoxel x y z) = Refl
+
+public export
+prfCellToVoxelRoundTrip : (c : CoordCell Dim3) -> voxelToCell (cellToVoxel c) = c
+prfCellToVoxelRoundTrip (MkCoordCell [x, y, z]) = Refl
+
+-- 4D: Tesseract <-> CoordCell Dim4
+public export
+tesseractToCell : Tesseract -> CoordCell Dim4
+tesseractToCell (MkTesseract x y z t) = MkCoordCell [x, y, z, t]
+
+public export
+cellToTesseract : CoordCell Dim4 -> Tesseract
+cellToTesseract (MkCoordCell [x, y, z, t]) = MkTesseract x y z t
+
+public export
+prfTesseractRoundTrip : (t : Tesseract) -> cellToTesseract (tesseractToCell t) = t
+prfTesseractRoundTrip (MkTesseract x y z t) = Refl
+
+public export
+prfCellToTesseractRoundTrip : (c : CoordCell Dim4) -> tesseractToCell (cellToTesseract c) = c
+prfCellToTesseractRoundTrip (MkCoordCell [x, y, z, t]) = Refl
