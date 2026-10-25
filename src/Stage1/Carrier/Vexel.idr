@@ -21,7 +21,7 @@ import public Stage1.Basis.Coordinate
 -- 2. VEXEL (1D WILDBERGER VECTOR MULTISET)
 ------------------------------------------------------------------------
 
-||| Transparent constructor bridge for Vexel (CellMultiset 1).
+||| @deprecated Use CellMultiset 1 directly. Transparent constructor bridge for Vexel.
 public export
 MkVexelTree : BoxMultisetTree Unixel -> Vexel
 MkVexelTree t = t
@@ -77,10 +77,14 @@ public export
 canonicalizeVexel : Vexel -> Vexel
 canonicalizeVexel = canonicalizeCellMultiset
 
+||| @deprecated Legacy bridge converting Vexel to heap-allocated linked list Multiset.
+||| Use CellMultiset operations or boxTreeToList directly.
 public export
 vexelToMultiset : Vexel -> Multiset BoxInt Unixel
 vexelToMultiset t = fromListBox (boxTreeToList t)
 
+||| @deprecated Legacy bridge converting linked list Multiset to Vexel.
+||| Use mkCellMultiset directly.
 public export
 multisetToVexel : Multiset BoxInt Unixel -> Vexel
 multisetToVexel m = mkCellMultiset (multisetToList m)

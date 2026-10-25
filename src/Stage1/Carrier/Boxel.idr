@@ -17,7 +17,7 @@ import public Stage1.Carrier.Maxel
 -- 1. BOXEL (3D WILDBERGER VOLUME MULTISET)
 ------------------------------------------------------------------------
 
-||| Transparent constructor bridge for Boxel (CellMultiset 3).
+||| @deprecated Use CellMultiset 3 directly. Transparent constructor bridge for Boxel.
 public export
 MkBoxelTree : BoxMultisetTree Voxel -> Boxel
 MkBoxelTree t = t
@@ -106,10 +106,14 @@ public export
 canonicalizeBoxel : Boxel -> Boxel
 canonicalizeBoxel = canonicalizeCellMultiset
 
+||| @deprecated Legacy bridge converting Boxel to heap-allocated linked list Multiset.
+||| Use CellMultiset operations or boxTreeToList directly.
 public export
 boxelToMultiset : Boxel -> Multiset BoxInt Voxel
 boxelToMultiset t = fromListBox (boxTreeToList t)
 
+||| @deprecated Legacy bridge converting linked list Multiset to Boxel.
+||| Use mkCellMultiset directly.
 public export
 multisetToBoxel : Multiset BoxInt Voxel -> Boxel
 multisetToBoxel m = mkCellMultiset (multisetToList m)
@@ -206,7 +210,7 @@ wedgeVexelMaxel tu tm =
 -- 5. 4D SPACETIME HYPERBOXEL TENSORS (Tesseract [x, y, z, t])
 ------------------------------------------------------------------------
 
-||| Transparent constructor bridge for HyperBoxel (CellMultiset 4).
+||| @deprecated Use CellMultiset 4 directly. Transparent constructor bridge for HyperBoxel.
 public export
 MkHyperBoxelTree : BoxMultisetTree Cell -> HyperBoxel
 MkHyperBoxelTree t = t

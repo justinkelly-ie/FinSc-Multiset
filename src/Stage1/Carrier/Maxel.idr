@@ -20,9 +20,8 @@ import public Stage1.Carrier.Vexel
 -- 1. MAXEL (2D WILDBERGER MATRIX MULTISET)
 ------------------------------------------------------------------------
 
-||| Transparent constructor bridge for Maxel (CellMultiset 2).
+||| @deprecated Use CellMultiset 2 directly. Transparent constructor bridge for Maxel.
 public export
-
 MkMaxelTree : BoxMultisetTree Pixel -> Maxel
 MkMaxelTree t = t
 
@@ -72,10 +71,14 @@ public export
 canonicalizeMaxel : Maxel -> Maxel
 canonicalizeMaxel = canonicalizeCellMultiset
 
+||| @deprecated Legacy bridge converting Maxel to heap-allocated linked list Multiset.
+||| Use CellMultiset operations or boxTreeToList directly.
 public export
 maxelToMultiset : Maxel -> Multiset BoxInt Pixel
 maxelToMultiset t = fromListBox (boxTreeToList t)
 
+||| @deprecated Legacy bridge converting linked list Multiset to Maxel.
+||| Use mkCellMultiset directly.
 public export
 multisetToMaxel : Multiset BoxInt Pixel -> Maxel
 multisetToMaxel m = mkCellMultiset (multisetToList m)
