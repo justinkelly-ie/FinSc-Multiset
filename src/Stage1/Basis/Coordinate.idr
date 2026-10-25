@@ -128,3 +128,25 @@ boxIntToPixelPair p n = MkPixel p n
 public export
 pixelToSignedBoxInt : Pixel -> BoxInt
 pixelToSignedBoxInt (MkPixel p n) = intToBoxInt (cast p - cast n)
+
+------------------------------------------------------------------------
+-- 3. 4D SPACETIME BASIS COORDINATE CELLS (TESSERACT)
+------------------------------------------------------------------------
+
+||| A 4D Spacetime coordinate cell token [x, y, z, t].
+public export
+record Tesseract where
+  constructor MkTesseract
+  x : Nat
+  y : Nat
+  z : Nat
+  t : Nat
+
+public export
+Eq Tesseract where
+  (MkTesseract x1 y1 z1 t1) == (MkTesseract x2 y2 z2 t2) =
+    x1 == x2 && y1 == y2 && z1 == z2 && t1 == t2
+
+public export
+Show Tesseract where
+  show (MkTesseract x y z t) = "[" ++ show x ++ ", " ++ show y ++ ", " ++ show z ++ ", " ++ show t ++ "]"

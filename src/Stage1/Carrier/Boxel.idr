@@ -206,24 +206,6 @@ wedgeVexelMaxel (MkVexelTree tu) (MkMaxelTree tm) =
 -- 5. 4D SPACETIME HYPERBOXEL TENSORS (Tesseract [x, y, z, t])
 ------------------------------------------------------------------------
 
-||| A 4D Spacetime coordinate token [x, y, z, t].
-public export
-record Tesseract where
-  constructor MkTesseract
-  x : Nat
-  y : Nat
-  z : Nat
-  t : Nat
-
-public export
-Eq Tesseract where
-  (MkTesseract x1 y1 z1 t1) == (MkTesseract x2 y2 z2 t2) =
-    x1 == x2 && y1 == y2 && z1 == z2 && t1 == t2
-
-public export
-Show Tesseract where
-  show (MkTesseract x y z t) = "[" ++ show x ++ ", " ++ show y ++ ", " ++ show z ++ ", " ++ show t ++ "]"
-
 ||| A 4D Spacetime HyperBoxel represents a 4D volume multiset of weighted Tesseract cells.
 public export
 record HyperBoxel where

@@ -102,6 +102,15 @@ public export
 scaleMSF : BoxInt -> MSetFraction -> MSetFraction
 scaleMSF s (MkMSF a b) = MkMSF (s * a) b
 
+||| Division: (a/b) / (c/d) = (a*d*sgn(c)) / (b*|c|), safely clamping zero divisor to 1.
+public export
+divMSF : MSetFraction -> MSetFraction -> MSetFraction
+divMSF (MkMSF a b) (MkMSF c d) =
+  let cAbs = boxToNat (absBox c)
+      denScale = if cAbs == 0 then 1 else cAbs
+      signAdj = if c < 0 then -1 else 1
+  in MkMSF (a * fromInteger (natToInteger d) * signAdj) (b * denScale)
+
 -----------------------------------------------------------------------
 -- CROSS-MULTIPLIED COMPARISON (no division)
 -----------------------------------------------------------------------

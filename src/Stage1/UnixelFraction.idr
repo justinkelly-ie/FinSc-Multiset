@@ -186,9 +186,17 @@ divUnixelFraction : UnixelFraction -> UnixelFraction -> UnixelFraction
 divUnixelFraction (MkUnixelFraction n1 (MkUnixel d1)) (MkUnixelFraction n2 (MkUnixel d2)) =
   let d2Int = natToBoxInt d2
       newNum = n1 * d2Int
-      dDenom = let d = boxToNat n2 in if d == 0 then 1 else d
+      dDenom = let d = boxToNat (absBox n2) in if d == 0 then 1 else d
       signAdj = if n2 < intToBoxInt 0 then -1 else 1
   in mkUnixelFraction (newNum * intToBoxInt signAdj) (d1 * dDenom)
+
+||| Audits that division with negative divisor correctly computes rational quotient:
+||| (6 / 1) / (-3 / 1) == -2 / 1.
+public export
+0 verifyDivNegativeProof :
+  rationalEquiv (divUnixelFraction (mkUnixelFraction (intToBoxInt 6) 1) (mkUnixelFraction (intToBoxInt (-3)) 1))
+                (mkUnixelFraction (intToBoxInt (-2)) 1) = True
+verifyDivNegativeProof = Refl
 
 
 ||| Rational Equality via cross-multiplication: n1 * d2 == n2 * d1

@@ -443,7 +443,7 @@ boxSquareMaxelToTensor (MkBoxSquareMaxel tree) =
 public export
 tensorToBoxSquareMaxel : {dim : Nat} -> Multiset BoxInt Pixel -> BoxSquareMaxel dim
 tensorToBoxSquareMaxel tensor =
-  MkBoxSquareMaxel (foldl (\tree, (p, w) => setBoxTree p w tree) BoxLeaf (multisetToList tensor))
+  MkBoxSquareMaxel (foldMultiset (\p, w, tree => setBoxTree p w tree) BoxLeaf tensor)
 
 ||| Converts a general Maxel into a typed MultisetTensor over natural coordinates.
 public export
@@ -455,15 +455,15 @@ maxelToTensor (MkMaxelTree tree) =
 public export
 tensorToMaxel : MultisetTensor Nat Nat -> Maxel
 tensorToMaxel tensor =
-  MkMaxelTree (foldl (\tree, ((r, c), w) =>
+  MkMaxelTree (foldMultiset (\(r, c), w, tree =>
                  if boxIsZero w then tree
                  else let cur = lookupBoxTree (MkPixel r c) tree
                           newW = cur + w
                       in if boxIsZero newW
                            then setBoxTree (MkPixel r c) (intToBoxInt 0) tree
                            else setBoxTree (MkPixel r c) newW tree)
-                     BoxLeaf
-                     (multisetToList tensor))
+                 BoxLeaf
+                 tensor)
 
 ||| Algebraic Kronecker Tensor Product on BoxSquareMaxel:
 public export

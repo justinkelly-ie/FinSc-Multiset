@@ -92,6 +92,12 @@ Foldable (Multiset c) where
   foldMap f ZeroM = neutral
   foldMap f (AddM x _ xs) = f x <+> foldMap f xs
 
+||| Folds a function over all (item, weight) elements of a Multiset in single pass without list materialization.
+public export
+foldMultiset : (a -> c -> acc -> acc) -> acc -> Multiset c a -> acc
+foldMultiset _ z ZeroM = z
+foldMultiset f z (AddM x c xs) = f x c (foldMultiset f z xs)
+
 public export
 Traversable (Multiset c) where
   traverse f ZeroM = pure ZeroM
