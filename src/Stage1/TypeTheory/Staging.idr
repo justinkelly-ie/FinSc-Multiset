@@ -293,27 +293,210 @@ stagedFastMatPower (S f) mat exp =
 -- 7. 2LTT STAGED COORDINATE CELL & CARRIER OPERATIONS
 ------------------------------------------------------------------------
 
-||| Staged 2LTT Coordinate Cell Addition.
+||| 2LTT Staged Unrolled Coordinate Addition for arbitrary static dimensions.
+||| Emits branchless, flat Level 1 primitive additions without AVL tree traversal for D in {1, 2, 3, 4}.
 public export
-stagedAddCoordCell : Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift (CoordCell dim)
-stagedAddCoordCell qc1 qc2 = quote (addCoordCell (splice qc1) (splice qc2))
+stagedUnrollAdd : (dim : Nat) -> Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift (CoordCell dim)
+stagedUnrollAdd (S Z) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in mkCell1 (coordAxis 0 c1 + coordAxis 0 c2))
+stagedUnrollAdd (S (S Z)) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in mkCell2 (coordAxis 0 c1 + coordAxis 0 c2)
+                    (coordAxis 1 c1 + coordAxis 1 c2))
+stagedUnrollAdd (S (S (S Z))) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in mkCell3 (coordAxis 0 c1 + coordAxis 0 c2)
+                    (coordAxis 1 c1 + coordAxis 1 c2)
+                    (coordAxis 2 c1 + coordAxis 2 c2))
+stagedUnrollAdd (S (S (S (S Z)))) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in mkCell4 (coordAxis 0 c1 + coordAxis 0 c2)
+                    (coordAxis 1 c1 + coordAxis 1 c2)
+                    (coordAxis 2 c1 + coordAxis 2 c2)
+                    (coordAxis 3 c1 + coordAxis 3 c2))
+stagedUnrollAdd _ qc1 qc2 =
+  quote (addCoordCell (splice qc1) (splice qc2))
 
-||| Staged 2LTT Coordinate Cell Componentwise Multiplication (Hadamard).
+||| 2LTT Staged Unrolled Coordinate Hadamard Multiplication.
 public export
-stagedMulCoordCell : Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift (CoordCell dim)
-stagedMulCoordCell qc1 qc2 = quote (mulCoordCell (splice qc1) (splice qc2))
+stagedUnrollMul : (dim : Nat) -> Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift (CoordCell dim)
+stagedUnrollMul (S Z) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in mkCell1 (coordAxis 0 c1 * coordAxis 0 c2))
+stagedUnrollMul (S (S Z)) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in mkCell2 (coordAxis 0 c1 * coordAxis 0 c2)
+                    (coordAxis 1 c1 * coordAxis 1 c2))
+stagedUnrollMul (S (S (S Z))) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in mkCell3 (coordAxis 0 c1 * coordAxis 0 c2)
+                    (coordAxis 1 c1 * coordAxis 1 c2)
+                    (coordAxis 2 c1 * coordAxis 2 c2))
+stagedUnrollMul (S (S (S (S Z)))) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in mkCell4 (coordAxis 0 c1 * coordAxis 0 c2)
+                    (coordAxis 1 c1 * coordAxis 1 c2)
+                    (coordAxis 2 c1 * coordAxis 2 c2)
+                    (coordAxis 3 c1 * coordAxis 3 c2))
+stagedUnrollMul _ qc1 qc2 =
+  quote (mulCoordCell (splice qc1) (splice qc2))
 
-||| Staged 2LTT Coordinate Cell Scalar Scaling.
+||| 2LTT Staged Unrolled Coordinate Scalar Multiplication.
 public export
-stagedScaleCoordCell : Nat -> Lift (CoordCell dim) -> Lift (CoordCell dim)
-stagedScaleCoordCell k qc = quote (scaleCoordCell k (splice qc))
+stagedUnrollScale : (dim : Nat) -> Nat -> Lift (CoordCell dim) -> Lift (CoordCell dim)
+stagedUnrollScale (S Z) k qc =
+  quote (let c = splice qc in mkCell1 (k * coordAxis 0 c))
+stagedUnrollScale (S (S Z)) k qc =
+  quote (let c = splice qc in mkCell2 (k * coordAxis 0 c) (k * coordAxis 1 c))
+stagedUnrollScale (S (S (S Z))) k qc =
+  quote (let c = splice qc in mkCell3 (k * coordAxis 0 c) (k * coordAxis 1 c) (k * coordAxis 2 c))
+stagedUnrollScale (S (S (S (S Z)))) k qc =
+  quote (let c = splice qc in mkCell4 (k * coordAxis 0 c) (k * coordAxis 1 c) (k * coordAxis 2 c) (k * coordAxis 3 c))
+stagedUnrollScale _ k qc =
+  quote (scaleCoordCell k (splice qc))
 
-||| Staged 2LTT Inner / Dot Product.
+||| 2LTT Staged Unrolled Coordinate Subtraction.
 public export
-stagedDotCoordCell : Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift Nat
-stagedDotCoordCell qc1 qc2 = quote (dotCoordCell (splice qc1) (splice qc2))
+stagedUnrollMinus : (dim : Nat) -> Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift (CoordCell dim)
+stagedUnrollMinus (S Z) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in mkCell1 (minus (coordAxis 0 c1) (coordAxis 0 c2)))
+stagedUnrollMinus (S (S Z)) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in mkCell2 (minus (coordAxis 0 c1) (coordAxis 0 c2))
+                    (minus (coordAxis 1 c1) (coordAxis 1 c2)))
+stagedUnrollMinus (S (S (S Z))) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in mkCell3 (minus (coordAxis 0 c1) (coordAxis 0 c2))
+                    (minus (coordAxis 1 c1) (coordAxis 1 c2))
+                    (minus (coordAxis 2 c1) (coordAxis 2 c2)))
+stagedUnrollMinus (S (S (S (S Z)))) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in mkCell4 (minus (coordAxis 0 c1) (coordAxis 0 c2))
+                    (minus (coordAxis 1 c1) (coordAxis 1 c2))
+                    (minus (coordAxis 2 c1) (coordAxis 2 c2))
+                    (minus (coordAxis 3 c1) (coordAxis 3 c2)))
+stagedUnrollMinus _ qc1 qc2 =
+  quote (minusCoordCell (splice qc1) (splice qc2))
 
-||| Staged 2LTT Wildberger Quadrance.
+||| 2LTT Staged Unrolled Inner / Dot Product (c1 · c2).
 public export
-stagedQuadranceCoordCell : Lift (CoordCell dim) -> Lift Nat
-stagedQuadranceCoordCell qc = quote (quadranceCoordCell (splice qc))
+stagedUnrollDot : (dim : Nat) -> Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift Nat
+stagedUnrollDot (S Z) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in coordAxis 0 c1 * coordAxis 0 c2)
+stagedUnrollDot (S (S Z)) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in (coordAxis 0 c1 * coordAxis 0 c2) +
+            (coordAxis 1 c1 * coordAxis 1 c2))
+stagedUnrollDot (S (S (S Z))) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in (coordAxis 0 c1 * coordAxis 0 c2) +
+            (coordAxis 1 c1 * coordAxis 1 c2) +
+            (coordAxis 2 c1 * coordAxis 2 c2))
+stagedUnrollDot (S (S (S (S Z)))) qc1 qc2 =
+  quote (let c1 = splice qc1; c2 = splice qc2
+         in (coordAxis 0 c1 * coordAxis 0 c2) +
+            (coordAxis 1 c1 * coordAxis 1 c2) +
+            (coordAxis 2 c1 * coordAxis 2 c2) +
+            (coordAxis 3 c1 * coordAxis 3 c2))
+stagedUnrollDot _ qc1 qc2 =
+  quote (dotCoordCell (splice qc1) (splice qc2))
+
+||| 2LTT Staged Unrolled Wildberger Quadrance Q(c) = c · c.
+public export
+stagedUnrollQuadrance : (dim : Nat) -> Lift (CoordCell dim) -> Lift Nat
+stagedUnrollQuadrance (S Z) qc =
+  quote (let c = splice qc; x0 = coordAxis 0 c in x0 * x0)
+stagedUnrollQuadrance (S (S Z)) qc =
+  quote (let c = splice qc; x0 = coordAxis 0 c; x1 = coordAxis 1 c
+         in (x0 * x0) + (x1 * x1))
+stagedUnrollQuadrance (S (S (S Z))) qc =
+  quote (let c = splice qc; x0 = coordAxis 0 c; x1 = coordAxis 1 c; x2 = coordAxis 2 c
+         in (x0 * x0) + (x1 * x1) + (x2 * x2))
+stagedUnrollQuadrance (S (S (S (S Z)))) qc =
+  quote (let c = splice qc
+             x0 = coordAxis 0 c; x1 = coordAxis 1 c
+             x2 = coordAxis 2 c; x3 = coordAxis 3 c
+         in (x0 * x0) + (x1 * x1) + (x2 * x2) + (x3 * x3))
+stagedUnrollQuadrance _ qc =
+  quote (quadranceCoordCell (splice qc))
+
+------------------------------------------------------------------------
+-- 8. 2LTT POLYMORPHIC STAGED COORDINATE CELL INTERFACE
+------------------------------------------------------------------------
+
+||| Overloaded 2LTT staging interface for dimension-unrolled coordinate cells.
+public export
+interface StagedCoordCell (dim : Nat) where
+  stagedAddCell   : Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift (CoordCell dim)
+  stagedMulCell   : Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift (CoordCell dim)
+  stagedScaleCell : Nat -> Lift (CoordCell dim) -> Lift (CoordCell dim)
+  stagedMinusCell : Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift (CoordCell dim)
+  stagedDotCell   : Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift Nat
+  stagedQuadCell  : Lift (CoordCell dim) -> Lift Nat
+
+public export
+{dim : Nat} -> StagedCoordCell dim where
+  stagedAddCell   = stagedUnrollAdd dim
+  stagedMulCell   = stagedUnrollMul dim
+  stagedScaleCell = stagedUnrollScale dim
+  stagedMinusCell = stagedUnrollMinus dim
+  stagedDotCell   = stagedUnrollDot dim
+  stagedQuadCell  = stagedUnrollQuadrance dim
+
+-- Canonical Backwards-Compatible Staging Aliases
+public export
+stagedAddCoordCell : {dim : Nat} -> Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift (CoordCell dim)
+stagedAddCoordCell {dim} = stagedUnrollAdd dim
+
+public export
+stagedMulCoordCell : {dim : Nat} -> Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift (CoordCell dim)
+stagedMulCoordCell {dim} = stagedUnrollMul dim
+
+public export
+stagedScaleCoordCell : {dim : Nat} -> Nat -> Lift (CoordCell dim) -> Lift (CoordCell dim)
+stagedScaleCoordCell {dim} = stagedUnrollScale dim
+
+public export
+stagedDotCoordCell : {dim : Nat} -> Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift Nat
+stagedDotCoordCell {dim} = stagedUnrollDot dim
+
+public export
+stagedQuadranceCoordCell : {dim : Nat} -> Lift (CoordCell dim) -> Lift Nat
+stagedQuadranceCoordCell {dim} = stagedUnrollQuadrance dim
+
+------------------------------------------------------------------------
+-- 9. 2LTT DEFINITIONAL EVALUATION INVERSE THEOREMS
+------------------------------------------------------------------------
+
+public export
+0 prfStagedUnrollAdd1D : (c1, c2 : CoordCell 1) ->
+  splice (stagedUnrollAdd 1 (quote c1) (quote c2)) = mkCell1 (coordAxis 0 c1 + coordAxis 0 c2)
+prfStagedUnrollAdd1D _ _ = Refl
+
+public export
+0 prfStagedUnrollAdd2D : (c1, c2 : CoordCell 2) ->
+  splice (stagedUnrollAdd 2 (quote c1) (quote c2)) = mkCell2 (coordAxis 0 c1 + coordAxis 0 c2) (coordAxis 1 c1 + coordAxis 1 c2)
+prfStagedUnrollAdd2D _ _ = Refl
+
+public export
+0 prfStagedUnrollAdd3D : (c1, c2 : CoordCell 3) ->
+  splice (stagedUnrollAdd 3 (quote c1) (quote c2)) = mkCell3 (coordAxis 0 c1 + coordAxis 0 c2) (coordAxis 1 c1 + coordAxis 1 c2) (coordAxis 2 c1 + coordAxis 2 c2)
+prfStagedUnrollAdd3D _ _ = Refl
+
+public export
+0 prfStagedUnrollAdd4D : (c1, c2 : CoordCell 4) ->
+  splice (stagedUnrollAdd 4 (quote c1) (quote c2)) = mkCell4 (coordAxis 0 c1 + coordAxis 0 c2) (coordAxis 1 c1 + coordAxis 1 c2) (coordAxis 2 c1 + coordAxis 2 c2) (coordAxis 3 c1 + coordAxis 3 c2)
+prfStagedUnrollAdd4D _ _ = Refl
+
+public export
+0 prfStagedUnrollDot2D : (c1, c2 : CoordCell 2) ->
+  splice (stagedUnrollDot 2 (quote c1) (quote c2)) = (coordAxis 0 c1 * coordAxis 0 c2) + (coordAxis 1 c1 * coordAxis 1 c2)
+prfStagedUnrollDot2D _ _ = Refl
+
+public export
+0 prfStagedUnrollQuad2D : (c : CoordCell 2) ->
+  splice (stagedUnrollQuadrance 2 (quote c)) = (coordAxis 0 c * coordAxis 0 c) + (coordAxis 1 c * coordAxis 1 c)
+prfStagedUnrollQuad2D _ = Refl
