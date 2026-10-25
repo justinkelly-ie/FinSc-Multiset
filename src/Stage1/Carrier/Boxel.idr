@@ -7,7 +7,6 @@ import Stage0.Multiset
 import Stage1.Order.Preorder
 import Stage1.MultisetTree
 import Data.List
-import Data.Vect
 import public Stage1.Basis.Coordinate
 import public Stage1.Carrier.Vexel
 import public Stage1.Carrier.Maxel
@@ -126,7 +125,7 @@ outerProductVexelMaxel : Vexel -> Maxel -> Boxel
 outerProductVexelMaxel (MkVexelTree tk) (MkMaxelTree tm) =
   let generated = foldBoxTreeL (\accK, (s, sw) =>
         foldBoxTreeL (\accM, (p, pw) =>
-          (MkVoxel (index s) (row p) (col p), sw * pw) :: accM)
+          (mkVoxel (unwrapUnixel s) (pixelRow p) (pixelCol p), sw * pw) :: accM)
           accK
           tm)
         []
@@ -137,13 +136,14 @@ outerProductVexelMaxel (MkVexelTree tk) (MkMaxelTree tm) =
 public export
 sliceBoxelZ : Nat -> Boxel -> Maxel
 sliceBoxelZ targetZ (MkBoxel voxs) =
-  let resultTree = foldl (\acc, (MkVoxel x y z, w) =>
-                     if z == targetZ
-                       then let cur = lookupBoxTree (MkPixel x y) acc
+  let resultTree = foldl (\acc, (v, w) =>
+                     if voxelZ v == targetZ
+                       then let p = mkPixel (voxelX v) (voxelY v)
+                                cur = lookupBoxTree p acc
                                 newW = cur + w
                             in if boxIsZero newW
-                                 then setBoxTree (MkPixel x y) (intToBoxInt 0) acc
-                                 else setBoxTree (MkPixel x y) newW acc
+                                 then setBoxTree p (intToBoxInt 0) acc
+                                 else setBoxTree p newW acc
                        else acc)
                      BoxLeaf
                      voxs
@@ -153,13 +153,14 @@ sliceBoxelZ targetZ (MkBoxel voxs) =
 public export
 sliceBoxelY : Nat -> Boxel -> Maxel
 sliceBoxelY targetY (MkBoxel voxs) =
-  let resultTree = foldl (\acc, (MkVoxel x y z, w) =>
-                     if y == targetY
-                       then let cur = lookupBoxTree (MkPixel x z) acc
+  let resultTree = foldl (\acc, (v, w) =>
+                     if voxelY v == targetY
+                       then let p = mkPixel (voxelX v) (voxelZ v)
+                                cur = lookupBoxTree p acc
                                 newW = cur + w
                             in if boxIsZero newW
-                                 then setBoxTree (MkPixel x z) (intToBoxInt 0) acc
-                                 else setBoxTree (MkPixel x z) newW acc
+                                 then setBoxTree p (intToBoxInt 0) acc
+                                 else setBoxTree p newW acc
                        else acc)
                      BoxLeaf
                      voxs
@@ -169,13 +170,14 @@ sliceBoxelY targetY (MkBoxel voxs) =
 public export
 sliceBoxelX : Nat -> Boxel -> Maxel
 sliceBoxelX targetX (MkBoxel voxs) =
-  let resultTree = foldl (\acc, (MkVoxel x y z, w) =>
-                     if x == targetX
-                       then let cur = lookupBoxTree (MkPixel y z) acc
+  let resultTree = foldl (\acc, (v, w) =>
+                     if voxelX v == targetX
+                       then let p = mkPixel (voxelY v) (voxelZ v)
+                                cur = lookupBoxTree p acc
                                 newW = cur + w
                             in if boxIsZero newW
-                                 then setBoxTree (MkPixel y z) (intToBoxInt 0) acc
-                                 else setBoxTree (MkPixel y z) newW acc
+                                 then setBoxTree p (intToBoxInt 0) acc
+                                 else setBoxTree p newW acc
                        else acc)
                      BoxLeaf
                      voxs
@@ -190,14 +192,17 @@ sliceBoxelX targetX (MkBoxel voxs) =
 public export
 wedgeVexelMaxel : Vexel -> Maxel -> Boxel
 wedgeVexelMaxel (MkVexelTree tu) (MkMaxelTree tm) =
-  let terms = foldBoxTreeL (\accU, (MkUnixel i, wu) =>
-        foldBoxTreeL (\accM, (MkPixel j k, wm) =>
-          if i == j || j == k || i == k
-            then accM
-            else let w = wu * wm
-                 in (MkVoxel i j k, w) :: (MkVoxel j i k, -w) :: (MkVoxel j k i, w) :: accM)
-          accU
-          tm)
+  let terms = foldBoxTreeL (\accU, (u, wu) =>
+        let i = unwrapUnixel u
+        in foldBoxTreeL (\accM, (p, wm) =>
+             let j = pixelRow p
+                 k = pixelCol p
+             in if i == j || j == k || i == k
+                  then accM
+                  else let w = wu * wm
+                       in (mkVoxel i j k, w) :: (mkVoxel j i k, -w) :: (mkVoxel j k i, w) :: accM)
+             accU
+             tm)
         []
         tu
   in canonicalizeBoxel (MkBoxel terms)
@@ -248,19 +253,22 @@ lookupTesseract target (MkHyperBoxel raw) =
 public export
 sliceHyperBoxelT : Nat -> HyperBoxel -> Boxel
 sliceHyperBoxelT targetT (MkHyperBoxel cells) =
-  let extracted = mapMaybe (\(MkTesseract x y z t, w) =>
-                    if t == targetT then Just (MkVoxel x y z, w) else Nothing) cells
+  let extracted = mapMaybe (\(tess, w) =>
+                    if tesseractT tess == targetT
+                      then Just (mkVoxel (tesseractX tess) (tesseractY tess) (tesseractZ tess), w)
+                      else Nothing) cells
   in canonicalizeBoxel (MkBoxel extracted)
 
 ||| Outer product of a temporal Vexel and a spatial Boxel: T (x) S -> 4D HyperBoxel.
 public export
 outerProductVexelBoxel : Vexel -> Boxel -> HyperBoxel
 outerProductVexelBoxel (MkVexelTree tt) (MkBoxel spaces) =
-  let productList = foldBoxTreeL (\accT, (MkUnixel t, wt) =>
-        foldl (\accS, (MkVoxel x y z, ws) =>
-          (MkTesseract x y z t, wt * ws) :: accS)
-          accT
-          spaces)
+  let productList = foldBoxTreeL (\accT, (u, wt) =>
+        let t = unwrapUnixel u
+        in foldl (\accS, (v, ws) =>
+             (mkTesseract (voxelX v) (voxelY v) (voxelZ v) t, wt * ws) :: accS)
+             accT
+             spaces)
         []
         tt
   in canonicalizeHyperBoxel (MkHyperBoxel productList)
@@ -279,5 +287,5 @@ auditHyperBoxelSliceProof =
 public export
 boxelToTrivariatePolynumber : Boxel -> List ((Nat, Nat, Nat), BoxInt)
 boxelToTrivariatePolynumber (MkBoxel vs) =
-  map (\(MkVoxel x y z, w) => ((x, y, z), w)) vs
+  map (\(v, w) => ((voxelX v, voxelY v, voxelZ v), w)) vs
 

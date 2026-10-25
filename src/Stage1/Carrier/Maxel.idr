@@ -176,14 +176,16 @@ updateVectAt (FS k) f (x :: xs) = x :: updateVectAt k f xs
 ||| Accumulator step for sparse-dense matrix-vector contraction:
 public export
 sparseDenseAccumStep : (dim : Nat) -> Vect dim BoxInt -> Vect dim BoxInt -> (Pixel, Nat) -> Vect dim BoxInt
-sparseDenseAccumStep dim vec acc (MkPixel r c, cnt) =
-  case (natToFin r dim, natToFin c dim) of
-    (Just rFin, Just cFin) =>
-      let vCol = index cFin vec
-          w = natToBoxInt cnt
-          term = mulBox w vCol
-      in updateVectAt rFin (\curr => addBox curr term) acc
-    _ => acc
+sparseDenseAccumStep dim vec acc (p, cnt) =
+  let r = pixelRow p
+      c = pixelCol p
+  in case (natToFin r dim, natToFin c dim) of
+       (Just rFin, Just cFin) =>
+         let vCol = index cFin vec
+             w = natToBoxInt cnt
+             term = mulBox w vCol
+         in updateVectAt rFin (\curr => addBox curr term) acc
+       _ => acc
 
 ||| Directly contracts a sparse SquareMaxel with a dense VexelN in O(K + dim) steps.
 public export
@@ -201,12 +203,14 @@ stagedContractSparseDense qm v = quote (contractSparseDenseVexel (splice qm) v)
 ||| Accumulator step for converting sparse SquareMaxel tree entries into dense MaxelN rows.
 public export
 squareMaxelToMaxelNStep : (dim : Nat) -> Vect dim (Vect dim BoxInt) -> (Pixel, Nat) -> Vect dim (Vect dim BoxInt)
-squareMaxelToMaxelNStep dim acc (MkPixel r c, cnt) =
-  case (natToFin r dim, natToFin c dim) of
-    (Just rFin, Just cFin) =>
-      let w = natToBoxInt cnt
-      in updateVectAt rFin (updateVectAt cFin (\curr => addBox curr w)) acc
-    _ => acc
+squareMaxelToMaxelNStep dim acc (p, cnt) =
+  let r = pixelRow p
+      c = pixelCol p
+  in case (natToFin r dim, natToFin c dim) of
+       (Just rFin, Just cFin) =>
+         let w = natToBoxInt cnt
+         in updateVectAt rFin (updateVectAt cFin (\curr => addBox curr w)) acc
+       _ => acc
 
 ||| Dense conversion of a sparse SquareMaxel of size `dim` into a dense MaxelN.
 public export
@@ -222,7 +226,7 @@ public export
 insertRowPixels : {dim : Nat} -> Fin dim -> MultisetTree Pixel -> (Fin dim, BoxInt) -> MultisetTree Pixel
 insertRowPixels rFin treeAcc (cFin, w) =
   if boxIsZero w then treeAcc
-  else insertTokenTree (MkPixel (finToNat rFin) (finToNat cFin)) (boxToNat w) treeAcc
+  else insertTokenTree (mkPixel (finToNat rFin) (finToNat cFin)) (boxToNat w) treeAcc
 
 ||| Helper inserting all non-zero matrix elements of a row into a MultisetTree Pixel.
 public export
@@ -264,20 +268,22 @@ identityBoxSquareMaxel : (dim : Nat) -> BoxSquareMaxel dim
 identityBoxSquareMaxel dim =
   case dim of
     Z => MkBoxSquareMaxel BoxLeaf
-    _ => let pxs = [MkPixel i i | i <- [0..pred dim]]
+    _ => let pxs = [mkPixel i i | i <- [0..pred dim]]
              t   = foldl (\tree, p => setBoxTree p (intToBoxInt 1) tree) BoxLeaf pxs
          in MkBoxSquareMaxel t
 
 ||| Accumulator step for signed sparse-dense matrix-vector contraction:
 public export
 sparseDenseAccumStepBox : (dim : Nat) -> Vect dim BoxInt -> Vect dim BoxInt -> Pixel -> BoxInt -> Vect dim BoxInt
-sparseDenseAccumStepBox dim vec acc (MkPixel r c) w =
-  case (natToFin r dim, natToFin c dim) of
-    (Just rFin, Just cFin) =>
-      let vCol = index cFin vec
-          term = mulBox w vCol
-      in updateVectAt rFin (\curr => addBox curr term) acc
-    _ => acc
+sparseDenseAccumStepBox dim vec acc p w =
+  let r = pixelRow p
+      c = pixelCol p
+  in case (natToFin r dim, natToFin c dim) of
+       (Just rFin, Just cFin) =>
+         let vCol = index cFin vec
+             term = mulBox w vCol
+         in updateVectAt rFin (\curr => addBox curr term) acc
+       _ => acc
 
 ||| Directly contracts a sparse BoxSquareMaxel with a dense VexelN in O(K + dim) steps.
 public export
@@ -297,7 +303,7 @@ public export
 insertRowBoxPixels : {dim : Nat} -> Fin dim -> BoxMultisetTree Pixel -> (Fin dim, BoxInt) -> BoxMultisetTree Pixel
 insertRowBoxPixels rFin treeAcc (cFin, w) =
   if unwrapBox w == 0 then treeAcc
-  else setBoxTree (MkPixel (finToNat rFin) (finToNat cFin)) w treeAcc
+  else setBoxTree (mkPixel (finToNat rFin) (finToNat cFin)) w treeAcc
 
 ||| Helper inserting all non-zero matrix elements of a row into a BoxMultisetTree Pixel.
 public export
@@ -316,11 +322,13 @@ maxelNToBoxSquareMaxel {dim} (MkMaxelN rs) =
 ||| Accumulator step for converting sparse BoxSquareMaxel tree entries into dense MaxelN rows.
 public export
 boxSquareMaxelToMaxelNStep : (dim : Nat) -> Vect dim (Vect dim BoxInt) -> Pixel -> BoxInt -> Vect dim (Vect dim BoxInt)
-boxSquareMaxelToMaxelNStep dim acc (MkPixel r c) w =
-  case (natToFin r dim, natToFin c dim) of
-    (Just rFin, Just cFin) =>
-      updateVectAt rFin (updateVectAt cFin (\curr => addBox curr w)) acc
-    _ => acc
+boxSquareMaxelToMaxelNStep dim acc p w =
+  let r = pixelRow p
+      c = pixelCol p
+  in case (natToFin r dim, natToFin c dim) of
+       (Just rFin, Just cFin) =>
+         updateVectAt rFin (updateVectAt cFin (\curr => addBox curr w)) acc
+       _ => acc
 
 ||| Dense conversion of a sparse BoxSquareMaxel of size `dim` into a dense MaxelN.
 public export
@@ -402,13 +410,15 @@ fastBoxSquareMaxelPower {dim} fuel exp m =
 ||| Canonical Kronecker Coordinate Chart Observation:
 public export
 observeKroneckerPixel : (n : Nat) -> ((Nat, Nat), (Nat, Nat)) -> Pixel
-observeKroneckerPixel n ((r1, r2), (c1, c2)) = MkPixel ((r1 * n) + r2) ((c1 * n) + c2)
+observeKroneckerPixel n ((r1, r2), (c1, c2)) = mkPixel ((r1 * n) + r2) ((c1 * n) + c2)
 
 ||| Inverse coordinate readout projecting a composite pixel coordinate (0 <= p < m * n)
 public export
 unobserveKroneckerPixel : (n : Nat) -> Pixel -> ((Nat, Nat), (Nat, Nat))
-unobserveKroneckerPixel n (MkPixel r c) =
-  let (r1, r2) = natDivMod r n
+unobserveKroneckerPixel n p =
+  let r = pixelRow p
+      c = pixelCol p
+      (r1, r2) = natDivMod r n
       (c1, c2) = natDivMod c n
   in ((r1, r2), (c1, c2))
 
@@ -416,9 +426,13 @@ unobserveKroneckerPixel n (MkPixel r c) =
 public export
 kroneckerBoxSquareMaxel : {m, n : Nat} -> BoxSquareMaxel m -> BoxSquareMaxel n -> BoxSquareMaxel (m * n)
 kroneckerBoxSquareMaxel {m} {n} (MkBoxSquareMaxel t1) (MkBoxSquareMaxel t2) =
-  let resultTree = foldBoxTreeL (\accTree, (MkPixel r1 c1, w1) =>
-        foldBoxTreeL (\innerAcc, (MkPixel r2 c2, w2) =>
-          let pOut = observeKroneckerPixel n ((r1, r2), (c1, c2))
+  let resultTree = foldBoxTreeL (\accTree, (p1, w1) =>
+        foldBoxTreeL (\innerAcc, (p2, w2) =>
+          let r1 = pixelRow p1
+              c1 = pixelCol p1
+              r2 = pixelRow p2
+              c2 = pixelCol p2
+              pOut = observeKroneckerPixel n ((r1, r2), (c1, c2))
               wOut = w1 * w2
           in if unwrapBox wOut == 0
                then innerAcc
@@ -437,7 +451,7 @@ kroneckerBoxSquareMaxel {m} {n} (MkBoxSquareMaxel t1) (MkBoxSquareMaxel t2) =
 public export
 boxSquareMaxelToTensor : BoxSquareMaxel dim -> MultisetTensor Nat Nat
 boxSquareMaxelToTensor (MkBoxSquareMaxel tree) =
-  foldBoxTreeR (\(MkPixel r c), w, acc => AddM (r, c) w acc) ZeroM tree
+  foldBoxTreeR (\p, w, acc => AddM (pixelRow p, pixelCol p) w acc) ZeroM tree
 
 ||| Reconstructs a sparse BoxSquareMaxel from an observed MultisetTensor Pixel.
 public export
@@ -449,7 +463,7 @@ tensorToBoxSquareMaxel tensor =
 public export
 maxelToTensor : Maxel -> MultisetTensor Nat Nat
 maxelToTensor (MkMaxelTree tree) =
-  foldBoxTreeR (\(MkPixel r c), w, acc => AddM (r, c) w acc) ZeroM tree
+  foldBoxTreeR (\p, w, acc => AddM (pixelRow p, pixelCol p) w acc) ZeroM tree
 
 ||| Reconstructs a general Maxel from a MultisetTensor over natural coordinates.
 public export
@@ -457,11 +471,12 @@ tensorToMaxel : MultisetTensor Nat Nat -> Maxel
 tensorToMaxel tensor =
   MkMaxelTree (foldMultiset (\(r, c), w, tree =>
                  if boxIsZero w then tree
-                 else let cur = lookupBoxTree (MkPixel r c) tree
+                 else let p = mkPixel r c
+                          cur = lookupBoxTree p tree
                           newW = cur + w
                       in if boxIsZero newW
-                           then setBoxTree (MkPixel r c) (intToBoxInt 0) tree
-                           else setBoxTree (MkPixel r c) newW tree)
+                           then setBoxTree p (intToBoxInt 0) tree
+                           else setBoxTree p newW tree)
                  BoxLeaf
                  tensor)
 
@@ -495,14 +510,20 @@ stagedKroneckerBoxSquareMaxel qm1 qm2 = quote (kroneckerBoxSquareMaxel (splice q
 ||| Multiplies a Unixel on the left by a Pixel (Row extraction filter).
 public export
 mulUnixelPixel : Unixel -> Pixel -> Maybe Unixel
-mulUnixelPixel (MkUnixel k) (MkPixel l m) =
-  if k == l then Just (MkUnixel m) else Nothing
+mulUnixelPixel u p =
+  let k = unwrapUnixel u
+      l = pixelRow p
+      m = pixelCol p
+  in if k == l then Just (mkUnixel m) else Nothing
 
 ||| Multiplies a Pixel on the left by a Unixel (Column extraction filter).
 public export
 mulPixelUnixel : Pixel -> Unixel -> Maybe Unixel
-mulPixelUnixel (MkPixel l m) (MkUnixel k) =
-  if m == k then Just (MkUnixel l) else Nothing
+mulPixelUnixel p u =
+  let l = pixelRow p
+      m = pixelCol p
+      k = unwrapUnixel u
+  in if m == k then Just (mkUnixel l) else Nothing
 
 ||| Lookups the signed BoxInt weight of a coordinate Pixel in O(log N) time.
 public export
@@ -590,9 +611,9 @@ fastMultisetTensorMult t1 t2 =
 public export
 identityMaxel : Maxel
 identityMaxel =
-  MkMaxel [ (MkPixel 1 1, intToBoxInt 1)
-          , (MkPixel 2 2, intToBoxInt 1)
-          , (MkPixel 3 3, intToBoxInt 1)
+  MkMaxel [ (mkPixel 1 1, intToBoxInt 1)
+          , (mkPixel 2 2, intToBoxInt 1)
+          , (mkPixel 3 3, intToBoxInt 1)
           ]
 
 public export
@@ -682,16 +703,16 @@ supportVexel (MkVexelTree t) =
 public export
 parameterizedBlueMetricMaxel : BoxInt -> BoxInt -> Maxel
 parameterizedBlueMetricMaxel x y =
-  MkMaxel [ (MkPixel 1 1, x * x)
-          , (MkPixel 2 2, y * y)
+  MkMaxel [ (mkPixel 1 1, x * x)
+          , (mkPixel 2 2, y * y)
           ]
 
 ||| 2D Red (Hyperbolic/Relativistic) Metric Maxel parameterized by (x, y):
 public export
 parameterizedRedMetricMaxel : BoxInt -> BoxInt -> Maxel
 parameterizedRedMetricMaxel x y =
-  MkMaxel [ (MkPixel 1 1, x * x)
-          , (MkPixel 2 2, mulBox (intToBoxInt (-1)) (y * y))
+  MkMaxel [ (mkPixel 1 1, x * x)
+          , (mkPixel 2 2, mulBox (intToBoxInt (-1)) (y * y))
           ]
 
 ||| 2D Green (Parabolic/Null) Metric Maxel parameterized by (x, y):
@@ -699,8 +720,8 @@ public export
 parameterizedGreenMetricMaxel : BoxInt -> BoxInt -> Maxel
 parameterizedGreenMetricMaxel x y =
   let xy = x * y
-  in MkMaxel [ (MkPixel 1 2, xy)
-             , (MkPixel 2 1, xy)
+  in MkMaxel [ (mkPixel 1 2, xy)
+             , (mkPixel 2 1, xy)
              ]
 
 ||| Invariant audit verifying the parameterized chromogeometric operator identity:
@@ -715,10 +736,10 @@ auditParameterizedMetricOperatorIdentity x y =
       lhsSum = addMaxel gR2 gG2
       qBlue = (x * x) + (y * y)
       rhsExpected = scaleMaxel qBlue gB
-      lhs11 = lookupPixel (MkPixel 1 1) lhsSum
-      rhs11 = lookupPixel (MkPixel 1 1) rhsExpected
-      lhs22 = lookupPixel (MkPixel 2 2) lhsSum
-      rhs22 = lookupPixel (MkPixel 2 2) rhsExpected
+      lhs11 = lookupPixel (mkPixel 1 1) lhsSum
+      rhs11 = lookupPixel (mkPixel 1 1) rhsExpected
+      lhs22 = lookupPixel (mkPixel 2 2) lhsSum
+      rhs22 = lookupPixel (mkPixel 2 2) rhsExpected
   in boxEq lhs11 rhs11 && boxEq lhs22 rhs22
 
 ------------------------------------------------------------------------
@@ -761,7 +782,7 @@ maxelToSquareMaxel dim m = MkSquareMaxel (maxelToTree m)
 public export
 identitySquareMaxel : (dim : Nat) -> SquareMaxel dim
 identitySquareMaxel dim =
-  let pxs = [MkPixel (S i) (S i) | i <- [0..pred dim]]
+  let pxs = [mkPixel (S i) (S i) | i <- [0..pred dim]]
       t   = foldl (\tree, p => insertTokenTree p 1 tree) Leaf pxs
   in MkSquareMaxel t
 
@@ -837,9 +858,9 @@ auditChromogeometricMetricSupportsProof =
   let sBlue  = supportMaxel blueMetricMaxel2D
       sRed   = supportMaxel redMetricMaxel2D
       sGreen = supportMaxel greenMetricMaxel2D
-      tBlue  = sBlue  == [MkPixel 1 1, MkPixel 2 2]
-      tRed   = sRed   == [MkPixel 1 1, MkPixel 2 2]
-      tGreen = sGreen == [MkPixel 1 2, MkPixel 2 1]
+      tBlue  = sBlue  == [mkPixel 1 1, mkPixel 2 2]
+      tRed   = sRed   == [mkPixel 1 1, mkPixel 2 2]
+      tGreen = sGreen == [mkPixel 1 2, mkPixel 2 1]
   in tBlue && tRed && tGreen
 
 public export
@@ -848,9 +869,9 @@ auditMatrixPathCompositionProof =
   let gG = greenMetricMaxel2D
       gProd = mulMaxel gG gG
       sProd = supportMaxel gProd
-      e11 = lookupPixel (MkPixel 1 1) gProd
-      e22 = lookupPixel (MkPixel 2 2) gProd
-  in sProd == [MkPixel 1 1, MkPixel 2 2] && e11 == intToBoxInt 1 && e22 == intToBoxInt 1
+      e11 = lookupPixel (mkPixel 1 1) gProd
+      e22 = lookupPixel (mkPixel 2 2) gProd
+  in sProd == [mkPixel 1 1, mkPixel 2 2] && e11 == intToBoxInt 1 && e22 == intToBoxInt 1
 
 ------------------------------------------------------------------------
 -- 8. ROW & COLUMN EXTRACTION, OUTER PRODUCT & GRASSMANN WEDGE
@@ -860,7 +881,7 @@ auditMatrixPathCompositionProof =
 public export
 extractRowVexel : Nat -> Maxel -> Vexel
 extractRowVexel i (MkMaxelTree tm) =
-  let singI = MkUnixel i
+  let singI = mkUnixel i
       resultTree = foldBoxTreeL (\acc, (pix, w) => 
                      case mulUnixelPixel singI pix of
                        Just sOut =>
@@ -878,7 +899,7 @@ extractRowVexel i (MkMaxelTree tm) =
 public export
 extractColVexel : Nat -> Maxel -> Vexel
 extractColVexel j (MkMaxelTree tm) =
-  let singJ = MkUnixel j
+  let singJ = mkUnixel j
       resultTree = foldBoxTreeL (\acc, (pix, w) => 
                      case mulPixelUnixel pix singJ of
                        Just sOut =>
@@ -898,7 +919,7 @@ outerProductVexel : Vexel -> Vexel -> Maxel
 outerProductVexel (MkVexelTree tk) (MkVexelTree tb) =
   let resultTree = foldBoxTreeL (\accTree, (k, kw) =>
         foldBoxTreeL (\innerAcc, (b, bw) =>
-          let p = MkPixel (index k) (index b)
+          let p = mkPixel (unwrapUnixel k) (unwrapUnixel b)
               wOut = kw * bw
               cur = lookupBoxTree p innerAcc
               newW = cur + wOut
@@ -915,34 +936,36 @@ outerProductVexel (MkVexelTree tk) (MkVexelTree tb) =
 public export
 waterMoleculeBonds : Maxel
 waterMoleculeBonds =
-  MkMaxel [ (MkPixel 1 2, intToBoxInt 1) -- O-H1 bond
-          , (MkPixel 1 3, intToBoxInt 1) -- O-H2 bond
+  MkMaxel [ (mkPixel 1 2, intToBoxInt 1) -- O-H1 bond
+          , (mkPixel 1 3, intToBoxInt 1) -- O-H2 bond
           ]
 
 ||| Evaluates the Grassmann exterior wedge product of two Vexels:
 public export
 wedgeVexel : Vexel -> Vexel -> Maxel
 wedgeVexel (MkVexelTree tu) (MkVexelTree tv) =
-  let resultTree = foldBoxTreeL (\accU, (MkUnixel i, wu) =>
-        foldBoxTreeL (\accV, (MkUnixel j, wv) =>
-          if i == j
-            then accV
-            else
-              let w = wu * wv
-                  pPos = MkPixel i j
-                  pNeg = MkPixel j i
-                  curPos = lookupBoxTree pPos accV
-                  newPos = curPos + w
-                  tree1 = if boxIsZero newPos
-                            then setBoxTree pPos (intToBoxInt 0) accV
-                            else setBoxTree pPos newPos accV
-                  curNeg = lookupBoxTree pNeg tree1
-                  newNeg = curNeg - w
-              in if boxIsZero newNeg
-                   then setBoxTree pNeg (intToBoxInt 0) tree1
-                   else setBoxTree pNeg newNeg tree1)
-          accU
-          tv)
+  let resultTree = foldBoxTreeL (\accU, (u, wu) =>
+        let i = unwrapUnixel u
+        in foldBoxTreeL (\accV, (v, wv) =>
+             let j = unwrapUnixel v
+             in if i == j
+                  then accV
+                  else
+                    let w = wu * wv
+                        pPos = mkPixel i j
+                        pNeg = mkPixel j i
+                        curPos = lookupBoxTree pPos accV
+                        newPos = curPos + w
+                        tree1 = if boxIsZero newPos
+                                  then setBoxTree pPos (intToBoxInt 0) accV
+                                  else setBoxTree pPos newPos accV
+                        curNeg = lookupBoxTree pNeg tree1
+                        newNeg = curNeg - w
+                    in if boxIsZero newNeg
+                         then setBoxTree pNeg (intToBoxInt 0) tree1
+                         else setBoxTree pNeg newNeg tree1)
+             accU
+             tv)
         BoxLeaf
         tu
   in MkMaxelTree resultTree
@@ -951,18 +974,18 @@ wedgeVexel (MkVexelTree tu) (MkVexelTree tv) =
 public export
 auditWedgeNilpotencyProof : Bool
 auditWedgeNilpotencyProof =
-  let v = MkVexel [(MkUnixel 1, intToBoxInt 3), (MkUnixel 2, intToBoxInt 5)]
+  let v = MkVexel [(mkUnixel 1, intToBoxInt 3), (mkUnixel 2, intToBoxInt 5)]
       w = wedgeVexel v v
   in w == MkMaxel []
 
 public export
 auditRowExtractionProof : Bool
 auditRowExtractionProof =
-  let v1 = MkVexel [(MkUnixel 1, intToBoxInt 2), (MkUnixel 2, intToBoxInt 3)]
-      v2 = MkVexel [(MkUnixel 1, intToBoxInt 1), (MkUnixel 2, intToBoxInt 4)]
+  let v1 = MkVexel [(mkUnixel 1, intToBoxInt 2), (mkUnixel 2, intToBoxInt 3)]
+      v2 = MkVexel [(mkUnixel 1, intToBoxInt 1), (mkUnixel 2, intToBoxInt 4)]
       m = outerProductVexel v1 v2
       row1 = extractRowVexel 1 m
-  in row1 == MkVexel [(MkUnixel 1, intToBoxInt 2), (MkUnixel 2, intToBoxInt 8)]
+  in row1 == MkVexel [(mkUnixel 1, intToBoxInt 2), (mkUnixel 2, intToBoxInt 8)]
 
 ------------------------------------------------------------------------
 -- 9. MAXELN CONVERSIONS
@@ -970,7 +993,7 @@ auditRowExtractionProof =
 
 rowToPixelPairsHelper : Nat -> Nat -> Vect k BoxInt -> List (Pixel, BoxInt)
 rowToPixelPairsHelper _ _ [] = []
-rowToPixelPairsHelper r c (w :: ws) = (MkPixel r c, w) :: rowToPixelPairsHelper r (S c) ws
+rowToPixelPairsHelper r c (w :: ws) = (mkPixel r c, w) :: rowToPixelPairsHelper r (S c) ws
 
 matToPixelPairsHelper : Nat -> Nat -> Vect k (Vect n BoxInt) -> List (Pixel, BoxInt)
 matToPixelPairsHelper _ _ [] = []
@@ -1020,6 +1043,6 @@ pruneMaxelTerms ((p, w) :: rest) =
 public export
 maxelToBivariatePolynumber : Maxel -> List ((Nat, Nat), BoxInt)
 maxelToBivariatePolynumber (MkMaxelTree t) =
-  foldBoxTreeR (\(MkPixel r c), w, acc => ((r, c), w) :: acc) [] t
+  foldBoxTreeR (\p, w, acc => ((pixelRow p, pixelCol p), w) :: acc) [] t
 
 

@@ -3,7 +3,6 @@ module Stage1.MultisetTree
 import Stage0.BoxInt
 import Stage0.Multiset
 import Stage0.PrimeMultiset
-import Data.Vect
 import Language.Reflection
 import Stage0.OnSeq.FusedStream
 import Data.Fuel

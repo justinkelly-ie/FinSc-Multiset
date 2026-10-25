@@ -194,7 +194,7 @@ public export
 Num Vexel where
   (+) = addVexel
   (*) v1 v2 = MkVexelTree BoxLeaf
-  fromInteger n = mkVexel [(MkUnixel 0, intToBoxInt n)]
+  fromInteger n = mkVexel [(mkUnixel 0, intToBoxInt n)]
 
 ||| Subtracts two Vexels and consolidates duplicate coordinates directly via BoxMultisetTree in O(N log N).
 public export
@@ -312,7 +312,7 @@ vexelToSparseVexel v = MkSparseVexel (vexelToTree v)
 
 vectToUnixelPairsHelper : Nat -> Vect k BoxInt -> List (Unixel, BoxInt)
 vectToUnixelPairsHelper _ [] = []
-vectToUnixelPairsHelper idx (w :: ws) = (MkUnixel idx, w) :: vectToUnixelPairsHelper (S idx) ws
+vectToUnixelPairsHelper idx (w :: ws) = (mkUnixel idx, w) :: vectToUnixelPairsHelper (S idx) ws
 
 ||| Converts a dimension-indexed VexelN into a canonical sparse multiset Vexel (1-indexed).
 public export
@@ -333,7 +333,7 @@ vexelToVexelN n v =
     generateComponents : Nat -> (k : Nat) -> Vect k BoxInt
     generateComponents _ Z = []
     generateComponents idx (S rem) =
-      let w = lookupUnixel (MkUnixel idx) v
+      let w = lookupUnixel (mkUnixel idx) v
       in w :: generateComponents (S idx) rem
 
 ||| Converts a sparse multiset Vexel into a dimension-indexed VexelN (1-indexed).
@@ -345,7 +345,7 @@ vexelToVexelN1 n v =
     generateComponents : Nat -> (k : Nat) -> Vect k BoxInt
     generateComponents _ Z = []
     generateComponents idx (S rem) =
-      let w = lookupUnixel (MkUnixel idx) v
+      let w = lookupUnixel (mkUnixel idx) v
       in w :: generateComponents (S idx) rem
 
 public export
@@ -385,9 +385,9 @@ pruneVexelTerms ((s, w) :: rest) =
 public export
 nucleonQuarkVexel : Vexel
 nucleonQuarkVexel =
-  MkVexel [ (MkUnixel 1, intToBoxInt 1)
-          , (MkUnixel 2, intToBoxInt 1)
-          , (MkUnixel 3, intToBoxInt 1)
+  MkVexel [ (mkUnixel 1, intToBoxInt 1)
+          , (mkUnixel 2, intToBoxInt 1)
+          , (mkUnixel 3, intToBoxInt 1)
           ]
 
 ------------------------------------------------------------------------
@@ -398,14 +398,14 @@ nucleonQuarkVexel =
 public export
 polynumberToVexel : Polynumber -> Vexel
 polynumberToVexel (MkPolynumber cs) =
-  let pairs = zipWith (\idx, c => (MkUnixel idx, c)) [0..(length cs)] cs
+  let pairs = zipWith (\idx, c => (mkUnixel idx, c)) [0..(length cs)] cs
   in canonicalizeVexel (MkVexel pairs)
 
 ||| Converts a 1D Vexel into a univariate Polynumber: sum c_k [k] <=> sum c_k x^k.
 public export
 vexelToPolynumber : Vexel -> Polynumber
 vexelToPolynumber (MkVexelTree t) =
-  foldBoxTreeL (\acc, (sing, w) => addPolynumber acc (monomialPolynumber w (index sing)))
+  foldBoxTreeL (\acc, (sing, w) => addPolynumber acc (monomialPolynumber w (unwrapUnixel sing)))
         zeroPolynumber
         t
 
