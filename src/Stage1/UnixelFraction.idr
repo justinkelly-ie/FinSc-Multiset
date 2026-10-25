@@ -40,6 +40,16 @@ record UnixelFraction where
   num : BoxInt
   den : Unixel
 
+||| Native scalar denominator projection (Nat).
+public export
+denominatorNat : UnixelFraction -> Nat
+denominatorNat q = unwrapUnixel q.den
+
+||| Native scalar positive denominator projection (PosNat).
+public export
+posNat : UnixelFraction -> PosNat
+posNat q = mkPosNat (denominatorNat q)
+
 ||| Smart constructor building a UnixelFraction with clamped non-zero denominator.
 public export
 mkUnixelFraction : BoxInt -> Nat -> UnixelFraction

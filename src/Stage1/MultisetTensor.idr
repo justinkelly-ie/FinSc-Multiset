@@ -45,20 +45,41 @@ transposeTensor ZeroM = ZeroM
 transposeTensor (AddM (x, y) w rest) = AddM (y, x) w (transposeTensor rest)
 
 ||| Stream Hylomorphic Tensor Contraction (Matrix Multiplication A · B):
-||| Multiplies two multiset tensors A : (a, b) and B : (b, c) -> (a, c).
+||| Multiplies two multiset tensors A : (a, b) and B : (b, c) -> (a, c)
+||| using a single-pass indexed contraction loop that eliminates quadratic copying passes.
 public export
 multisetTensorMult : Eq b => MultisetTensor a b -> MultisetTensor b c -> MultisetTensor a c
-multisetTensorMult ZeroM _ = ZeroM
-multisetTensorMult (AddM (i, k1) w1 restA) tensorB =
-  let contracted = matchRow i k1 w1 tensorB
-  in addMultiset contracted (multisetTensorMult restA tensorB)
+multisetTensorMult tensorA tensorB =
+  let indexB = groupByKey tensorB
+  in contractLoop tensorA indexB ZeroM
   where
-    matchRow : a -> b -> BoxInt -> MultisetTensor b c -> MultisetTensor a c
-    matchRow _ _ _ ZeroM = ZeroM
-    matchRow itemI targetK weight1 (AddM (k2, j) weight2 restB) =
-      if targetK == k2
-        then AddM (itemI, j) (weight1 * weight2) (matchRow itemI targetK weight1 restB)
-        else matchRow itemI targetK weight1 restB
+    insertEntry : b -> c -> BoxInt -> List (b, List (c, BoxInt)) -> List (b, List (c, BoxInt))
+    insertEntry targetK targetJ weight [] = [(targetK, [(targetJ, weight)])]
+    insertEntry targetK targetJ weight ((kEntry, row) :: entries) =
+      if targetK == kEntry
+        then (kEntry, (targetJ, weight) :: row) :: entries
+        else (kEntry, row) :: insertEntry targetK targetJ weight entries
+
+    groupByKey : MultisetTensor b c -> List (b, List (c, BoxInt))
+    groupByKey ZeroM = []
+    groupByKey (AddM (k, j) w rest) = insertEntry k j w (groupByKey rest)
+
+    lookupKey : b -> List (b, List (c, BoxInt)) -> List (c, BoxInt)
+    lookupKey _ [] = []
+    lookupKey targetK ((kEntry, row) :: entries) =
+      if targetK == kEntry then row else lookupKey targetK entries
+
+    emitCols : a -> BoxInt -> List (c, BoxInt) -> MultisetTensor a c -> MultisetTensor a c
+    emitCols _ _ [] acc = acc
+    emitCols itemI weight1 ((targetJ, weight2) :: cols) acc =
+      AddM (itemI, targetJ) (weight1 * weight2) (emitCols itemI weight1 cols acc)
+
+    contractLoop : MultisetTensor a b -> List (b, List (c, BoxInt)) -> MultisetTensor a c -> MultisetTensor a c
+    contractLoop ZeroM _ acc = acc
+    contractLoop (AddM (i, k1) w1 restA) idxB acc =
+      let cols = lookupKey k1 idxB
+          newAcc = emitCols i w1 cols acc
+      in contractLoop restA idxB newAcc
 
 ||| Monomorphic 2D Determinant over MultisetTensor: det([a b; c d]) = a*d - b*c
 %inline public export
@@ -77,7 +98,7 @@ traceTensor2D a d = addBox a d
 ||| Galois Fiber Pushforward (f_*) computing exact chromogeometric quadrance
 ||| Q(v) = v^T * g_Sector * v directly over multiset tensor streams.
 public export
-chromometricQuadrance : GeometrySector -> BoxInt -> BoxInt -> BoxInt -> BoxInt
+chromometricQuadrance : Geometry -> BoxInt -> BoxInt -> BoxInt -> BoxInt
 chromometricQuadrance Elliptic   dx dy dz = addBox (addBox (dx * dx) (dy * dy)) (addBox (dz * dz) 1)
 chromometricQuadrance Hyperbolic dx dy dz = addBox (subBox (addBox (dx * dx) (dy * dy)) (dz * dz)) 1
 chromometricQuadrance Parabolic  dx dy dz = addBox (addBox (dx * dx) (dy * dy)) 1

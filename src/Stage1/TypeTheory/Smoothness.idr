@@ -136,6 +136,11 @@ public export
 Dimension : (bound : Nat) -> Type
 Dimension bound = (n : Nat ** SmoothWitness bound n)
 
+||| Dependent Pair bundling dimension n with its smoothness certificate under prime bound (Rule 03).
+public export
+SmoothDimension : (bound : Nat) -> Type
+SmoothDimension bound = Dimension bound
+
 public export
 {bound : Nat} -> Eq (Dimension bound) where
   (n1 ** _) == (n2 ** _) = n1 == n2

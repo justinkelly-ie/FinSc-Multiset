@@ -7,23 +7,9 @@ import Data.Fuel
 import Stage0.BoxInt
 import Stage0.Multiset
 import public Stage0.StructuralFuel
+import public Stage0.Basis.GeometricPixel
 
 %default total
-
-------------------------------------------------------------------------
--- 1. COSMIC GEOMETRY SECTOR CLASSIFICATION
-------------------------------------------------------------------------
-
-public export
-data GeometrySector = Elliptic | Hyperbolic | Parabolic | Substrate
-
-public export
-Eq GeometrySector where
-  Elliptic   == Elliptic   = True
-  Hyperbolic == Hyperbolic = True
-  Parabolic  == Parabolic  = True
-  Substrate  == Substrate  = True
-  _          == _          = False
 
 ------------------------------------------------------------------------
 -- 2. STREAM FUSION CO-STRUCTURE CORE (Coutts et al. 2007)
@@ -505,78 +491,33 @@ streamToMultiset strm = streamToMultisetFuel substrateFuel strm
 
 
 ------------------------------------------------------------------------
--- 3. WILDBERGER MAXEL MATRIX UNIT OPERATOR & STREAM DEFORESTATION
+-- 3. WILDBERGER GEOMETRIC PIXEL MATRIX MULTIPLICATION & STREAM DEFORESTATION
 ------------------------------------------------------------------------
 
-||| Tensor Maxel Unit modeled as a matrix unit pixel [source, target] carrying a sector tag.
-public export
-record MaxelUnit where
-  constructor MkMaxelUnit
-  source : Int
-  target : Int
-  sector : GeometrySector
-
-public export
-Eq MaxelUnit where
-  (MkMaxelUnit s1 t1 m1) == (MkMaxelUnit s2 t2 m2) = s1 == s2 && t1 == t2 && m1 == m2
-
-public export
-Ord MaxelUnit where
-  compare (MkMaxelUnit s1 t1 _) (MkMaxelUnit s2 t2 _) = 
-    case compare s1 s2 of
-      EQ => compare t1 t2
-      other => other
-
-||| Canonical 2LTT type alias: Maxel is the primitive matrix unit basis token in Stage0.OnSeq.FusedStream.
-public export
-0 Maxel : Type
-Maxel = MaxelUnit
-
-||| Smart constructor maintaining full backwards compatibility.
-public export
-%inline
-MkMaxel : Int -> Int -> GeometrySector -> MaxelUnit
-MkMaxel = MkMaxelUnit
-
-||| Vector Vexel Unit modeled as a single coordinate pixel [index] carrying a sector tag.
-public export
-record VexelUnit where
-  constructor MkVexelUnit
-  index  : Int
-  sector : GeometrySector
-
-public export
-Eq VexelUnit where
-  (MkVexelUnit i1 s1) == (MkVexelUnit i2 s2) = i1 == i2 && s1 == s2
-
-public export
-Ord VexelUnit where
-  compare (MkVexelUnit i1 _) (MkVexelUnit i2 _) = compare i1 i2
-
-||| 2LTT Carrier Duality: Coinductive Streaming Matrix Unit
+||| 2LTT Carrier Duality: Coinductive Streaming Matrix Multiset
 public export
 0 MaxelStream : Type
-MaxelStream = FusedStream (MaxelUnit, BoxInt)
+MaxelStream = FusedStream (GeometricPixel, BoxInt)
 
-||| 2LTT Carrier Duality: Coinductive Streaming Vector Unit
+||| 2LTT Carrier Duality: Coinductive Streaming Vector Multiset
 public export
 0 VexelStream : Type
-VexelStream = FusedStream (VexelUnit, BoxInt)
+VexelStream = FusedStream (GeometricUnixel, BoxInt)
 
 ||| Coinductive infinite Maxel stream representing unbounded cosmic time evolution.
 public export
 data InfMaxelStream : Type where
-  (::) : MaxelUnit -> Inf InfMaxelStream -> InfMaxelStream
+  (::) : GeometricPixel -> Inf InfMaxelStream -> InfMaxelStream
 
-||| Fused Maxel Matrix Unit Multiplication.
+||| Fused Geometric Pixel Matrix Multiplication.
 ||| Evaluates Wildberger composition rule [a, b] * [c, d] = [a, d] iff b == c.
 ||| Non-matching branches emit Skip s' to deforest O(n^2) dead loops to zero heap allocation.
 %inline public export
-multiplyMaxels : FusedStream Maxel -> FusedStream Maxel -> FusedStream Maxel
-multiplyMaxels (MkStream {s=sL} nextL seedL) (MkStream {s=sR} nextR seedR) = 
+multiplyGeometricPixels : FusedStream GeometricPixel -> FusedStream GeometricPixel -> FusedStream GeometricPixel
+multiplyGeometricPixels (MkStream {s=sL} nextL seedL) (MkStream {s=sR} nextR seedR) = 
   MkStream nextStep (seedL, seedR, Nothing)
   where
-    nextStep : (sL, sR, Maybe Maxel) -> Step (sL, sR, Maybe Maxel) Maxel
+    nextStep : (sL, sR, Maybe GeometricPixel) -> Step (sL, sR, Maybe GeometricPixel) GeometricPixel
     nextStep (sl, sr, Nothing) = case nextL sl of
       Done => Done
       Skip sl' => Skip (sl', sr, Nothing)
@@ -587,18 +528,28 @@ multiplyMaxels (MkStream {s=sL} nextL seedL) (MkStream {s=sR} nextR seedR) =
       Skip sr' => Skip (sl, sr', Just ml)
       Yield mr sr' =>
         if target ml == source mr
-          then Yield (MkMaxel (source ml) (target mr) (sector ml)) (sl, sr', Just ml)
+          then Yield (MkGeometricPixel (source ml) (target mr) (geometry ml)) (sl, sr', Just ml)
           else Skip (sl, sr', Just ml) -- Deforests non-matching cross-terms to Skip!
+
+||| Deprecated: Use `multiplyGeometricPixels` instead.
+public export %inline %deprecate
+multiplyMaxelUnits : FusedStream GeometricPixel -> FusedStream GeometricPixel -> FusedStream GeometricPixel
+multiplyMaxelUnits = multiplyGeometricPixels
+
+||| Deprecated: Use `multiplyGeometricPixels` instead.
+public export %inline %deprecate
+multiplyMaxels : FusedStream GeometricPixel -> FusedStream GeometricPixel -> FusedStream GeometricPixel
+multiplyMaxels = multiplyGeometricPixels
 
 ||| Folds a deforested stream into a consolidated SortedMap layout with explicit Fuel.
 public export
-unstreamToMap : Fuel -> FusedStream Maxel -> SortedMap Maxel Nat
+unstreamToMap : Fuel -> FusedStream GeometricPixel -> SortedMap GeometricPixel Nat
 unstreamToMap f strm = foldStreamFuel f updateMap (empty {v=Nat}) strm
   where
-    updateMap : SortedMap Maxel Nat -> Maxel -> SortedMap Maxel Nat
-    updateMap acc maxel = case lookup maxel acc of
-      Nothing  => insert maxel 1 acc
-      Just val => insert maxel (val + 1) acc
+    updateMap : SortedMap GeometricPixel Nat -> GeometricPixel -> SortedMap GeometricPixel Nat
+    updateMap acc px = case lookup px acc of
+      Nothing  => insert px 1 acc
+      Just val => insert px (val + 1) acc
 
 ------------------------------------------------------------------------
 -- 4. CONSTRUCTIVIST TERNARY MATRIX BOOTSTRAP {-1, 0, 1}^3
@@ -704,22 +655,27 @@ verifyBootstrapCompression _ = "Bootstrap structural validation verified success
 ------------------------------------------------------------------------
 
 public export
-countSector : GeometrySector -> List (Maxel, Nat) -> Nat
-countSector targetSec [] = Z
-countSector targetSec ((m, count) :: xs) = 
-  if sector m == targetSec 
-    then count + countSector targetSec xs
-    else countSector targetSec xs
+countGeometry : Geometry -> List (GeometricPixel, Nat) -> Nat
+countGeometry targetGeom [] = Z
+countGeometry targetGeom ((m, count) :: xs) = 
+  if geometry m == targetGeom 
+    then count + countGeometry targetGeom xs
+    else countGeometry targetGeom xs
+
+||| Deprecated: Use `countGeometry` instead.
+public export %deprecate
+countSector : Geometry -> List (GeometricPixel, Nat) -> Nat
+countSector = countGeometry
 
 ||| Enforces the exact 27 Elliptic, 128 Hyperbolic, and 55 Parabolic 
 ||| boundary allocations within the master cosmic energy profile at compile time.
 public export
 record ConservedUniverse where
   constructor MkUniverse
-  rawMaxels : List (Maxel, Nat)
-  0 ellipticProof   : countSector Elliptic   rawMaxels = 27
-  0 hyperbolicProof : countSector Hyperbolic rawMaxels = 128
-  0 parabolicProof  : countSector Parabolic  rawMaxels = 55
+  rawMaxels : List (GeometricPixel, Nat)
+  0 ellipticProof   : countGeometry Elliptic   rawMaxels = 27
+  0 hyperbolicProof : countGeometry Hyperbolic rawMaxels = 128
+  0 parabolicProof  : countGeometry Parabolic  rawMaxels = 55
 
 ------------------------------------------------------------------------
 -- 6. PARALLEL O(LOG N) MULTI-THREADED STREAM PARTITIONING

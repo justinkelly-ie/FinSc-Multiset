@@ -445,6 +445,26 @@ tensorToBoxSquareMaxel : {dim : Nat} -> Multiset BoxInt Pixel -> BoxSquareMaxel 
 tensorToBoxSquareMaxel tensor =
   MkBoxSquareMaxel (foldl (\tree, (p, w) => setBoxTree p w tree) BoxLeaf (multisetToList tensor))
 
+||| Converts a general Maxel into a typed MultisetTensor over natural coordinates.
+public export
+maxelToTensor : Maxel -> MultisetTensor Nat Nat
+maxelToTensor (MkMaxelTree tree) =
+  foldBoxTreeR (\(MkPixel r c), w, acc => AddM (r, c) w acc) ZeroM tree
+
+||| Reconstructs a general Maxel from a MultisetTensor over natural coordinates.
+public export
+tensorToMaxel : MultisetTensor Nat Nat -> Maxel
+tensorToMaxel tensor =
+  MkMaxelTree (foldl (\tree, ((r, c), w) =>
+                 if boxIsZero w then tree
+                 else let cur = lookupBoxTree (MkPixel r c) tree
+                          newW = cur + w
+                      in if boxIsZero newW
+                           then setBoxTree (MkPixel r c) (intToBoxInt 0) tree
+                           else setBoxTree (MkPixel r c) newW tree)
+                     BoxLeaf
+                     (multisetToList tensor))
+
 ||| Algebraic Kronecker Tensor Product on BoxSquareMaxel:
 public export
 kroneckerBoxSquareMaxelAlg : {m, n : Nat} -> BoxSquareMaxel m -> BoxSquareMaxel n -> BoxSquareMaxel (m * n)
@@ -559,6 +579,12 @@ mulMaxel (MkMaxelTree t1) (MkMaxelTree t2) =
 public export
 multiplyMaxel : Maxel -> Maxel -> Maxel
 multiplyMaxel = mulMaxel
+
+||| Fast tensor contraction via native Maxel AVL tree matrix multiplication:
+public export
+fastMultisetTensorMult : MultisetTensor Nat Nat -> MultisetTensor Nat Nat -> MultisetTensor Nat Nat
+fastMultisetTensorMult t1 t2 =
+  maxelToTensor (mulMaxel (tensorToMaxel t1) (tensorToMaxel t2))
 
 ||| Canonical 3D identity metric Maxel: [1, 1] + [2, 2] + [3, 3].
 public export
