@@ -75,10 +75,15 @@ public export
 streamCoordCell : CoordCell dim -> FusedStream (Nat, Nat)
 streamCoordCell (MkCoordCell tree) = streamMultisetTreeDirect tree
 
-||| Lookups the coordinate component along the specified axis (0 .. dim-1) in O(log D) time.
+||| Lookups the coordinate component along any specified dimension axis (0 .. dim-1) in O(log D) time.
+public export
+coordAxis : Nat -> CoordCell dim -> Nat
+coordAxis axis (MkCoordCell tree) = lookupTokenTree axis tree
+
+||| Canonical alias for coordAxis.
 public export
 coordCellAxis : Nat -> CoordCell dim -> Nat
-coordCellAxis axis (MkCoordCell tree) = lookupTokenTree axis tree
+coordCellAxis = coordAxis
 
 ||| Sets the coordinate component along the specified axis in O(log D) time.
 public export
@@ -86,77 +91,98 @@ coordCellSetAxis : Nat -> Nat -> CoordCell dim -> CoordCell dim
 coordCellSetAxis axis val (MkCoordCell tree) = MkCoordCell (insertTokenTree axis val tree)
 
 ------------------------------------------------------------------------
--- 3. CANONICAL DIMENSION TYPE SYNONYMS & SMART CONSTRUCTORS
+-- 3. UNIFIED CONSTRUCTORS, TYPE SYNONYMS & DIMENSION PROJECTIONS
 ------------------------------------------------------------------------
 
-||| A Unixel is a 1D basis coordinate cell (CoordCell Dim1).
+||| Builds a CoordCell directly from a deforested stream of (axis, coordinate) pairs in O(1) auxiliary registers.
+public export
+mkCoordCellFromStream : (dim : Nat) -> FusedStream (Nat, Nat) -> CoordCell dim
+mkCoordCellFromStream dim strm =
+  let resTree = foldStream (\acc, (axis, val) =>
+                  if axis >= dim || val == 0 then acc
+                  else insertTokenTree axis val acc)
+                Leaf
+                strm
+  in MkCoordCell resTree
+
+||| Builds a CoordCell from a deforested stream of coordinate values in O(1) auxiliary registers.
+public export
+mkCoordCellFromValStream : (dim : Nat) -> FusedStream Nat -> CoordCell dim
+mkCoordCellFromValStream dim strm =
+  let (_, resTree) = foldStream (\(axis, acc), val =>
+                       if axis >= dim then (axis, acc)
+                       else (S axis, if val == 0 then acc else insertTokenTree axis val acc))
+                     (0, Leaf)
+                     strm
+  in MkCoordCell resTree
+
+||| Curried dimension-indexed constructors.
+public export
+mkCell1 : Nat -> CoordCell Dim1
+mkCell1 i = MkCoordCell (Node 1 Leaf 0 i Leaf)
+
+public export
+mkCell2 : Nat -> Nat -> CoordCell Dim2
+mkCell2 r c = MkCoordCell (Node 2 Leaf 0 r (Node 1 Leaf 1 c Leaf))
+
+public export
+mkCell3 : Nat -> Nat -> Nat -> CoordCell Dim3
+mkCell3 x y z = MkCoordCell (Node 2 (Node 1 Leaf 0 x Leaf) 1 y (Node 1 Leaf 2 z Leaf))
+
+public export
+mkCell4 : Nat -> Nat -> Nat -> Nat -> CoordCell Dim4
+mkCell4 x y z t = MkCoordCell (Node 3 (Node 1 Leaf 0 x Leaf) 1 y (Node 2 Leaf 2 z (Node 1 Leaf 3 t Leaf)))
+
+-- 1D Unixel
 public export
 Unixel : Type
 Unixel = CoordCell Dim1
 
-||| Smart constructor for 1D Unixel cell.
 %inline public export
 mkUnixel : Nat -> Unixel
-mkUnixel i = MkCoordCell (Node 1 Leaf 0 i Leaf)
+mkUnixel = mkCell1
 
-||| Canonical constructor alias for 1D Unixel cell.
 %inline public export
 MkUnixel : Nat -> Unixel
 MkUnixel = mkUnixel
 
-||| Unwraps the natural coordinate of a Unixel.
 %inline public export
 unwrapUnixel : Unixel -> Nat
-unwrapUnixel (MkCoordCell (Node _ _ _ i _)) = i
-unwrapUnixel _ = 0
+unwrapUnixel = coordAxis 0
 
-||| Equality predicate on Unixel.
 public export
 unixelEq : Unixel -> Unixel -> Bool
 unixelEq = coordCellEq
 
-||| A Pixel is a 2D coordinate cell or signed difference pair (CoordCell Dim2).
+-- 2D Pixel
 public export
 Pixel : Type
 Pixel = CoordCell Dim2
 
-||| Canonical unambiguous alias for discrete 2D grid matrix cells.
 public export
 GridPixel : Type
 GridPixel = Pixel
 
-||| Alternative alias for cell coordinate.
 public export
 CellPixel : Type
 CellPixel = Pixel
 
-||| Smart constructor for 2D Pixel cell.
 %inline public export
 mkPixel : Nat -> Nat -> Pixel
-mkPixel r c = MkCoordCell (Node 2 Leaf 0 r (Node 1 Leaf 1 c Leaf))
+mkPixel = mkCell2
 
-||| Canonical constructor alias for 2D Pixel cell.
 %inline public export
 MkPixel : Nat -> Nat -> Pixel
 MkPixel = mkPixel
 
-||| Projections for 2D Pixel cell.
 %inline public export
 pixelRow : Pixel -> Nat
-pixelRow (MkCoordCell (Node _ (Node _ _ 0 r _) _ _ _)) = r
-pixelRow (MkCoordCell (Node _ _ 0 r _)) = r
-pixelRow (MkCoordCell (Node _ _ _ r _)) = r
-pixelRow _ = 0
+pixelRow = coordAxis 0
 
 %inline public export
 pixelCol : Pixel -> Nat
-pixelCol (MkCoordCell (Node _ _ 0 _ (Node _ _ 1 c _))) = c
-pixelCol (MkCoordCell (Node _ _ 1 c _)) = c
-pixelCol (MkCoordCell (Node _ _ _ _ (Node _ _ 1 c _))) = c
-pixelCol (MkCoordCell (Node _ _ _ _ (Node _ _ _ c _))) = c
-pixelCol _ = 0
+pixelCol = coordAxis 1
 
-||| Equality predicate on Pixel.
 public export
 pixelEq : Pixel -> Pixel -> Bool
 pixelEq = coordCellEq
@@ -172,89 +198,64 @@ mulPixel p1 p2 =
       c2 = pixelCol p2
   in if c1 == r2 then Just (mkPixel r1 c2) else Nothing
 
-||| A Voxel is a 3D coordinate cell or Triplet Codon / Baryon state (CoordCell Dim3).
+-- 3D Voxel
 public export
 Voxel : Type
 Voxel = CoordCell Dim3
 
-||| Smart constructor for 3D Voxel cell.
 %inline public export
 mkVoxel : Nat -> Nat -> Nat -> Voxel
-mkVoxel x y z = MkCoordCell (Node 2 (Node 1 Leaf 0 x Leaf) 1 y (Node 1 Leaf 2 z Leaf))
+mkVoxel = mkCell3
 
-||| Canonical constructor alias for 3D Voxel cell.
 %inline public export
 MkVoxel : Nat -> Nat -> Nat -> Voxel
 MkVoxel = mkVoxel
 
-||| Projections for 3D Voxel cell.
 %inline public export
 voxelX : Voxel -> Nat
-voxelX (MkCoordCell (Node _ (Node _ _ 0 x _) _ _ _)) = x
-voxelX (MkCoordCell (Node _ _ 0 x _)) = x
-voxelX (MkCoordCell (Node _ _ _ x _)) = x
-voxelX _ = 0
+voxelX = coordAxis 0
 
 %inline public export
 voxelY : Voxel -> Nat
-voxelY (MkCoordCell (Node _ _ 1 y _)) = y
-voxelY (MkCoordCell (Node _ _ _ y _)) = y
-voxelY _ = 0
+voxelY = coordAxis 1
 
 %inline public export
 voxelZ : Voxel -> Nat
-voxelZ (MkCoordCell (Node _ _ _ _ (Node _ _ 2 z _))) = z
-voxelZ (MkCoordCell (Node _ _ _ _ (Node _ _ _ z _))) = z
-voxelZ _ = 0
+voxelZ = coordAxis 2
 
-||| Equality predicate on Voxel.
 public export
 voxelEq : Voxel -> Voxel -> Bool
 voxelEq = coordCellEq
 
-||| A 4D Spacetime coordinate cell token [x, y, z, t] (CoordCell Dim4).
+-- 4D Tesseract
 public export
 Tesseract : Type
 Tesseract = CoordCell Dim4
 
-||| Smart constructor for 4D Tesseract cell.
 %inline public export
 mkTesseract : Nat -> Nat -> Nat -> Nat -> Tesseract
-mkTesseract x y z t = MkCoordCell (Node 3 (Node 1 Leaf 0 x Leaf) 1 y (Node 2 Leaf 2 z (Node 1 Leaf 3 t Leaf)))
+mkTesseract = mkCell4
 
-||| Canonical constructor alias for 4D Tesseract cell.
 %inline public export
 MkTesseract : Nat -> Nat -> Nat -> Nat -> Tesseract
 MkTesseract = mkTesseract
 
-||| Projections for 4D Tesseract cell.
 %inline public export
 tesseractX : Tesseract -> Nat
-tesseractX (MkCoordCell (Node _ (Node _ _ 0 x _) _ _ _)) = x
-tesseractX (MkCoordCell (Node _ _ 0 x _)) = x
-tesseractX (MkCoordCell (Node _ _ _ x _)) = x
-tesseractX _ = 0
+tesseractX = coordAxis 0
 
 %inline public export
 tesseractY : Tesseract -> Nat
-tesseractY (MkCoordCell (Node _ _ 1 y _)) = y
-tesseractY (MkCoordCell (Node _ _ _ y _)) = y
-tesseractY _ = 0
+tesseractY = coordAxis 1
 
 %inline public export
 tesseractZ : Tesseract -> Nat
-tesseractZ (MkCoordCell (Node _ _ _ _ (Node _ _ 2 z _))) = z
-tesseractZ (MkCoordCell (Node _ _ _ _ (Node _ _ _ z _))) = z
-tesseractZ _ = 0
+tesseractZ = coordAxis 2
 
 %inline public export
 tesseractT : Tesseract -> Nat
-tesseractT (MkCoordCell (Node _ _ _ _ (Node _ _ _ _ (Node _ _ 3 t _)))) = t
-tesseractT (MkCoordCell (Node _ _ _ _ (Node _ _ 2 _ (Node _ _ 3 t _)))) = t
-tesseractT (MkCoordCell (Node _ _ _ _ (Node _ _ _ _ (Node _ _ _ t _)))) = t
-tesseractT _ = 0
+tesseractT = coordAxis 3
 
-||| Equality predicate on Tesseract.
 public export
 tesseractEq : Tesseract -> Tesseract -> Bool
 tesseractEq = coordCellEq
@@ -321,6 +322,37 @@ public export
 quadranceCoordCell : CoordCell dim -> Nat
 quadranceCoordCell c = dotCoordCell c c
 
+||| Componentwise subtraction / bounded natural difference of two coordinate cells.
+public export
+minusCoordCell : CoordCell dim -> CoordCell dim -> CoordCell dim
+minusCoordCell (MkCoordCell cs1) (MkCoordCell cs2) =
+  let pairs = streamMultisetTreeDirect cs1
+      resTree = foldStream (\acc, (axis, v1) =>
+                  let v2 = lookupTokenTree axis cs2
+                      d = minus v1 v2
+                  in if d == 0 then acc else insertTokenTree axis d acc)
+                Leaf
+                pairs
+  in MkCoordCell resTree
+
+||| Populates a coordinate cell of dimension dim with a constant coordinate k across all axes.
+public export
+constCoordCell : (dim : Nat) -> Nat -> CoordCell dim
+constCoordCell dim k =
+  if k == 0 then zeroCoordCell
+  else
+    let go : (fuel : Nat) -> Nat -> MultisetTree Nat -> MultisetTree Nat
+        go Z _ acc = acc
+        go (S fuel) axis acc =
+          if axis >= dim then acc
+          else go fuel (S axis) (insertTokenTree axis k acc)
+    in MkCoordCell (go dim 0 Leaf)
+
+||| Canonical 1-vector of ones: 1 = (1, 1, ..., 1).
+public export
+oneCoordCell : (dim : Nat) -> CoordCell dim
+oneCoordCell dim = constCoordCell dim 1
+
 ||| Semigroup implementation for CoordCell (dim : Nat).
 public export
 Semigroup (CoordCell dim) where
@@ -331,8 +363,30 @@ public export
 Monoid (CoordCell dim) where
   neutral = zeroCoordCell
 
+||| Universal Num instance for CoordCell of any dimension.
+public export
+{dim : Nat} -> Num (CoordCell dim) where
+  (+) = addCoordCell
+  (*) = mulCoordCell
+  fromInteger n = constCoordCell dim (integerToNat n)
+
 ------------------------------------------------------------------------
--- 5. SPECIALIZED MONOMORPHIC DERIVED DIMENSION OPERATORS
+-- 5. CANONICAL CARRIER MULTISET (CellMultiset) & SPATIAL TRANSLATION
+------------------------------------------------------------------------
+
+||| A CellMultiset is an AVL multiset of D-dimensional coordinate basis cells.
+public export
+CellMultiset : (dim : Nat) -> Type
+CellMultiset dim = BoxMultisetTree (CoordCell dim)
+
+||| Universal spatial translation of a cell multiset by a displacement coordinate cell.
+public export
+translateCell : CoordCell dim -> CellMultiset dim -> CellMultiset dim
+translateCell delta mset =
+  foldBoxTreeL (\acc, (c, w) => setBoxTree (addCoordCell c delta) w acc) BoxLeaf mset
+
+------------------------------------------------------------------------
+-- 6. SPECIALIZED MONOMORPHIC DERIVED DIMENSION OPERATORS
 ------------------------------------------------------------------------
 
 -- 1D Unixel Semiring Operators
@@ -345,12 +399,6 @@ public export dotUnixel : Unixel -> Unixel -> Nat; dotUnixel u1 u2 = unwrapUnixe
 public export quadranceUnixel : Unixel -> Nat; quadranceUnixel u = let x = unwrapUnixel u in x * x
 public export minusUnixel : Unixel -> Unixel -> Unixel; minusUnixel u1 u2 = mkUnixel (minus (unwrapUnixel u1) (unwrapUnixel u2))
 
-public export
-Num Unixel where
-  (+) = addUnixel
-  (*) = mulUnixel
-  fromInteger n = mkUnixel (integerToNat n)
-
 -- 2D Pixel Semiring Operators
 public export zeroPixel : Pixel; zeroPixel = mkPixel 0 0
 public export onePixel : Pixel; onePixel = mkPixel 1 1
@@ -360,12 +408,6 @@ public export scalePixel : Nat -> Pixel -> Pixel; scalePixel k p = mkPixel (k * 
 public export dotPixel : Pixel -> Pixel -> Nat; dotPixel p1 p2 = (pixelRow p1 * pixelRow p2) + (pixelCol p1 * pixelCol p2)
 public export quadrancePixel : Pixel -> Nat; quadrancePixel p = let r = pixelRow p; c = pixelCol p in (r * r) + (c * c)
 public export minusPixel : Pixel -> Pixel -> Pixel; minusPixel p1 p2 = mkPixel (minus (pixelRow p1) (pixelRow p2)) (minus (pixelCol p1) (pixelCol p2))
-
-public export
-Num Pixel where
-  (+) = addPixel
-  (*) = mulPixelCell
-  fromInteger n = let k = integerToNat n in mkPixel k k
 
 -- 3D Voxel Semiring Operators
 public export zeroVoxel : Voxel; zeroVoxel = mkVoxel 0 0 0
@@ -377,12 +419,6 @@ public export dotVoxel : Voxel -> Voxel -> Nat; dotVoxel v1 v2 = (voxelX v1 * vo
 public export quadranceVoxel : Voxel -> Nat; quadranceVoxel v = let x = voxelX v; y = voxelY v; z = voxelZ v in (x * x) + (y * y) + (z * z)
 public export minusVoxel : Voxel -> Voxel -> Voxel; minusVoxel v1 v2 = mkVoxel (minus (voxelX v1) (voxelX v2)) (minus (voxelY v1) (voxelY v2)) (minus (voxelZ v1) (voxelZ v2))
 
-public export
-Num Voxel where
-  (+) = addVoxel
-  (*) = mulVoxel
-  fromInteger n = let k = integerToNat n in mkVoxel k k k
-
 -- 4D Tesseract Semiring Operators
 public export zeroTesseract : Tesseract; zeroTesseract = mkTesseract 0 0 0 0
 public export oneTesseract : Tesseract; oneTesseract = mkTesseract 1 1 1 1
@@ -393,14 +429,8 @@ public export dotTesseract : Tesseract -> Tesseract -> Nat; dotTesseract t1 t2 =
 public export quadranceTesseract : Tesseract -> Nat; quadranceTesseract t = let x = tesseractX t; y = tesseractY t; z = tesseractZ t; w = tesseractT t in (x * x) + (y * y) + (z * z) + (w * w)
 public export minusTesseract : Tesseract -> Tesseract -> Tesseract; minusTesseract t1 t2 = mkTesseract (minus (tesseractX t1) (tesseractX t2)) (minus (tesseractY t1) (tesseractY t2)) (minus (tesseractZ t1) (tesseractZ t2)) (minus (tesseractT t1) (tesseractT t2))
 
-public export
-Num Tesseract where
-  (+) = addTesseract
-  (*) = mulTesseract
-  fromInteger n = let k = integerToNat n in mkTesseract k k k k
-
 ------------------------------------------------------------------------
--- 6. CONSTRUCTIVE COMMUTATIVE SEMIRING REWRITING LEMMAS
+-- 7. CONSTRUCTIVE COMMUTATIVE SEMIRING REWRITING LEMMAS
 ------------------------------------------------------------------------
 
 -- 1D Unixel Semiring Lemmas
