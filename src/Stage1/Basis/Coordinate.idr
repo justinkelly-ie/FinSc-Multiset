@@ -143,9 +143,25 @@ record Tesseract where
   t : Nat
 
 public export
+tesseractEq : Tesseract -> Tesseract -> Bool
+tesseractEq (MkTesseract x1 y1 z1 t1) (MkTesseract x2 y2 z2 t2) =
+  natEq x1 x2 && natEq y1 y2 && natEq z1 z2 && natEq t1 t2
+
+public export
 Eq Tesseract where
   (MkTesseract x1 y1 z1 t1) == (MkTesseract x2 y2 z2 t2) =
-    x1 == x2 && y1 == y2 && z1 == z2 && t1 == t2
+    tesseractEq (MkTesseract x1 y1 z1 t1) (MkTesseract x2 y2 z2 t2)
+
+public export
+Ord Tesseract where
+  compare (MkTesseract x1 y1 z1 t1) (MkTesseract x2 y2 z2 t2) =
+    case compare x1 x2 of
+      EQ => case compare y1 y2 of
+        EQ => case compare z1 z2 of
+          EQ => compare t1 t2
+          resZ => resZ
+        resY => resY
+      resX => resX
 
 public export
 Show Tesseract where

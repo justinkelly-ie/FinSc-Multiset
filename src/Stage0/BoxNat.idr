@@ -158,3 +158,73 @@ public export
 implementation LComonoid BoxNat where
   lcomult (MkBoxNat n) = Builtin.(#) (MkBoxNat n) (MkBoxNat n)
 
+public export
+Num BoxNat where
+  (+) = boxNatAdd
+  (*) = boxNatMul
+  fromInteger n = MkBoxNat (integerToNat n)
+
+------------------------------------------------------------------------
+-- 5. EXPLICIT COMMUTATIVE SEMIRING REWRITING LEMMAS
+------------------------------------------------------------------------
+
+||| Additive identity on the left: 0 + a = a.
+public export
+0 boxNatAddZeroLeft : (a : BoxNat) -> boxNatAdd (MkBoxNat 0) a = a
+boxNatAddZeroLeft (MkBoxNat a) = Refl
+
+||| Additive identity on the right: a + 0 = a.
+public export
+0 boxNatAddZeroRight : (a : BoxNat) -> boxNatAdd a (MkBoxNat 0) = a
+boxNatAddZeroRight (MkBoxNat a) = cong MkBoxNat (plusZeroRightNeutral a)
+
+||| Commutativity of addition: a + b = b + a.
+public export
+0 boxNatAddComm : (a, b : BoxNat) -> boxNatAdd a b = boxNatAdd b a
+boxNatAddComm (MkBoxNat a) (MkBoxNat b) = cong MkBoxNat (plusCommutative a b)
+
+||| Associativity of addition: (a + b) + c = a + (b + c).
+public export
+0 boxNatAddAssoc : (a, b, c : BoxNat) -> boxNatAdd (boxNatAdd a b) c = boxNatAdd a (boxNatAdd b c)
+boxNatAddAssoc (MkBoxNat a) (MkBoxNat b) (MkBoxNat c) = cong MkBoxNat (sym (plusAssociative a b c))
+
+||| Multiplicative zero on the left: 0 * a = 0.
+public export
+0 boxNatMulZeroLeft : (a : BoxNat) -> boxNatMul (MkBoxNat 0) a = MkBoxNat 0
+boxNatMulZeroLeft (MkBoxNat a) = Refl
+
+||| Multiplicative zero on the right: a * 0 = 0.
+public export
+0 boxNatMulZeroRight : (a : BoxNat) -> boxNatMul a (MkBoxNat 0) = MkBoxNat 0
+boxNatMulZeroRight (MkBoxNat a) = cong MkBoxNat (multZeroRightZero a)
+
+||| Multiplicative identity on the left: 1 * a = a.
+public export
+0 boxNatMulOneLeft : (a : BoxNat) -> boxNatMul (MkBoxNat 1) a = a
+boxNatMulOneLeft (MkBoxNat a) = cong MkBoxNat (multOneLeftNeutral a)
+
+||| Multiplicative identity on the right: a * 1 = a.
+public export
+0 boxNatMulOneRight : (a : BoxNat) -> boxNatMul a (MkBoxNat 1) = a
+boxNatMulOneRight (MkBoxNat a) = cong MkBoxNat (multOneRightNeutral a)
+
+||| Commutativity of multiplication: a * b = b * a.
+public export
+0 boxNatMulComm : (a, b : BoxNat) -> boxNatMul a b = boxNatMul b a
+boxNatMulComm (MkBoxNat a) (MkBoxNat b) = cong MkBoxNat (multCommutative a b)
+
+||| Associativity of multiplication: (a * b) * c = a * (b * c).
+public export
+0 boxNatMulAssoc : (a, b, c : BoxNat) -> boxNatMul (boxNatMul a b) c = boxNatMul a (boxNatMul b c)
+boxNatMulAssoc (MkBoxNat a) (MkBoxNat b) (MkBoxNat c) = cong MkBoxNat (sym (multAssociative a b c))
+
+||| Left distributivity of multiplication over addition: (a + b) * c = (a * c) + (b * c).
+public export
+0 boxNatDistributesLeft : (a, b, c : BoxNat) -> boxNatMul (boxNatAdd a b) c = boxNatAdd (boxNatMul a c) (boxNatMul b c)
+boxNatDistributesLeft (MkBoxNat a) (MkBoxNat b) (MkBoxNat c) = cong MkBoxNat (multDistributesOverPlusLeft a b c)
+
+||| Right distributivity of multiplication over addition: a * (b + c) = (a * b) + (a * c).
+public export
+0 boxNatDistributesRight : (a, b, c : BoxNat) -> boxNatMul a (boxNatAdd b c) = boxNatAdd (boxNatMul a b) (boxNatMul a c)
+boxNatDistributesRight (MkBoxNat a) (MkBoxNat b) (MkBoxNat c) = cong MkBoxNat (multDistributesOverPlusRight a b c)
+

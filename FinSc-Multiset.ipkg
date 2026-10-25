@@ -9,6 +9,7 @@ sourcedir = "src"
 modules = Multiset,
           Stage0.BoxInt,
           Stage0.BoxNat,
+          Stage0.DiffInt,
           Stage0.SignedFraction,
           Stage0.Multiset,
           Stage0.LMultiset,

@@ -2,6 +2,7 @@ module Multiset
 
 import public Stage0.BoxInt
 import public Stage0.BoxNat
+import public Stage0.DiffInt
 import public Stage0.SignedFraction
 import public Stage0.Multiset
 import public Stage0.LMultiset
