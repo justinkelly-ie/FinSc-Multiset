@@ -49,6 +49,12 @@ scaleBoxel : BoxInt -> Boxel -> Boxel
 scaleBoxel s (MkBoxel bs) =
   MkBoxel (map (\(v, w) => (v, s * w)) bs)
 
+||| Translates all voxel coordinates in a Boxel by a spatial Voxel offset (Wildberger multiset translation).
+public export
+translateBoxel : Voxel -> Boxel -> Boxel
+translateBoxel offset (MkBoxel bs) =
+  MkBoxel (map (\(v, w) => (v + offset, w)) bs)
+
 ||| Computes total weight/density across all voxels in a Boxel.
 public export
 totalBoxelWeight : Boxel -> BoxInt

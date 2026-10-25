@@ -10,6 +10,7 @@ import Stage0.BoxInt
 import Stage0.BoxNat
 import Stage0.Multiset
 import Stage0.OnSeq.FusedStream
+import public Stage1.Basis.Coordinate
 import Data.Vect
 
 %default total
@@ -287,3 +288,32 @@ stagedFastMatPower (S f) mat exp =
   in if isOdd
        then stagedUnrollMatMul mat squared
        else squared
+
+------------------------------------------------------------------------
+-- 7. 2LTT STAGED COORDINATE CELL & CARRIER OPERATIONS
+------------------------------------------------------------------------
+
+||| Staged 2LTT Coordinate Cell Addition.
+public export
+stagedAddCoordCell : Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift (CoordCell dim)
+stagedAddCoordCell qc1 qc2 = quote (addCoordCell (splice qc1) (splice qc2))
+
+||| Staged 2LTT Coordinate Cell Componentwise Multiplication (Hadamard).
+public export
+stagedMulCoordCell : Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift (CoordCell dim)
+stagedMulCoordCell qc1 qc2 = quote (mulCoordCell (splice qc1) (splice qc2))
+
+||| Staged 2LTT Coordinate Cell Scalar Scaling.
+public export
+stagedScaleCoordCell : Nat -> Lift (CoordCell dim) -> Lift (CoordCell dim)
+stagedScaleCoordCell k qc = quote (scaleCoordCell k (splice qc))
+
+||| Staged 2LTT Inner / Dot Product.
+public export
+stagedDotCoordCell : Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift Nat
+stagedDotCoordCell qc1 qc2 = quote (dotCoordCell (splice qc1) (splice qc2))
+
+||| Staged 2LTT Wildberger Quadrance.
+public export
+stagedQuadranceCoordCell : Lift (CoordCell dim) -> Lift Nat
+stagedQuadranceCoordCell qc = quote (quadranceCoordCell (splice qc))

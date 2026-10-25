@@ -1,5 +1,6 @@
 module Stage1.Basis.Coordinate
 
+import Data.Nat
 import Stage0.BoxInt
 import Stage0.BoxNat
 import Stage0.StructuralFuel
@@ -10,43 +11,43 @@ import Stage1.Order.Preorder
 %default total
 
 ------------------------------------------------------------------------
--- 1. CANONICAL DISCRETE DIMENSION CONSTANTS (BoxNat)
+-- 1. CANONICAL DISCRETE DIMENSION CONSTANTS (Nat)
 ------------------------------------------------------------------------
 
 ||| Canonical 1-dimensional discrete dimension index.
 public export
-Dim1 : BoxNat
-Dim1 = MkBoxNat 1
+Dim1 : Nat
+Dim1 = 1
 
 ||| Canonical 2-dimensional discrete dimension index.
 public export
-Dim2 : BoxNat
-Dim2 = MkBoxNat 2
+Dim2 : Nat
+Dim2 = 2
 
 ||| Canonical 3-dimensional discrete dimension index.
 public export
-Dim3 : BoxNat
-Dim3 = MkBoxNat 3
+Dim3 : Nat
+Dim3 = 3
 
 ||| Canonical 4-dimensional discrete dimension index.
 public export
-Dim4 : BoxNat
-Dim4 = MkBoxNat 4
+Dim4 : Nat
+Dim4 = 4
 
 ||| Canonical 10-dimensional discrete dimension index.
 public export
-Dim10 : BoxNat
-Dim10 = MkBoxNat 10
+Dim10 : Nat
+Dim10 = 10
 
 ------------------------------------------------------------------------
 -- 2. UNIVERSAL DEPENDENT COORDINATE BASIS CELL (COORDCELL)
 ------------------------------------------------------------------------
 
-||| Arbitrary D-dimensional coordinate basis cell, indexed by BoxNat dimension.
+||| Arbitrary D-dimensional coordinate basis cell, indexed by Peano Nat dimension.
 ||| Backed by a balanced AVL MultisetTree Nat mapping dimension axes to coordinates.
 ||| Completely eliminates Data.Vect heap allocations and vector consing conflicts.
 public export
-record CoordCell (dim : BoxNat) where
+record CoordCell (dim : Nat) where
   constructor MkCoordCell
   coords : MultisetTree Nat
 
@@ -264,7 +265,310 @@ detSymmetricMatrix2D : BoxInt -> BoxInt -> BoxInt -> BoxInt
 detSymmetricMatrix2D a b c = subBox (a * c) (b * b)
 
 ------------------------------------------------------------------------
--- 4. SIGNED BOXINT <-> PIXEL DIFFERENCE PAIR ISOMORPHISM
+-- 4. UNIVERSAL COORDCELL SEMIRING ALGEBRA & WILDBERGER INVARIANTS
+------------------------------------------------------------------------
+
+||| Additive neutral zero coordinate cell 0 = (0, 0, ..., 0).
+public export
+zeroCoordCell : CoordCell dim
+zeroCoordCell = MkCoordCell Leaf
+
+||| Vector / componentwise addition of two coordinate cells (c1 + c2).
+public export
+addCoordCell : CoordCell dim -> CoordCell dim -> CoordCell dim
+addCoordCell (MkCoordCell cs1) (MkCoordCell cs2) =
+  MkCoordCell (mergeMultisetTrees cs1 cs2)
+
+||| Componentwise direct product (Hadamard product) of two coordinate cells (c1 * c2).
+public export
+mulCoordCell : CoordCell dim -> CoordCell dim -> CoordCell dim
+mulCoordCell (MkCoordCell cs1) (MkCoordCell cs2) =
+  let pairs = streamMultisetTreeDirect cs1
+      resTree = foldStream (\acc, (axis, v1) =>
+                  let v2 = lookupTokenTree axis cs2
+                      p = v1 * v2
+                  in if p == 0 then acc else insertTokenTree axis p acc)
+                Leaf
+                pairs
+  in MkCoordCell resTree
+
+||| Scalar multiplication of a coordinate cell by a natural number (k * c).
+public export
+scaleCoordCell : Nat -> CoordCell dim -> CoordCell dim
+scaleCoordCell Z _ = MkCoordCell Leaf
+scaleCoordCell (S Z) c = c
+scaleCoordCell k (MkCoordCell cs) =
+  let pairs = streamMultisetTreeDirect cs
+      resTree = foldStream (\acc, (axis, v) =>
+                  let p = k * v
+                  in if p == 0 then acc else insertTokenTree axis p acc)
+                Leaf
+                pairs
+  in MkCoordCell resTree
+
+||| Inner / dot product of two coordinate cells (u · v).
+public export
+dotCoordCell : CoordCell dim -> CoordCell dim -> Nat
+dotCoordCell (MkCoordCell cs1) (MkCoordCell cs2) =
+  foldStream (\acc, (axis, v1) =>
+    let v2 = lookupTokenTree axis cs2
+    in acc + (v1 * v2))
+  0
+  (streamMultisetTreeDirect cs1)
+
+||| Wildberger Quadrance Q(c) = c · c = sum (c_i)^2.
+public export
+quadranceCoordCell : CoordCell dim -> Nat
+quadranceCoordCell c = dotCoordCell c c
+
+||| Semigroup implementation for CoordCell (dim : Nat).
+public export
+Semigroup (CoordCell dim) where
+  (<+>) = addCoordCell
+
+||| Monoid implementation for CoordCell (dim : Nat).
+public export
+Monoid (CoordCell dim) where
+  neutral = zeroCoordCell
+
+------------------------------------------------------------------------
+-- 5. SPECIALIZED MONOMORPHIC DERIVED DIMENSION OPERATORS
+------------------------------------------------------------------------
+
+-- 1D Unixel Semiring Operators
+public export zeroUnixel : Unixel; zeroUnixel = mkUnixel 0
+public export oneUnixel : Unixel; oneUnixel = mkUnixel 1
+public export addUnixel : Unixel -> Unixel -> Unixel; addUnixel u1 u2 = mkUnixel (unwrapUnixel u1 + unwrapUnixel u2)
+public export mulUnixel : Unixel -> Unixel -> Unixel; mulUnixel u1 u2 = mkUnixel (unwrapUnixel u1 * unwrapUnixel u2)
+public export scaleUnixel : Nat -> Unixel -> Unixel; scaleUnixel k u = mkUnixel (k * unwrapUnixel u)
+public export dotUnixel : Unixel -> Unixel -> Nat; dotUnixel u1 u2 = unwrapUnixel u1 * unwrapUnixel u2
+public export quadranceUnixel : Unixel -> Nat; quadranceUnixel u = let x = unwrapUnixel u in x * x
+public export minusUnixel : Unixel -> Unixel -> Unixel; minusUnixel u1 u2 = mkUnixel (minus (unwrapUnixel u1) (unwrapUnixel u2))
+
+public export
+Num Unixel where
+  (+) = addUnixel
+  (*) = mulUnixel
+  fromInteger n = mkUnixel (integerToNat n)
+
+-- 2D Pixel Semiring Operators
+public export zeroPixel : Pixel; zeroPixel = mkPixel 0 0
+public export onePixel : Pixel; onePixel = mkPixel 1 1
+public export addPixel : Pixel -> Pixel -> Pixel; addPixel p1 p2 = mkPixel (pixelRow p1 + pixelRow p2) (pixelCol p1 + pixelCol p2)
+public export mulPixelCell : Pixel -> Pixel -> Pixel; mulPixelCell p1 p2 = mkPixel (pixelRow p1 * pixelRow p2) (pixelCol p1 * pixelCol p2)
+public export scalePixel : Nat -> Pixel -> Pixel; scalePixel k p = mkPixel (k * pixelRow p) (k * pixelCol p)
+public export dotPixel : Pixel -> Pixel -> Nat; dotPixel p1 p2 = (pixelRow p1 * pixelRow p2) + (pixelCol p1 * pixelCol p2)
+public export quadrancePixel : Pixel -> Nat; quadrancePixel p = let r = pixelRow p; c = pixelCol p in (r * r) + (c * c)
+public export minusPixel : Pixel -> Pixel -> Pixel; minusPixel p1 p2 = mkPixel (minus (pixelRow p1) (pixelRow p2)) (minus (pixelCol p1) (pixelCol p2))
+
+public export
+Num Pixel where
+  (+) = addPixel
+  (*) = mulPixelCell
+  fromInteger n = let k = integerToNat n in mkPixel k k
+
+-- 3D Voxel Semiring Operators
+public export zeroVoxel : Voxel; zeroVoxel = mkVoxel 0 0 0
+public export oneVoxel : Voxel; oneVoxel = mkVoxel 1 1 1
+public export addVoxel : Voxel -> Voxel -> Voxel; addVoxel v1 v2 = mkVoxel (voxelX v1 + voxelX v2) (voxelY v1 + voxelY v2) (voxelZ v1 + voxelZ v2)
+public export mulVoxel : Voxel -> Voxel -> Voxel; mulVoxel v1 v2 = mkVoxel (voxelX v1 * voxelX v2) (voxelY v1 * voxelY v2) (voxelZ v1 * voxelZ v2)
+public export scaleVoxel : Nat -> Voxel -> Voxel; scaleVoxel k v = mkVoxel (k * voxelX v) (k * voxelY v) (k * voxelZ v)
+public export dotVoxel : Voxel -> Voxel -> Nat; dotVoxel v1 v2 = (voxelX v1 * voxelX v2) + (voxelY v1 * voxelY v2) + (voxelZ v1 * voxelZ v2)
+public export quadranceVoxel : Voxel -> Nat; quadranceVoxel v = let x = voxelX v; y = voxelY v; z = voxelZ v in (x * x) + (y * y) + (z * z)
+public export minusVoxel : Voxel -> Voxel -> Voxel; minusVoxel v1 v2 = mkVoxel (minus (voxelX v1) (voxelX v2)) (minus (voxelY v1) (voxelY v2)) (minus (voxelZ v1) (voxelZ v2))
+
+public export
+Num Voxel where
+  (+) = addVoxel
+  (*) = mulVoxel
+  fromInteger n = let k = integerToNat n in mkVoxel k k k
+
+-- 4D Tesseract Semiring Operators
+public export zeroTesseract : Tesseract; zeroTesseract = mkTesseract 0 0 0 0
+public export oneTesseract : Tesseract; oneTesseract = mkTesseract 1 1 1 1
+public export addTesseract : Tesseract -> Tesseract -> Tesseract; addTesseract t1 t2 = mkTesseract (tesseractX t1 + tesseractX t2) (tesseractY t1 + tesseractY t2) (tesseractZ t1 + tesseractZ t2) (tesseractT t1 + tesseractT t2)
+public export mulTesseract : Tesseract -> Tesseract -> Tesseract; mulTesseract t1 t2 = mkTesseract (tesseractX t1 * tesseractX t2) (tesseractY t1 * tesseractY t2) (tesseractZ t1 * tesseractZ t2) (tesseractT t1 * tesseractT t2)
+public export scaleTesseract : Nat -> Tesseract -> Tesseract; scaleTesseract k t = mkTesseract (k * tesseractX t) (k * tesseractY t) (k * tesseractZ t) (k * tesseractT t)
+public export dotTesseract : Tesseract -> Tesseract -> Nat; dotTesseract t1 t2 = (tesseractX t1 * tesseractX t2) + (tesseractY t1 * tesseractY t2) + (tesseractZ t1 * tesseractZ t2) + (tesseractT t1 * tesseractT t2)
+public export quadranceTesseract : Tesseract -> Nat; quadranceTesseract t = let x = tesseractX t; y = tesseractY t; z = tesseractZ t; w = tesseractT t in (x * x) + (y * y) + (z * z) + (w * w)
+public export minusTesseract : Tesseract -> Tesseract -> Tesseract; minusTesseract t1 t2 = mkTesseract (minus (tesseractX t1) (tesseractX t2)) (minus (tesseractY t1) (tesseractY t2)) (minus (tesseractZ t1) (tesseractZ t2)) (minus (tesseractT t1) (tesseractT t2))
+
+public export
+Num Tesseract where
+  (+) = addTesseract
+  (*) = mulTesseract
+  fromInteger n = let k = integerToNat n in mkTesseract k k k k
+
+------------------------------------------------------------------------
+-- 6. CONSTRUCTIVE COMMUTATIVE SEMIRING REWRITING LEMMAS
+------------------------------------------------------------------------
+
+-- 1D Unixel Semiring Lemmas
+public export
+0 prfUnixelAddZeroLeft : (i : Nat) -> addUnixel (mkUnixel 0) (mkUnixel i) = mkUnixel i
+prfUnixelAddZeroLeft i = Refl
+
+public export
+0 prfUnixelAddZeroRight : (i : Nat) -> addUnixel (mkUnixel i) (mkUnixel 0) = mkUnixel i
+prfUnixelAddZeroRight i = cong mkUnixel (plusZeroRightNeutral i)
+
+public export
+0 prfUnixelAddComm : (i, j : Nat) -> addUnixel (mkUnixel i) (mkUnixel j) = addUnixel (mkUnixel j) (mkUnixel i)
+prfUnixelAddComm i j = cong mkUnixel (plusCommutative i j)
+
+public export
+0 prfUnixelAddAssoc : (i, j, k : Nat) -> addUnixel (addUnixel (mkUnixel i) (mkUnixel j)) (mkUnixel k) = addUnixel (mkUnixel i) (addUnixel (mkUnixel j) (mkUnixel k))
+prfUnixelAddAssoc i j k = cong mkUnixel (sym (plusAssociative i j k))
+
+public export
+0 prfUnixelMulZeroLeft : (i : Nat) -> mulUnixel (mkUnixel 0) (mkUnixel i) = mkUnixel 0
+prfUnixelMulZeroLeft i = Refl
+
+public export
+0 prfUnixelMulOneLeft : (i : Nat) -> mulUnixel (mkUnixel 1) (mkUnixel i) = mkUnixel i
+prfUnixelMulOneLeft i = cong mkUnixel (multOneLeftNeutral i)
+
+public export
+0 prfUnixelMulComm : (i, j : Nat) -> mulUnixel (mkUnixel i) (mkUnixel j) = mulUnixel (mkUnixel j) (mkUnixel i)
+prfUnixelMulComm i j = cong mkUnixel (multCommutative i j)
+
+public export
+0 prfUnixelDistributesLeft : (i, j, k : Nat) -> mulUnixel (addUnixel (mkUnixel i) (mkUnixel j)) (mkUnixel k) = addUnixel (mulUnixel (mkUnixel i) (mkUnixel k)) (mulUnixel (mkUnixel j) (mkUnixel k))
+prfUnixelDistributesLeft i j k = cong mkUnixel (multDistributesOverPlusLeft i j k)
+
+-- 2D Pixel Semiring Lemmas
+public export
+0 prfPixelAddZeroLeft : (r, c : Nat) -> addPixel (mkPixel 0 0) (mkPixel r c) = mkPixel r c
+prfPixelAddZeroLeft r c = Refl
+
+public export
+0 prfPixelAddZeroRight : (r, c : Nat) -> addPixel (mkPixel r c) (mkPixel 0 0) = mkPixel r c
+prfPixelAddZeroRight r c =
+  rewrite plusZeroRightNeutral r in
+  rewrite plusZeroRightNeutral c in
+  Refl
+
+public export
+0 prfPixelAddComm : (r1, c1, r2, c2 : Nat) -> addPixel (mkPixel r1 c1) (mkPixel r2 c2) = addPixel (mkPixel r2 c2) (mkPixel r1 c1)
+prfPixelAddComm r1 c1 r2 c2 =
+  rewrite plusCommutative r1 r2 in
+  rewrite plusCommutative c1 c2 in
+  Refl
+
+public export
+0 prfPixelAddAssoc : (r1, c1, r2, c2, r3, c3 : Nat) -> addPixel (addPixel (mkPixel r1 c1) (mkPixel r2 c2)) (mkPixel r3 c3) = addPixel (mkPixel r1 c1) (addPixel (mkPixel r2 c2) (mkPixel r3 c3))
+prfPixelAddAssoc r1 c1 r2 c2 r3 c3 =
+  rewrite sym (plusAssociative r1 r2 r3) in
+  rewrite sym (plusAssociative c1 c2 c3) in
+  Refl
+
+public export
+0 prfPixelMulZeroLeft : (r, c : Nat) -> mulPixelCell (mkPixel 0 0) (mkPixel r c) = mkPixel 0 0
+prfPixelMulZeroLeft r c = Refl
+
+public export
+0 prfPixelMulOneLeft : (r, c : Nat) -> mulPixelCell (mkPixel 1 1) (mkPixel r c) = mkPixel r c
+prfPixelMulOneLeft r c =
+  rewrite multOneLeftNeutral r in
+  rewrite multOneLeftNeutral c in
+  Refl
+
+public export
+0 prfPixelMulComm : (r1, c1, r2, c2 : Nat) -> mulPixelCell (mkPixel r1 c1) (mkPixel r2 c2) = mulPixelCell (mkPixel r2 c2) (mkPixel r1 c1)
+prfPixelMulComm r1 c1 r2 c2 =
+  rewrite multCommutative r1 r2 in
+  rewrite multCommutative c1 c2 in
+  Refl
+
+public export
+0 prfPixelDistributesLeft : (r1, c1, r2, c2, r3, c3 : Nat) -> mulPixelCell (addPixel (mkPixel r1 c1) (mkPixel r2 c2)) (mkPixel r3 c3) = addPixel (mulPixelCell (mkPixel r1 c1) (mkPixel r3 c3)) (mulPixelCell (mkPixel r2 c2) (mkPixel r3 c3))
+prfPixelDistributesLeft r1 c1 r2 c2 r3 c3 =
+  rewrite multDistributesOverPlusLeft r1 r2 r3 in
+  rewrite multDistributesOverPlusLeft c1 c2 c3 in
+  Refl
+
+-- 3D Voxel Semiring Lemmas
+public export
+0 prfVoxelAddZeroLeft : (x, y, z : Nat) -> addVoxel (mkVoxel 0 0 0) (mkVoxel x y z) = mkVoxel x y z
+prfVoxelAddZeroLeft x y z = Refl
+
+public export
+0 prfVoxelAddZeroRight : (x, y, z : Nat) -> addVoxel (mkVoxel x y z) (mkVoxel 0 0 0) = mkVoxel x y z
+prfVoxelAddZeroRight x y z =
+  rewrite plusZeroRightNeutral x in
+  rewrite plusZeroRightNeutral y in
+  rewrite plusZeroRightNeutral z in
+  Refl
+
+public export
+0 prfVoxelAddComm : (x1, y1, z1, x2, y2, z2 : Nat) -> addVoxel (mkVoxel x1 y1 z1) (mkVoxel x2 y2 z2) = addVoxel (mkVoxel x2 y2 z2) (mkVoxel x1 y1 z1)
+prfVoxelAddComm x1 y1 z1 x2 y2 z2 =
+  rewrite plusCommutative x1 x2 in
+  rewrite plusCommutative y1 y2 in
+  rewrite plusCommutative z1 z2 in
+  Refl
+
+public export
+0 prfVoxelAddAssoc : (x1, y1, z1, x2, y2, z2, x3, y3, z3 : Nat) -> addVoxel (addVoxel (mkVoxel x1 y1 z1) (mkVoxel x2 y2 z2)) (mkVoxel x3 y3 z3) = addVoxel (mkVoxel x1 y1 z1) (addVoxel (mkVoxel x2 y2 z2) (mkVoxel x3 y3 z3))
+prfVoxelAddAssoc x1 y1 z1 x2 y2 z2 x3 y3 z3 =
+  rewrite sym (plusAssociative x1 x2 x3) in
+  rewrite sym (plusAssociative y1 y2 y3) in
+  rewrite sym (plusAssociative z1 z2 z3) in
+  Refl
+
+public export
+0 prfVoxelMulZeroLeft : (x, y, z : Nat) -> mulVoxel (mkVoxel 0 0 0) (mkVoxel x y z) = mkVoxel 0 0 0
+prfVoxelMulZeroLeft x y z = Refl
+
+public export
+0 prfVoxelMulOneLeft : (x, y, z : Nat) -> mulVoxel (mkVoxel 1 1 1) (mkVoxel x y z) = mkVoxel x y z
+prfVoxelMulOneLeft x y z =
+  rewrite multOneLeftNeutral x in
+  rewrite multOneLeftNeutral y in
+  rewrite multOneLeftNeutral z in
+  Refl
+
+public export
+0 prfVoxelMulComm : (x1, y1, z1, x2, y2, z2 : Nat) -> mulVoxel (mkVoxel x1 y1 z1) (mkVoxel x2 y2 z2) = mulVoxel (mkVoxel x2 y2 z2) (mkVoxel x1 y1 z1)
+prfVoxelMulComm x1 y1 z1 x2 y2 z2 =
+  rewrite multCommutative x1 x2 in
+  rewrite multCommutative y1 y2 in
+  rewrite multCommutative z1 z2 in
+  Refl
+
+public export
+0 prfVoxelDistributesLeft : (x1, y1, z1, x2, y2, z2, x3, y3, z3 : Nat) -> mulVoxel (addVoxel (mkVoxel x1 y1 z1) (mkVoxel x2 y2 z2)) (mkVoxel x3 y3 z3) = addVoxel (mulVoxel (mkVoxel x1 y1 z1) (mkVoxel x3 y3 z3)) (mulVoxel (mkVoxel x2 y2 z2) (mkVoxel x3 y3 z3))
+prfVoxelDistributesLeft x1 y1 z1 x2 y2 z2 x3 y3 z3 =
+  rewrite multDistributesOverPlusLeft x1 x2 x3 in
+  rewrite multDistributesOverPlusLeft y1 y2 y3 in
+  rewrite multDistributesOverPlusLeft z1 z2 z3 in
+  Refl
+
+-- 4D Tesseract Semiring Lemmas
+public export
+0 prfTesseractAddZeroLeft : (x, y, z, t : Nat) -> addTesseract (mkTesseract 0 0 0 0) (mkTesseract x y z t) = mkTesseract x y z t
+prfTesseractAddZeroLeft x y z t = Refl
+
+public export
+0 prfTesseractAddZeroRight : (x, y, z, t : Nat) -> addTesseract (mkTesseract x y z t) (mkTesseract 0 0 0 0) = mkTesseract x y z t
+prfTesseractAddZeroRight x y z t =
+  rewrite plusZeroRightNeutral x in
+  rewrite plusZeroRightNeutral y in
+  rewrite plusZeroRightNeutral z in
+  rewrite plusZeroRightNeutral t in
+  Refl
+
+public export
+0 prfTesseractAddComm : (x1, y1, z1, t1, x2, y2, z2, t2 : Nat) -> addTesseract (mkTesseract x1 y1 z1 t1) (mkTesseract x2 y2 z2 t2) = addTesseract (mkTesseract x2 y2 z2 t2) (mkTesseract x1 y1 z1 t1)
+prfTesseractAddComm x1 y1 z1 t1 x2 y2 z2 t2 =
+  rewrite plusCommutative x1 x2 in
+  rewrite plusCommutative y1 y2 in
+  rewrite plusCommutative z1 z2 in
+  rewrite plusCommutative t1 t2 in
+  Refl
+
+------------------------------------------------------------------------
+-- 7. SIGNED BOXINT <-> PIXEL DIFFERENCE PAIR ISOMORPHISM
 ------------------------------------------------------------------------
 
 ||| Encodes a signed difference pair (pos, neg) as a 2D coordinate Pixel [pos, neg].
@@ -278,7 +582,7 @@ pixelToSignedBoxInt : Pixel -> BoxInt
 pixelToSignedBoxInt p = intToBoxInt (cast (pixelRow p) - cast (pixelCol p))
 
 ------------------------------------------------------------------------
--- 5. CANONICAL IDENTITY LENSES & ROUND-TRIP WITNESSES
+-- 8. CANONICAL IDENTITY LENSES & ROUND-TRIP WITNESSES
 ------------------------------------------------------------------------
 
 -- 1D: Unixel <-> CoordCell Dim1
