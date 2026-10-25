@@ -20,42 +20,32 @@ import public Stage1.Carrier.Vexel
 -- 1. MAXEL (2D WILDBERGER MATRIX MULTISET)
 ------------------------------------------------------------------------
 
-||| A Maxel is a multiset of Pixels (Wildberger Matrix).
-||| Stored as an AVL BoxMultisetTree of weighted coordinate Pixels in O(log N).
+||| Transparent constructor bridge for Maxel (CellMultiset 2).
 public export
-record Maxel where
-  constructor MkMaxelTree
-  tree : BoxMultisetTree Pixel
+
+MkMaxelTree : BoxMultisetTree Pixel -> Maxel
+MkMaxelTree t = t
 
 ||| Direct conversion of a list of Pixel-BoxInt pairs to a signed AVL BoxMultisetTree in O(N log N).
 ||| Prunes zero weights and collapses duplicate Pixels.
 public export
 maxelListToBoxTree : List (Pixel, BoxInt) -> BoxMultisetTree Pixel
-maxelListToBoxTree pxs =
-  foldl (\t, (p, w) =>
-          if boxIsZero w then t
-          else let cur = lookupBoxTree p t
-                   newW = cur + w
-               in if boxIsZero newW
-                    then setBoxTree p (intToBoxInt 0) t
-                    else setBoxTree p newW t)
-        BoxLeaf
-        pxs
+maxelListToBoxTree = mkCellMultiset
 
 ||| Constructs a canonical Maxel from a list of Pixel-BoxInt pairs in O(N log N).
 public export
 mkMaxel : List (Pixel, BoxInt) -> Maxel
-mkMaxel pxs = MkMaxelTree (maxelListToBoxTree pxs)
+mkMaxel = mkCellMultiset
 
 ||| Canonical constructor alias for Maxel from coordinate pairs.
 public export
 MkMaxel : List (Pixel, BoxInt) -> Maxel
-MkMaxel = mkMaxel
+MkMaxel = mkCellMultiset
 
 ||| Flattens a Maxel to an association list in O(N) time.
 public export
 maxelPixels : Maxel -> List (Pixel, BoxInt)
-maxelPixels (MkMaxelTree t) = boxTreeToList t
+maxelPixels = boxTreeToList
 
 ||| Projection view of Maxel pixels.
 public export
@@ -65,39 +55,31 @@ pixels = maxelPixels
 ||| Direct conversion of a Maxel to a signed AVL BoxMultisetTree in O(1).
 public export
 maxelToBoxTree : Maxel -> BoxMultisetTree Pixel
-maxelToBoxTree (MkMaxelTree t) = t
+maxelToBoxTree t = t
 
 ||| Reconstructs a Maxel from a signed AVL BoxMultisetTree in O(1).
 public export
 boxTreeToMaxel : BoxMultisetTree Pixel -> Maxel
-boxTreeToMaxel = MkMaxelTree
+boxTreeToMaxel t = t
 
 ||| Canonicalize a Maxel via legacy Multiset linked list.
 public export
 canonicalizeMaxelMultiset : Maxel -> Maxel
-canonicalizeMaxelMultiset (MkMaxelTree t) =
-  MkMaxelTree (maxelListToBoxTree (multisetToList (fromListBox (boxTreeToList t))))
+canonicalizeMaxelMultiset = canonicalizeCellMultiset
 
-||| Identity for tree-backed Maxels: AVL tree guarantees canonical representation by construction.
+||| Canonicalizes a Maxel by pruning zero weights and rebalancing.
 public export
 canonicalizeMaxel : Maxel -> Maxel
-canonicalizeMaxel m = m
+canonicalizeMaxel = canonicalizeCellMultiset
 
 public export
 maxelToMultiset : Maxel -> Multiset BoxInt Pixel
-maxelToMultiset (MkMaxelTree t) = fromListBox (boxTreeToList t)
+maxelToMultiset t = fromListBox (boxTreeToList t)
 
 public export
 multisetToMaxel : Multiset BoxInt Pixel -> Maxel
-multisetToMaxel m = MkMaxel (multisetToList m)
+multisetToMaxel m = mkCellMultiset (multisetToList m)
 
-public export
-Eq Maxel where
-  (MkMaxelTree t1) == (MkMaxelTree t2) = boxTreeToList t1 == boxTreeToList t2
-
-public export
-Show Maxel where
-  show (MkMaxelTree t) = "Maxel(" ++ show (boxTreeToList t) ++ ")"
 
 ------------------------------------------------------------------------
 -- 2. DIMENSION-INDEXED DEPENDENT MAXEL
@@ -462,8 +444,9 @@ tensorToBoxSquareMaxel tensor =
 ||| Converts a general Maxel into a typed MultisetTensor over natural coordinates.
 public export
 maxelToTensor : Maxel -> MultisetTensor Nat Nat
-maxelToTensor (MkMaxelTree tree) =
+maxelToTensor tree =
   foldBoxTreeR (\p, w, acc => AddM (pixelRow p, pixelCol p) w acc) ZeroM tree
+
 
 ||| Reconstructs a general Maxel from a MultisetTensor over natural coordinates.
 public export
@@ -528,58 +511,37 @@ mulPixelUnixel p u =
 ||| Lookups the signed BoxInt weight of a coordinate Pixel in O(log N) time.
 public export
 lookupPixel : Pixel -> Maxel -> BoxInt
-lookupPixel p (MkMaxelTree t) = lookupBoxTree p t
+lookupPixel p t = lookupBoxTree p t
 
 ||| Adds two Maxels and consolidates duplicate coordinates directly via BoxMultisetTree in O(N log N).
 public export
 addMaxel : Maxel -> Maxel -> Maxel
-addMaxel (MkMaxelTree t1) (MkMaxelTree t2) =
-  let tMerged = foldBoxTreeL (\tree, (p, w) =>
-                  let cur = lookupBoxTree p tree
-                      newW = cur + w
-                  in if boxIsZero newW
-                       then setBoxTree p (intToBoxInt 0) tree
-                       else setBoxTree p newW tree)
-                  t1
-                  t2
-  in MkMaxelTree tMerged
-
-public export
-Semigroup Maxel where
-  (<+>) = addMaxel
-
-public export
-Monoid Maxel where
-  neutral = MkMaxelTree BoxLeaf
+addMaxel = addCellMultiset
 
 ||| Scales a Maxel by a BoxInt scalar, pruning zero weights.
 public export
 scaleMaxel : BoxInt -> Maxel -> Maxel
-scaleMaxel s (MkMaxelTree t) =
-  if boxIsZero s
-    then MkMaxelTree BoxLeaf
-    else MkMaxelTree (mapBoxTreeWeight (s *) t)
+scaleMaxel = scaleCellMultiset
 
 ||| Computes total weight/mass across all pixels in a Maxel via in-order tree fold in O(N).
 public export
 totalMaxelWeight : Maxel -> BoxInt
-totalMaxelWeight (MkMaxelTree t) =
-  foldBoxTreeL (\acc, (_, w) => acc + w) (intToBoxInt 0) t
+totalMaxelWeight = totalCellMultisetWeight
 
 ||| The canonical zero/empty Maxel.
 public export
 emptyMaxel : Maxel
-emptyMaxel = MkMaxelTree BoxLeaf
+emptyMaxel = BoxLeaf
 
 ||| Compresses a Maxel by pruning zero weights.
 public export
 compressMaxel : Maxel -> Maxel
-compressMaxel m = m
+compressMaxel = canonicalizeCellMultiset
 
 ||| Multiplies two Maxels (discrete matrix multiplication).
 public export
 mulMaxel : Maxel -> Maxel -> Maxel
-mulMaxel (MkMaxelTree t1) (MkMaxelTree t2) =
+mulMaxel t1 t2 =
   let resultTree = foldBoxTreeL (\treeAcc, (p1, w1) =>
         foldBoxTreeL (\acc, (p2, w2) =>
           case mulPixel p1 p2 of
@@ -595,7 +557,7 @@ mulMaxel (MkMaxelTree t1) (MkMaxelTree t2) =
           t2)
         BoxLeaf
         t1
-  in MkMaxelTree resultTree
+  in resultTree
 
 public export
 multiplyMaxel : Maxel -> Maxel -> Maxel
@@ -617,34 +579,26 @@ identityMaxel =
           ]
 
 public export
-Num Maxel where
-  (+) = addMaxel
+Num (CellMultiset 2) where
+  (+) = addCellMultiset
   (*) = mulMaxel
   fromInteger n = scaleMaxel (intToBoxInt n) identityMaxel
 
 ||| Subtracts two Maxels and consolidates duplicate coordinates directly via BoxMultisetTree in O(N log N).
 public export
 subMaxel : Maxel -> Maxel -> Maxel
-subMaxel (MkMaxelTree t1) (MkMaxelTree t2) =
-  let tMerged = foldBoxTreeL (\tree, (p, w) =>
-                  let cur = lookupBoxTree p tree
-                      newW = cur - w
-                  in if boxIsZero newW
-                       then setBoxTree p (intToBoxInt 0) tree
-                       else setBoxTree p newW tree)
-                  t1
-                  t2
-  in MkMaxelTree tMerged
+subMaxel m1 m2 = addCellMultiset m1 (scaleCellMultiset (intToBoxInt (-1)) m2)
 
 public export
-Neg Maxel where
-  negate (MkMaxelTree t) = MkMaxelTree (mapBoxTreeWeight negate t)
+Neg (CellMultiset 2) where
+  negate = scaleCellMultiset (intToBoxInt (-1))
   (-) = subMaxel
+
 
 ||| Contracts a Maxel matrix on a Vexel vector (M * v).
 public export
 actMaxelVexel : Maxel -> Vexel -> Vexel
-actMaxelVexel (MkMaxelTree tm) (MkVexelTree tv) =
+actMaxelVexel tm tv =
   let resultTree = foldBoxTreeL (\treeAcc, (pix, pw) =>
         foldBoxTreeL (\acc, (sing, sw) =>
           case mulPixelUnixel pix sing of
@@ -660,7 +614,7 @@ actMaxelVexel (MkMaxelTree tm) (MkVexelTree tv) =
           tv)
         BoxLeaf
         tm
-  in MkVexelTree resultTree
+  in resultTree
 
 ||| Evaluates metric inner product <u, v>_g = u^T (g * v).
 public export
@@ -671,8 +625,9 @@ metricInnerVexel g u v =
 
 public export
 implementation MultisetAlgebra Maxel where
-  zeroM = MkMaxelTree BoxLeaf
+  zeroM = BoxLeaf
   addM = addMaxel
+
   scaleM = scaleMaxel
   dotM m1 m2 = totalMaxelWeight (mulMaxel m1 m2)
 
@@ -690,14 +645,15 @@ implementation MultisetAlgebra Vexel where
 ||| Extracts the finite active support of a Maxel as a list of directed edges [i, j].
 public export
 supportMaxel : Maxel -> List Pixel
-supportMaxel (MkMaxelTree t) =
+supportMaxel t =
   foldBoxTreeR (\p, w, acc => if boxIsNonZero w then p :: acc else acc) [] t
 
 ||| Extracts the finite active support of a Vexel vector as a list of basis Unixels.
 public export
 supportVexel : Vexel -> List Unixel
-supportVexel (MkVexelTree t) =
+supportVexel t =
   foldBoxTreeR (\u, w, acc => if boxIsNonZero w then u :: acc else acc) [] t
+
 
 ||| 2D Blue (Elliptic/Euclidean) Metric Maxel parameterized by (x, y):
 public export
@@ -754,8 +710,9 @@ MaxelTree = MultisetTree Pixel
 ||| Converts a Maxel to a balanced MultisetTree in O(N log N) time.
 public export
 maxelToTree : Maxel -> MultisetTree Pixel
-maxelToTree (MkMaxelTree t) =
+maxelToTree t =
   foldBoxTreeL (\tree, (p, w) => insertTokenTree p (boxToNat w) tree) Leaf t
+
 
 ||| Converts a MultisetTree back to a Maxel in linear O(N log N) time with zero intermediate lists.
 public export
@@ -880,7 +837,7 @@ auditMatrixPathCompositionProof =
 ||| Extracts the i-th Row of a Maxel as a 1D Vexel: R_i(M) = [i] * M
 public export
 extractRowVexel : Nat -> Maxel -> Vexel
-extractRowVexel i (MkMaxelTree tm) =
+extractRowVexel i tm =
   let singI = mkUnixel i
       resultTree = foldBoxTreeL (\acc, (pix, w) => 
                      case mulUnixelPixel singI pix of
@@ -893,12 +850,12 @@ extractRowVexel i (MkMaxelTree tm) =
                        Nothing   => acc)
                      BoxLeaf
                      tm
-  in MkVexelTree resultTree
+  in resultTree
 
 ||| Extracts the j-th Column of a Maxel as a 1D Vexel: C_j(M) = M * [j]
 public export
 extractColVexel : Nat -> Maxel -> Vexel
-extractColVexel j (MkMaxelTree tm) =
+extractColVexel j tm =
   let singJ = mkUnixel j
       resultTree = foldBoxTreeL (\acc, (pix, w) => 
                      case mulPixelUnixel pix singJ of
@@ -911,12 +868,12 @@ extractColVexel j (MkMaxelTree tm) =
                        Nothing   => acc)
                      BoxLeaf
                      tm
-  in MkVexelTree resultTree
+  in resultTree
 
 ||| Multiplies a column Vexel (ket) by a row Vexel (bra) to generate a Maxel:
 public export
 outerProductVexel : Vexel -> Vexel -> Maxel
-outerProductVexel (MkVexelTree tk) (MkVexelTree tb) =
+outerProductVexel tk tb =
   let resultTree = foldBoxTreeL (\accTree, (k, kw) =>
         foldBoxTreeL (\innerAcc, (b, bw) =>
           let p = mkPixel (unwrapUnixel k) (unwrapUnixel b)
@@ -930,7 +887,7 @@ outerProductVexel (MkVexelTree tk) (MkVexelTree tb) =
           tb)
         BoxLeaf
         tk
-  in MkMaxelTree resultTree
+  in resultTree
 
 ||| 🧪 Chemistry: A Molecular Bond Maxel represents covalent bond connectivity between atoms i and j.
 public export
@@ -943,7 +900,7 @@ waterMoleculeBonds =
 ||| Evaluates the Grassmann exterior wedge product of two Vexels:
 public export
 wedgeVexel : Vexel -> Vexel -> Maxel
-wedgeVexel (MkVexelTree tu) (MkVexelTree tv) =
+wedgeVexel tu tv =
   let resultTree = foldBoxTreeL (\accU, (u, wu) =>
         let i = unwrapUnixel u
         in foldBoxTreeL (\accV, (v, wv) =>
@@ -968,7 +925,8 @@ wedgeVexel (MkVexelTree tu) (MkVexelTree tv) =
              tv)
         BoxLeaf
         tu
-  in MkMaxelTree resultTree
+  in resultTree
+
 
 ||| Proves that the Grassmann wedge product of any Vexel with itself is identically zero: v ^ v == 0.
 public export
@@ -1042,7 +1000,8 @@ pruneMaxelTerms ((p, w) :: rest) =
 ||| Converts a 2D Maxel into a bivariate polynumber: sum a_ij [i, j] <=> sum a_ij x^i y^j.
 public export
 maxelToBivariatePolynumber : Maxel -> List ((Nat, Nat), BoxInt)
-maxelToBivariatePolynumber (MkMaxelTree t) =
+maxelToBivariatePolynumber t =
   foldBoxTreeR (\p, w, acc => ((pixelRow p, pixelCol p), w) :: acc) [] t
+
 
 

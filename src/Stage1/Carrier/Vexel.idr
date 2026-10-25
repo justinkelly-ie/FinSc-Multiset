@@ -15,32 +15,16 @@ import public Stage1.Basis.Coordinate
 
 %default total
 
-------------------------------------------------------------------------
--- 1. AVL MULTISET TREE UTILITIES FOR CARRIERS
-------------------------------------------------------------------------
 
-||| Maps a function over all non-zero weights in a BoxMultisetTree, preserving AVL balance and key order.
-public export
-mapBoxTreeWeight : (BoxInt -> BoxInt) -> BoxMultisetTree a -> BoxMultisetTree a
-mapBoxTreeWeight _ BoxLeaf = BoxLeaf
-mapBoxTreeWeight f (BoxNode h l x c r) = BoxNode h (mapBoxTreeWeight f l) x (f c) (mapBoxTreeWeight f r)
-
-||| Evaluates the total number of coordinate nodes in a BoxMultisetTree.
-public export
-boxTreeSize : BoxMultisetTree a -> Nat
-boxTreeSize BoxLeaf = 0
-boxTreeSize (BoxNode _ l _ _ r) = S (boxTreeSize l + boxTreeSize r)
 
 ------------------------------------------------------------------------
 -- 2. VEXEL (1D WILDBERGER VECTOR MULTISET)
 ------------------------------------------------------------------------
 
-||| A Vexel is a multiset of Singletons (Wildberger Vector).
-||| Stored as an AVL BoxMultisetTree of weighted basis Singletons in O(log N).
+||| Transparent constructor bridge for Vexel (CellMultiset 1).
 public export
-record Vexel where
-  constructor MkVexelTree
-  tree : BoxMultisetTree Unixel
+MkVexelTree : BoxMultisetTree Unixel -> Vexel
+MkVexelTree t = t
 
 ||| Canonical unambiguous alias for discrete monomorphic 1D Wildberger vectors.
 public export
@@ -51,31 +35,22 @@ DiscreteVexel = Vexel
 ||| Prunes zero weights and collapses duplicate Unixels.
 public export
 vexelListToBoxTree : List (Unixel, BoxInt) -> BoxMultisetTree Unixel
-vexelListToBoxTree terms =
-  foldl (\t, (u, w) =>
-          if boxIsZero w then t
-          else let cur = lookupBoxTree u t
-                   newW = cur + w
-               in if boxIsZero newW
-                    then setBoxTree u (intToBoxInt 0) t
-                    else setBoxTree u newW t)
-        BoxLeaf
-        terms
+vexelListToBoxTree = mkCellMultiset
 
 ||| Constructs a canonical Vexel from a list of Unixel-BoxInt pairs in O(N log N).
 public export
 mkVexel : List (Unixel, BoxInt) -> Vexel
-mkVexel terms = MkVexelTree (vexelListToBoxTree terms)
+mkVexel = mkCellMultiset
 
 ||| Canonical constructor alias for Vexel from coordinate pairs.
 public export
 MkVexel : List (Unixel, BoxInt) -> Vexel
-MkVexel = mkVexel
+MkVexel = mkCellMultiset
 
 ||| Flattens a Vexel to an association list in O(N) time.
 public export
 vexelTerms : Vexel -> List (Unixel, BoxInt)
-vexelTerms (MkVexelTree t) = boxTreeToList t
+vexelTerms = boxTreeToList
 
 ||| Projection view of Vexel terms.
 public export
@@ -85,39 +60,31 @@ terms = vexelTerms
 ||| Direct conversion of a Vexel to a signed AVL BoxMultisetTree in O(1).
 public export
 vexelToBoxTree : Vexel -> BoxMultisetTree Unixel
-vexelToBoxTree (MkVexelTree t) = t
+vexelToBoxTree t = t
 
 ||| Reconstructs a Vexel from a signed AVL BoxMultisetTree in O(1).
 public export
 boxTreeToVexel : BoxMultisetTree Unixel -> Vexel
-boxTreeToVexel = MkVexelTree
+boxTreeToVexel t = t
 
 ||| Canonicalize a Vexel via legacy Multiset linked list.
 public export
 canonicalizeVexelMultiset : Vexel -> Vexel
-canonicalizeVexelMultiset (MkVexelTree t) =
-  MkVexelTree (vexelListToBoxTree (multisetToList (fromListBox (boxTreeToList t))))
+canonicalizeVexelMultiset = canonicalizeCellMultiset
 
-||| Identity for tree-backed Vexels: AVL tree guarantees canonical representation by construction.
+||| Canonicalizes a Vexel by pruning zero weights and rebalancing.
 public export
 canonicalizeVexel : Vexel -> Vexel
-canonicalizeVexel v = v
+canonicalizeVexel = canonicalizeCellMultiset
 
 public export
 vexelToMultiset : Vexel -> Multiset BoxInt Unixel
-vexelToMultiset (MkVexelTree t) = fromListBox (boxTreeToList t)
+vexelToMultiset t = fromListBox (boxTreeToList t)
 
 public export
 multisetToVexel : Multiset BoxInt Unixel -> Vexel
-multisetToVexel m = MkVexel (multisetToList m)
+multisetToVexel m = mkCellMultiset (multisetToList m)
 
-public export
-Eq Vexel where
-  (MkVexelTree t1) == (MkVexelTree t2) = boxTreeToList t1 == boxTreeToList t2
-
-public export
-Show Vexel where
-  show (MkVexelTree t) = "Vexel(" ++ show (boxTreeToList t) ++ ")"
 
 ------------------------------------------------------------------------
 -- 3. DIMENSION-INDEXED TYPED VEXEL (VexelN)
@@ -155,78 +122,49 @@ mkVexel4 v0 v1 v2 v3 = MkVexelN [v0, v1, v2, v3]
 ||| Lookups the signed BoxInt weight of a basis Unixel in O(log N) time.
 public export
 lookupUnixel : Unixel -> Vexel -> BoxInt
-lookupUnixel u (MkVexelTree t) = lookupBoxTree u t
+lookupUnixel u t = lookupBoxTree u t
 
 ||| Computes the total integer mass of a Vexel vector via in-order tree fold in O(N).
 public export
 totalVexelMass : Vexel -> BoxInt
-totalVexelMass (MkVexelTree t) =
-  foldBoxTreeL (\acc, (_, w) => acc + w) (intToBoxInt 0) t
+totalVexelMass = totalCellMultisetWeight
 
 ||| Alias for total mass of a Vexel vector.
 public export
 totalVexelWeight : Vexel -> BoxInt
-totalVexelWeight = totalVexelMass
+totalVexelWeight = totalCellMultisetWeight
 
 ||| Adds two Vexels and consolidates duplicate coordinates directly via BoxMultisetTree in O(N log N).
 public export
 addVexel : Vexel -> Vexel -> Vexel
-addVexel (MkVexelTree t1) (MkVexelTree t2) =
-  let tMerged = foldBoxTreeL (\tree, (u, w) =>
-                  let cur = lookupBoxTree u tree
-                      newW = cur + w
-                  in if boxIsZero newW
-                       then setBoxTree u (intToBoxInt 0) tree
-                       else setBoxTree u newW tree)
-                  t1
-                  t2
-  in MkVexelTree tMerged
+addVexel = addCellMultiset
 
 public export
-Semigroup Vexel where
-  (<+>) = addVexel
-
-public export
-Monoid Vexel where
-  neutral = MkVexelTree BoxLeaf
-
-public export
-Num Vexel where
-  (+) = addVexel
-  (*) v1 v2 = MkVexelTree BoxLeaf
-  fromInteger n = mkVexel [(mkUnixel 0, intToBoxInt n)]
+Num (CellMultiset 1) where
+  (+) = addCellMultiset
+  (*) _ _ = BoxLeaf
+  fromInteger n = mkCellMultiset [(mkUnixel 0, intToBoxInt n)]
 
 ||| Subtracts two Vexels and consolidates duplicate coordinates directly via BoxMultisetTree in O(N log N).
 public export
 subVexel : Vexel -> Vexel -> Vexel
-subVexel (MkVexelTree t1) (MkVexelTree t2) =
-  let tMerged = foldBoxTreeL (\tree, (u, w) =>
-                  let cur = lookupBoxTree u tree
-                      newW = cur - w
-                  in if boxIsZero newW
-                       then setBoxTree u (intToBoxInt 0) tree
-                       else setBoxTree u newW tree)
-                  t1
-                  t2
-  in MkVexelTree tMerged
+subVexel v1 v2 = addCellMultiset v1 (scaleCellMultiset (intToBoxInt (-1)) v2)
 
 public export
-Neg Vexel where
-  negate (MkVexelTree t) = MkVexelTree (mapBoxTreeWeight negate t)
+Neg (CellMultiset 1) where
+  negate = scaleCellMultiset (intToBoxInt (-1))
   (-) = subVexel
+
 
 ||| Scales a Vexel by a BoxInt scalar, pruning zero weights.
 public export
 scaleVexel : BoxInt -> Vexel -> Vexel
-scaleVexel s (MkVexelTree t) =
-  if boxIsZero s
-    then MkVexelTree BoxLeaf
-    else MkVexelTree (mapBoxTreeWeight (s *) t)
+scaleVexel = scaleCellMultiset
 
 ||| Evaluates the standard Euclidean inner product between two Vexels directly via BoxMultisetTree in O(N log N).
 public export
 dotVexel : Vexel -> Vexel -> BoxInt
-dotVexel (MkVexelTree t1) v2 =
+dotVexel t1 v2 =
   foldBoxTreeL (\acc, (u, w1) =>
     let w2 = lookupUnixel u v2
     in acc + (w1 * w2))
@@ -236,12 +174,13 @@ dotVexel (MkVexelTree t1) v2 =
 ||| The canonical zero/empty Vexel.
 public export
 emptyVexel : Vexel
-emptyVexel = MkVexelTree BoxLeaf
+emptyVexel = BoxLeaf
 
 ||| Compresses a Vexel by pruning zero weights.
 public export
 compressVexel : Vexel -> Vexel
 compressVexel v = v
+
 
 ------------------------------------------------------------------------
 -- 5. LOGARITHMIC AVL MULTISETTREE CARRIERS (SparseVexel)
@@ -255,8 +194,9 @@ VexelTree = MultisetTree Unixel
 ||| Converts a Vexel to a balanced MultisetTree in O(N log N) time.
 public export
 vexelToTree : Vexel -> MultisetTree Unixel
-vexelToTree (MkVexelTree t) =
+vexelToTree t =
   foldBoxTreeL (\tree, (u, w) => insertTokenTree u (boxToNat w) tree) Leaf t
+
 
 ||| Converts a MultisetTree back to a Vexel in linear O(N log N) time with zero intermediate lists.
 public export
@@ -404,9 +344,10 @@ polynumberToVexel (MkPolynumber cs) =
 ||| Converts a 1D Vexel into a univariate Polynumber: sum c_k [k] <=> sum c_k x^k.
 public export
 vexelToPolynumber : Vexel -> Polynumber
-vexelToPolynumber (MkVexelTree t) =
+vexelToPolynumber t =
   foldBoxTreeL (\acc, (sing, w) => addPolynumber acc (monomialPolynumber w (unwrapUnixel sing)))
         zeroPolynumber
         t
+
 
 

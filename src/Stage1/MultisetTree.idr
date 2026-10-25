@@ -449,12 +449,6 @@ data BoxMultisetTree a =
     BoxLeaf
   | BoxNode Nat (BoxMultisetTree a) a BoxInt (BoxMultisetTree a)
 
-public export
-Eq a => Eq (BoxMultisetTree a) where
-  BoxLeaf == BoxLeaf = True
-  (BoxNode _ l1 x1 c1 r1) == (BoxNode _ l2 x2 c2 r2) =
-    x1 == x2 && c1 == c2 && l1 == l2 && r1 == r2
-  _ == _ = False
 
 public export
 %inline
@@ -548,6 +542,15 @@ public export
 boxTreeToList : BoxMultisetTree a -> List (a, BoxInt)
 boxTreeToList tree = foldBoxTreeR (\x, c, acc => if boxIsNonZero c then (x, c) :: acc else acc) [] tree
 
+public export
+Eq a => Eq (BoxMultisetTree a) where
+  t1 == t2 = boxTreeToList t1 == boxTreeToList t2
+
+public export
+Show a => Show (BoxMultisetTree a) where
+  show t = "BoxMultisetTree(" ++ show (boxTreeToList t) ++ ")"
+
+
 ||| Traverses and pushes all left ancestor nodes of a BoxMultisetTree onto a search stack.
 public export
 pushLeftSubtreesBox : BoxMultisetTree a -> List (BoxMultisetTree a) -> List (BoxMultisetTree a)
@@ -566,6 +569,18 @@ streamBoxMultisetTree tree =
     stepTree (BoxLeaf :: rest) = Skip rest
     stepTree (BoxNode _ _ x c r :: rest) = Yield (x, c) (pushLeftSubtreesBox r rest)
 
+||| Maps a function over all non-zero weights in a BoxMultisetTree, preserving AVL balance and key order.
+public export
+mapBoxTreeWeight : (BoxInt -> BoxInt) -> BoxMultisetTree a -> BoxMultisetTree a
+mapBoxTreeWeight _ BoxLeaf = BoxLeaf
+mapBoxTreeWeight f (BoxNode h l x c r) = BoxNode h (mapBoxTreeWeight f l) x (f c) (mapBoxTreeWeight f r)
+
+||| Evaluates the total number of coordinate nodes in a BoxMultisetTree.
+public export
+boxTreeSize : BoxMultisetTree a -> Nat
+boxTreeSize BoxLeaf = 0
+boxTreeSize (BoxNode _ l _ _ r) = S (boxTreeSize l + boxTreeSize r)
+
 ||| Audit witness verifying BoxMultisetTree O(log N) lookup and streaming.
 public export
 auditBoxMultisetTreeProof : Bool
@@ -580,6 +595,7 @@ auditBoxMultisetTreeProof =
       elems = foldStream (\acc, item => acc ++ [item]) [] strm
   in v10 == intToBoxInt 5 && vm3 == intToBoxInt (-2) && v0 == intToBoxInt 0 &&
      elems == [(-3, intToBoxInt (-2)), (10, intToBoxInt 5)]
+
 
 
 
