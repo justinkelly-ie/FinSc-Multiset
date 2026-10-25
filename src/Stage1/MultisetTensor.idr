@@ -6,6 +6,7 @@ import Stage0.OnSeq.FusedStream
 import Stage1.Order.Preorder
 import Data.Fuel
 import Data.List
+import Data.SortedMap
 
 %default total
 
@@ -80,6 +81,41 @@ multisetTensorMult tensorA tensorB =
       let cols = lookupKey k1 idxB
           newAcc = emitCols i w1 cols acc
       in contractLoop restA idxB newAcc
+
+||| Logarithmic Tensor Contraction (Matrix Multiplication A · B) for Ordered Keys:
+||| Multiplies two multiset tensors A : (a, b) and B : (b, c) -> (a, c)
+||| by pre-indexing tensorB into a balanced search map in O(|B| log |B|) time,
+||| reducing contraction lookup to O(log |B|) per element of tensorA.
+public export
+multisetTensorMultOrd : Ord b => MultisetTensor a b -> MultisetTensor b c -> MultisetTensor a c
+multisetTensorMultOrd tensorA tensorB =
+  let indexB = foldMultiset insertCol empty tensorB
+  in foldMultiset (contractRow indexB) ZeroM tensorA
+  where
+    insertCol : (b, c) -> BoxInt -> SortedMap b (List (c, BoxInt)) -> SortedMap b (List (c, BoxInt))
+    insertCol (k, j) w mapAcc =
+      case lookup k mapAcc of
+        Nothing   => insert k [(j, w)] mapAcc
+        Just cols => insert k ((j, w) :: cols) mapAcc
+
+    emitCols : a -> BoxInt -> List (c, BoxInt) -> MultisetTensor a c -> MultisetTensor a c
+    emitCols _ _ [] acc = acc
+    emitCols itemI weight1 ((targetJ, weight2) :: cols) acc =
+      AddM (itemI, targetJ) (weight1 * weight2) (emitCols itemI weight1 cols acc)
+
+    contractRow : SortedMap b (List (c, BoxInt)) -> (a, b) -> BoxInt -> MultisetTensor a c -> MultisetTensor a c
+    contractRow idxB (itemI, targetK) weight1 acc =
+      case lookup targetK idxB of
+        Nothing   => acc
+        Just cols => emitCols itemI weight1 cols acc
+
+||| Audits that multisetTensorMultOrd matches multisetTensorMult on canonical matrices.
+public export
+auditTensorMultOrdMatches : Bool
+auditTensorMultOrdMatches =
+  let tA : MultisetTensor Nat Nat = AddM (1, 1) (intToBoxInt 2) (AddM (1, 2) (intToBoxInt 3) ZeroM)
+      tB : MultisetTensor Nat Nat = AddM (1, 1) (intToBoxInt 4) (AddM (2, 1) (intToBoxInt 5) ZeroM)
+  in (multisetTensorMult tA tB == multisetTensorMultOrd tA tB)
 
 ||| Monomorphic 2D Determinant over MultisetTensor: det([a b; c d]) = a*d - b*c
 %inline public export

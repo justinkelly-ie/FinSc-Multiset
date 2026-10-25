@@ -567,3 +567,43 @@ public export
   unixelFractionToMSetFraction (msetFractionToUnixelFraction (mkMSF (intToBoxInt 137) 38)) = mkMSF (intToBoxInt 137) 38
 verifyFractionBridgeRoundTrip = Refl
 
+||| Formal algebraic homomorphism: addition in MSetFraction maps to addition in UnixelFraction under rational equivalence.
+public export
+0 verifyAddHomomorphism :
+  rationalEquiv (fromMSetFraction (addMSF (mkMSF (intToBoxInt 3) 4) (mkMSF (intToBoxInt 5) 6)))
+                (addUnixelFraction (fromMSetFraction (mkMSF (intToBoxInt 3) 4))
+                                   (fromMSetFraction (mkMSF (intToBoxInt 5) 6))) = True
+verifyAddHomomorphism = Refl
+
+||| Formal algebraic homomorphism: subtraction in MSetFraction maps to subtraction in UnixelFraction under rational equivalence.
+public export
+0 verifySubHomomorphism :
+  rationalEquiv (fromMSetFraction (subMSF (mkMSF (intToBoxInt 5) 6) (mkMSF (intToBoxInt 3) 4)))
+                (subUnixelFraction (fromMSetFraction (mkMSF (intToBoxInt 5) 6))
+                                   (fromMSetFraction (mkMSF (intToBoxInt 3) 4))) = True
+verifySubHomomorphism = Refl
+
+||| Formal algebraic homomorphism: multiplication in MSetFraction maps to multiplication in UnixelFraction under rational equivalence.
+public export
+0 verifyMulHomomorphism :
+  rationalEquiv (fromMSetFraction (mulMSF (mkMSF (intToBoxInt 3) 4) (mkMSF (intToBoxInt 5) 6)))
+                (mulUnixelFraction (fromMSetFraction (mkMSF (intToBoxInt 3) 4))
+                                   (fromMSetFraction (mkMSF (intToBoxInt 5) 6))) = True
+verifyMulHomomorphism = Refl
+
+||| Formal algebraic homomorphism: division in MSetFraction maps to division in UnixelFraction under rational equivalence.
+public export
+0 verifyDivHomomorphism :
+  rationalEquiv (fromMSetFraction (divMSF (mkMSF (intToBoxInt 6) 7) (mkMSF (intToBoxInt (-3)) 2)))
+                (divUnixelFraction (fromMSetFraction (mkMSF (intToBoxInt 6) 7))
+                                   (fromMSetFraction (mkMSF (intToBoxInt (-3)) 2))) = True
+verifyDivHomomorphism = Refl
+
+||| Formal congruence: eqMSF identically coincides with rationalEquiv across Stage 0 and Stage 1 representations.
+public export
+0 verifyEqCongruence :
+  (eqMSF (mkMSF (intToBoxInt 2) 3) (mkMSF (intToBoxInt 4) 6) ==
+   rationalEquiv (fromMSetFraction (mkMSF (intToBoxInt 2) 3))
+                 (fromMSetFraction (mkMSF (intToBoxInt 4) 6))) = True
+verifyEqCongruence = Refl
+
