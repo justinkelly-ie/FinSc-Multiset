@@ -228,3 +228,39 @@ public export
 0 boxNatDistributesRight : (a, b, c : BoxNat) -> boxNatMul a (boxNatAdd b c) = boxNatAdd (boxNatMul a b) (boxNatMul a c)
 boxNatDistributesRight (MkBoxNat a) (MkBoxNat b) (MkBoxNat c) = cong MkBoxNat (multDistributesOverPlusRight a b c)
 
+------------------------------------------------------------------------
+-- 6. CONSTRUCTIVE INDUCTIVE VIEW OVER BOXINT
+------------------------------------------------------------------------
+
+||| Constructive sign-magnitude inductive view over BoxInt.
+||| Decomposes any runtime integer into an inductive BoxNat term without foreign branching.
+public export
+data BoxIntView : Type where
+  ViewPos : (magnitude : BoxNat) -> BoxIntView
+  ViewNeg : (magnitude : BoxNat) -> BoxIntView
+
+||| Covering projection generating the constructive view for any BoxInt.
+public export
+boxIntView : BoxInt -> BoxIntView
+boxIntView (MkBoxInt v) =
+  if v >= 0
+    then ViewPos (MkBoxNat (integerToNat v))
+    else ViewNeg (MkBoxNat (integerToNat (-v)))
+
+||| Converts a BoxIntView back into a signed BoxInt.
+public export
+boxIntViewToBoxInt : BoxIntView -> BoxInt
+boxIntViewToBoxInt (ViewPos (MkBoxNat n)) = natToBoxInt n
+boxIntViewToBoxInt (ViewNeg (MkBoxNat n)) = negBox (natToBoxInt n)
+
+public export
+Eq BoxIntView where
+  (ViewPos m1) == (ViewPos m2) = m1 == m2
+  (ViewNeg m1) == (ViewNeg m2) = m1 == m2
+  _ == _ = False
+
+public export
+Show BoxIntView where
+  show (ViewPos m) = "+" ++ show m
+  show (ViewNeg m) = "-" ++ show m
+

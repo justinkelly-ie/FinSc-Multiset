@@ -247,3 +247,74 @@ diffIntAdditiveInverseEquiv (MkDiffInt (MkBoxNat p) (MkBoxNat n)) =
         ~~ n + p ...(plusCommutative p n)
         ~~ 0 + (n + p) ..<(plusZeroLeftNeutral (n + p))
   in rewrite prfEq in natEqRefl (0 + (n + p))
+
+------------------------------------------------------------------------
+-- 4. 2LTT RING HOMOMORPHISM REFLECTION BRIDGE TO BOXINT
+------------------------------------------------------------------------
+
+||| Zero preservation: [0, 0] maps definitionally to [0] BoxInt.
+public export
+0 diffToBoxZeroHom : diffIntToBoxInt ZeroDiffInt = intToBoxInt 0
+diffToBoxZeroHom = Refl
+
+||| Unity preservation: [1, 0] maps definitionally to [1] BoxInt.
+public export
+0 diffToBoxOneHom : diffIntToBoxInt OneDiffInt = intToBoxInt 1
+diffToBoxOneHom = Refl
+
+||| Negative unity preservation: [0, 1] maps definitionally to [-1] BoxInt.
+public export
+0 diffToBoxNegOneHom : diffIntToBoxInt NegOneDiffInt = intToBoxInt (-1)
+diffToBoxNegOneHom = Refl
+
+||| Verifies addition preservation under the DiffInt -> BoxInt projection:
+||| diffIntToBoxInt (a + b) == diffIntToBoxInt a + diffIntToBoxInt b.
+public export
+auditDiffToBoxAddHom : DiffInt -> DiffInt -> Bool
+auditDiffToBoxAddHom a b =
+  boxEq (diffIntToBoxInt (addDiffInt a b)) (addBox (diffIntToBoxInt a) (diffIntToBoxInt b))
+
+||| Verifies multiplication preservation under the DiffInt -> BoxInt projection:
+||| diffIntToBoxInt (a * b) == diffIntToBoxInt a * diffIntToBoxInt b.
+public export
+auditDiffToBoxMulHom : DiffInt -> DiffInt -> Bool
+auditDiffToBoxMulHom a b =
+  boxEq (diffIntToBoxInt (mulDiffInt a b)) (mulBox (diffIntToBoxInt a) (diffIntToBoxInt b))
+
+||| Verifies negation preservation under the DiffInt -> BoxInt projection:
+||| diffIntToBoxInt (-a) == - (diffIntToBoxInt a).
+public export
+auditDiffToBoxNegHom : DiffInt -> Bool
+auditDiffToBoxNegHom a =
+  boxEq (diffIntToBoxInt (negDiffInt a)) (negBox (diffIntToBoxInt a))
+
+||| Retraction Invariant: Lifting a difference pair to BoxInt and converting
+||| back produces an algebraically equivalent difference pair.
+public export
+auditDiffRoundTripEquiv : DiffInt -> Bool
+auditDiffRoundTripEquiv d =
+  diffIntEquiv (boxIntToDiffInt (diffIntToBoxInt d)) d
+
+------------------------------------------------------------------------
+-- 5. COMPILE-TIME GROUND REFLECTION PROOFS
+------------------------------------------------------------------------
+
+public export
+0 verifyDiffToBoxAddGround : auditDiffToBoxAddHom (MkDiffInt (MkBoxNat 7) (MkBoxNat 3)) (MkDiffInt (MkBoxNat 2) (MkBoxNat 5)) = True
+verifyDiffToBoxAddGround = Refl
+
+public export
+0 verifyDiffToBoxMulGround : auditDiffToBoxMulHom (MkDiffInt (MkBoxNat 7) (MkBoxNat 3)) (MkDiffInt (MkBoxNat 2) (MkBoxNat 5)) = True
+verifyDiffToBoxMulGround = Refl
+
+public export
+0 verifyDiffRoundTripGround1 : auditDiffRoundTripEquiv (MkDiffInt (MkBoxNat 137) (MkBoxNat 38)) = True
+verifyDiffRoundTripGround1 = Refl
+
+public export
+0 verifyDiffRoundTripGround2 : auditDiffRoundTripEquiv (MkDiffInt (MkBoxNat 27) (MkBoxNat 128)) = True
+verifyDiffRoundTripGround2 = Refl
+
+public export
+0 verifyDiffRoundTripZero : auditDiffRoundTripEquiv ZeroDiffInt = True
+verifyDiffRoundTripZero = Refl
