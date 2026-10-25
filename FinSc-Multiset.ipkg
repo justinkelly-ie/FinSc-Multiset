@@ -32,6 +32,8 @@ modules = Multiset,
           Stage0.TransitionNetwork,
 
           Stage1.MultisetTree,
+          Stage1.Basis.CoordCell,
+          Stage1.Carrier.CellMultiset,
           Stage1.Basis.Coordinate,
           Stage1.Carrier.Vexel,
           Stage1.Carrier.Maxel,
