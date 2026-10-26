@@ -70,6 +70,16 @@ public export
 maxelToBoxSquareMaxel : (dim : Nat) -> Maxel -> SquareMaxel dim
 maxelToBoxSquareMaxel = maxelToSquareMaxel
 
+||| Extracts the underlying sparse Maxel (CellMultiset 2) from a SquareMaxel.
+public export
+squareMaxelToMaxel : {dim : Nat} -> SquareMaxel dim -> Maxel
+squareMaxelToMaxel (MkSquareMaxel m) = m
+
+||| Backward-compatibility alias.
+public export
+boxSquareMaxelToMaxel : {dim : Nat} -> SquareMaxel dim -> Maxel
+boxSquareMaxelToMaxel = squareMaxelToMaxel
+
 ------------------------------------------------------------------------
 -- 2. SPARSE-DENSE CONTRACTION
 ------------------------------------------------------------------------
