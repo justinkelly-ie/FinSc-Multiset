@@ -498,23 +498,6 @@ stagedKroneckerBoxSquareMaxel qm1 qm2 = quote (kroneckerBoxSquareMaxel (splice q
 -- 5. MATRIX MULTIPLICATION, IDENTITY & NUM INSTANCE
 ------------------------------------------------------------------------
 
-||| Multiplies a Unixel on the left by a Pixel (Row extraction filter).
-public export
-mulUnixelPixel : Unixel -> Pixel -> Maybe Unixel
-mulUnixelPixel u p =
-  let k = unwrapUnixel u
-      l = pixelRow p
-      m = pixelCol p
-  in if k == l then Just (mkUnixel m) else Nothing
-
-||| Multiplies a Pixel on the left by a Unixel (Column extraction filter).
-public export
-mulPixelUnixel : Pixel -> Unixel -> Maybe Unixel
-mulPixelUnixel p u =
-  let l = pixelRow p
-      m = pixelCol p
-      k = unwrapUnixel u
-  in if m == k then Just (mkUnixel l) else Nothing
 
 ||| Lookups the signed BoxInt weight of a coordinate Pixel in O(log N) time.
 public export
@@ -546,26 +529,6 @@ public export
 compressMaxel : Maxel -> Maxel
 compressMaxel = canonicalizeCellMultiset
 
-||| Multiplies two Maxels (discrete matrix multiplication).
-public export
-mulMaxel : Maxel -> Maxel -> Maxel
-mulMaxel t1 t2 =
-  let resultTree = foldBoxTreeL (\treeAcc, (p1, w1) =>
-        foldBoxTreeL (\acc, (p2, w2) =>
-          case mulPixel p1 p2 of
-            Just pOut =>
-              let wOut = w1 * w2
-                  cur = lookupBoxTree pOut acc
-                  newW = cur + wOut
-              in if boxIsZero newW
-                   then setBoxTree pOut (intToBoxInt 0) acc
-                   else setBoxTree pOut newW acc
-            Nothing => acc)
-          treeAcc
-          t2)
-        BoxLeaf
-        t1
-  in resultTree
 
 public export
 multiplyMaxel : Maxel -> Maxel -> Maxel
@@ -577,14 +540,6 @@ fastMultisetTensorMult : MultisetTensor Nat Nat -> MultisetTensor Nat Nat -> Mul
 fastMultisetTensorMult t1 t2 =
   maxelToTensor (mulMaxel (tensorToMaxel t1) (tensorToMaxel t2))
 
-||| Canonical 3D identity metric Maxel: [1, 1] + [2, 2] + [3, 3].
-public export
-identityMaxel : Maxel
-identityMaxel =
-  MkMaxel [ (mkPixel 1 1, intToBoxInt 1)
-          , (mkPixel 2 2, intToBoxInt 1)
-          , (mkPixel 3 3, intToBoxInt 1)
-          ]
 
 public export
 Num (CellMultiset 2) where
@@ -603,33 +558,6 @@ Neg (CellMultiset 2) where
   (-) = subMaxel
 
 
-||| Contracts a Maxel matrix on a Vexel vector (M * v).
-public export
-actMaxelVexel : Maxel -> Vexel -> Vexel
-actMaxelVexel tm tv =
-  let resultTree = foldBoxTreeL (\treeAcc, (pix, pw) =>
-        foldBoxTreeL (\acc, (sing, sw) =>
-          case mulPixelUnixel pix sing of
-            Just sOut =>
-              let wOut = pw * sw
-                  cur = lookupBoxTree sOut acc
-                  newW = cur + wOut
-              in if boxIsZero newW
-                   then setBoxTree sOut (intToBoxInt 0) acc
-                   else setBoxTree sOut newW acc
-            Nothing => acc)
-          treeAcc
-          tv)
-        BoxLeaf
-        tm
-  in resultTree
-
-||| Evaluates metric inner product <u, v>_g = u^T (g * v).
-public export
-metricInnerVexel : Maxel -> Vexel -> Vexel -> BoxInt
-metricInnerVexel g u v =
-  let gv = actMaxelVexel g v
-  in dotVexel u gv
 
 public export
 implementation MultisetAlgebra Maxel where
@@ -903,37 +831,6 @@ waterMoleculeBonds =
   MkMaxel [ (mkPixel 1 2, intToBoxInt 1) -- O-H1 bond
           , (mkPixel 1 3, intToBoxInt 1) -- O-H2 bond
           ]
-
-||| Evaluates the Grassmann exterior wedge product of two Vexels:
-public export
-wedgeVexel : Vexel -> Vexel -> Maxel
-wedgeVexel tu tv =
-  let resultTree = foldBoxTreeL (\accU, (u, wu) =>
-        let i = unwrapUnixel u
-        in foldBoxTreeL (\accV, (v, wv) =>
-             let j = unwrapUnixel v
-             in if i == j
-                  then accV
-                  else
-                    let w = wu * wv
-                        pPos = mkPixel i j
-                        pNeg = mkPixel j i
-                        curPos = lookupBoxTree pPos accV
-                        newPos = curPos + w
-                        tree1 = if boxIsZero newPos
-                                  then setBoxTree pPos (intToBoxInt 0) accV
-                                  else setBoxTree pPos newPos accV
-                        curNeg = lookupBoxTree pNeg tree1
-                        newNeg = curNeg - w
-                    in if boxIsZero newNeg
-                         then setBoxTree pNeg (intToBoxInt 0) tree1
-                         else setBoxTree pNeg newNeg tree1)
-             accU
-             tv)
-        BoxLeaf
-        tu
-  in resultTree
-
 
 ||| Proves that the Grassmann wedge product of any Vexel with itself is identically zero: v ^ v == 0.
 public export

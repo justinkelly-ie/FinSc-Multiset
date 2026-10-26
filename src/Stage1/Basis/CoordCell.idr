@@ -199,6 +199,24 @@ mulPixel p1 p2 =
       c2 = pixelCol p2
   in if c1 == r2 then Just (mkPixel r1 c2) else Nothing
 
+||| Multiplies a Pixel on the left by a Unixel: [i, j] * [j] = [i] (matrix-vector contraction).
+%inline public export
+mulPixelUnixel : Pixel -> Unixel -> Maybe Unixel
+mulPixelUnixel p u =
+  let l = pixelRow p
+      m = pixelCol p
+      k = unwrapUnixel u
+  in if m == k then Just (mkUnixel l) else Nothing
+
+||| Multiplies a Unixel on the left by a Pixel: [i] * [i, j] = [j] (covector-matrix contraction).
+%inline public export
+mulUnixelPixel : Unixel -> Pixel -> Maybe Unixel
+mulUnixelPixel u p =
+  let k = unwrapUnixel u
+      l = pixelRow p
+      m = pixelCol p
+  in if k == l then Just (mkUnixel m) else Nothing
+
 -- 3D Voxel
 public export
 Voxel : Type

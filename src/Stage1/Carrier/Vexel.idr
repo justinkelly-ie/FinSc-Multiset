@@ -170,16 +170,6 @@ public export
 scaleVexel : BoxInt -> Vexel -> Vexel
 scaleVexel = scaleCellMultiset
 
-||| Evaluates the standard Euclidean inner product between two Vexels directly via BoxMultisetTree in O(N log N).
-public export
-dotVexel : Vexel -> Vexel -> BoxInt
-dotVexel t1 v2 =
-  foldBoxTreeL (\acc, (u, w1) =>
-    let w2 = lookupUnixel u v2
-    in acc + (w1 * w2))
-    (intToBoxInt 0)
-    t1
-
 ||| The canonical zero/empty Vexel.
 public export
 emptyVexel : Vexel
