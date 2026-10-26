@@ -2,6 +2,10 @@ module Stage1.Basis.Coordinate
 
 import public Stage1.Basis.CoordCell
 import public Stage1.Carrier.CellMultiset
+import public Stage1.Carrier.Vexel
+import public Stage1.Carrier.Maxel
+import public Stage1.Carrier.Boxel
+import public Stage1.Carrier.HyperBoxel
 import public Stage1.Carrier.StagedLinear
 import public Stage1.Carrier.SquareMaxel
 import public Stage1.Carrier.Kronecker

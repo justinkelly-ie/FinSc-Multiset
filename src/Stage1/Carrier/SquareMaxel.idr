@@ -116,6 +116,11 @@ public export
 contractBoxSquareDense : {dim : Nat} -> SquareMaxel dim -> VexelN dim -> VexelN dim
 contractBoxSquareDense = contractSquareMaxelDense
 
+||| Backward-compatibility alias for contractSquareMaxelDense.
+public export
+contractSparseDenseVexel : {dim : Nat} -> SquareMaxel dim -> VexelN dim -> VexelN dim
+contractSparseDenseVexel = contractSquareMaxelDense
+
 ||| 2LTT Staged Sparse-Dense Contraction for SquareMaxel:
 public export
 stagedContractSquareMaxelDense : {dim : Nat} -> Lift (SquareMaxel dim) -> VexelN dim -> Code (VexelN dim)
@@ -125,6 +130,11 @@ stagedContractSquareMaxelDense qm v = quote (contractSquareMaxelDense (splice qm
 public export
 stagedContractBoxSquareDense : {dim : Nat} -> Lift (SquareMaxel dim) -> VexelN dim -> Code (VexelN dim)
 stagedContractBoxSquareDense = stagedContractSquareMaxelDense
+
+||| Backward-compatibility alias for stagedContractSquareMaxelDense.
+public export
+stagedContractSparseDense : {dim : Nat} -> Lift (SquareMaxel dim) -> VexelN dim -> Code (VexelN dim)
+stagedContractSparseDense = stagedContractSquareMaxelDense
 
 ||| Helper inserting non-zero row elements into a BoxMultisetTree Pixel.
 public export
@@ -249,11 +259,17 @@ public export
 addBoxSquareMaxel : {dim : Nat} -> SquareMaxel dim -> SquareMaxel dim -> SquareMaxel dim
 addBoxSquareMaxel = addSquareMaxel
 
+||| Compress a SquareMaxel by canonicalizing its underlying sparse cell multiset.
+public export
+compressSquareMaxel : {dim : Nat} -> SquareMaxel dim -> SquareMaxel dim
+compressSquareMaxel (MkSquareMaxel entries) = MkSquareMaxel (canonicalizeCellMultiset entries)
+
 ||| Evaluates M^exp for a sparse SquareMaxel via fast repeated squaring in O(log exp * dim^2).
+||| Enforces active support consolidation after each squaring step (Rule 04 §9).
 public export
 fastSquareMaxelPower : {dim : Nat} -> (fuel : Nat) -> (exp : Nat) -> SquareMaxel dim -> SquareMaxel dim
 fastSquareMaxelPower {dim} _ Z _ = identitySquareMaxel dim
-fastSquareMaxelPower {dim} _ (S Z) m = m
+fastSquareMaxelPower {dim} _ (S Z) m = compressSquareMaxel m
 fastSquareMaxelPower {dim} fuel exp m =
   loop fuel exp m (identitySquareMaxel dim)
   where
@@ -263,10 +279,16 @@ fastSquareMaxelPower {dim} fuel exp m =
       if e == 0 then acc
       else
         let isOdd = (cast {to = Integer} e `mod` 2) == 1
-            acc' = if isOdd then mulSquareMaxel acc base else acc
-            base' = mulSquareMaxel base base
+            acc' = if isOdd then compressSquareMaxel (mulSquareMaxel acc base) else acc
+            base' = compressSquareMaxel (mulSquareMaxel base base)
             nextE = e `div` 2
         in loop f nextE base' acc'
+
+||| Canonical fast exponentiation using model-derived Goh Fuel (Rule 04 §4).
+public export
+fastSquareMaxelPowerGoh : {dim : Nat} -> (exp : Nat) -> SquareMaxel dim -> SquareMaxel dim
+fastSquareMaxelPowerGoh {dim} exp m =
+  fastSquareMaxelPower (gohFuelNat (dim * dim + exp)) exp m
 
 public export
 fastBoxSquareMaxelPower : {dim : Nat} -> (fuel : Nat) -> (exp : Nat) -> SquareMaxel dim -> SquareMaxel dim

@@ -4,8 +4,8 @@ import Stage0.BoxInt
 import Stage0.BoxNat
 import Stage0.StructuralFuel
 import Stage0.Multiset
+import Stage0.OnSeq.FusedStream
 import Stage1.Order.Preorder
-import Data.List
 import Data.Vect
 import public Stage1.Basis.Coordinate
 
@@ -53,6 +53,14 @@ linearComboVexel (c :: cs) (v :: vs) =
   let scaled = scaleCellMultiset (intToBoxInt (cast c)) v
       rest   = linearComboVexel cs vs
   in addCellMultiset scaled rest
+
+||| Evaluates a linear combination of Vexels directly from deforested streams (Rule 04 §8).
+public export
+linearComboVexelStream : FusedStream Nat -> FusedStream Vexel -> Vexel
+linearComboVexelStream strmW strmV =
+  foldStream (\acc, (c, v) => addCellMultiset (scaleCellMultiset (intToBoxInt (cast c)) v) acc)
+             emptyCellMultiset
+             (zipWithStream (\c, v => (c, v)) strmW strmV)
 
 ||| Evaluates the positive and negative sides of a BalanceArray over a list of Vexels: (posVex, negVex).
 public export
@@ -148,14 +156,6 @@ public export
 magicColSum : {n : Nat} -> Fin n -> MagicMaxel n -> Nat
 magicColSum idx (MkMagicMaxel g) = foldl (+) 0 (map (index idx) g)
 
-public export
-allFinList : (k : Nat) -> List (Fin k)
-allFinList Z = []
-allFinList (S Z) = [FZ]
-allFinList (S (S Z)) = [FZ, FS FZ]
-allFinList (S (S (S Z))) = [FZ, FS FZ, FS (FS FZ)]
-allFinList (S (S (S (S Z)))) = [FZ, FS FZ, FS (FS FZ), FS (FS (FS FZ))]
-allFinList (S (S (S (S (S k'))))) = FZ :: map FS (allFinList (S (S (S (S k')))))
 
 ||| Validates that an n x n MagicMaxel is doubly stochastic with common line budget Sigma.
 public export
