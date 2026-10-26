@@ -123,74 +123,8 @@ multisetToBoxel : Multiset BoxInt Voxel -> Boxel
 multisetToBoxel m = mkCellMultiset (multisetToList m)
 
 ------------------------------------------------------------------------
--- 3. CHIRAL OUTER PRODUCTS & PLANE SLICES
+-- 3. CHIRAL OUTER PRODUCTS & PLANE SLICES (Provided by CellMultiset)
 ------------------------------------------------------------------------
-
-||| 3D Tensor Outer Product: Vexel (1D ket) x Maxel (2D surface) -> Boxel (3D volume).
-||| Evaluates directly in tree space with zero intermediate List allocations.
-public export
-outerProductVexelMaxel : Vexel -> Maxel -> Boxel
-outerProductVexelMaxel tk tm =
-  foldBoxTreeL (\accK, (s, sw) =>
-    foldBoxTreeL (\accM, (p, pw) =>
-      let v = mkVoxel (unwrapUnixel s) (pixelRow p) (pixelCol p)
-          w = sw * pw
-      in if boxIsZero w then accM
-         else let cur = lookupBoxTree v accM
-                  newW = cur + w
-              in if boxIsZero newW
-                   then setBoxTree v (intToBoxInt 0) accM
-                   else setBoxTree v newW accM
-    ) accK tm
-  ) BoxLeaf tk
-
-||| Extracts a 2D Maxel plane slice at a fixed Z-coordinate: Z_k(B) = { [x, y] with w | [x, y, k] in B }
-public export
-sliceBoxelZ : Nat -> Boxel -> Maxel
-sliceBoxelZ targetZ b =
-  foldBoxTreeL (\acc, (v, w) =>
-    if voxelZ v == targetZ
-      then let p = mkPixel (voxelX v) (voxelY v)
-               cur = lookupBoxTree p acc
-               newW = cur + w
-           in if boxIsZero newW
-                then setBoxTree p (intToBoxInt 0) acc
-                else setBoxTree p newW acc
-      else acc)
-    BoxLeaf
-    b
-
-||| Extracts a 2D Maxel plane slice at a fixed Y-coordinate: Y_k(B) = { [x, z] with w | [x, k, z] in B }
-public export
-sliceBoxelY : Nat -> Boxel -> Maxel
-sliceBoxelY targetY b =
-  foldBoxTreeL (\acc, (v, w) =>
-    if voxelY v == targetY
-      then let p = mkPixel (voxelX v) (voxelZ v)
-               cur = lookupBoxTree p acc
-               newW = cur + w
-           in if boxIsZero newW
-                then setBoxTree p (intToBoxInt 0) acc
-                else setBoxTree p newW acc
-      else acc)
-    BoxLeaf
-    b
-
-||| Extracts a 2D Maxel plane slice at a fixed X-coordinate: X_k(B) = { [y, z] with w | [k, y, z] in B }
-public export
-sliceBoxelX : Nat -> Boxel -> Maxel
-sliceBoxelX targetX b =
-  foldBoxTreeL (\acc, (v, w) =>
-    if voxelX v == targetX
-      then let p = mkPixel (voxelY v) (voxelZ v)
-               cur = lookupBoxTree p acc
-               newW = cur + w
-           in if boxIsZero newW
-                then setBoxTree p (intToBoxInt 0) acc
-                else setBoxTree p newW acc
-      else acc)
-    BoxLeaf
-    b
 
 ------------------------------------------------------------------------
 -- 4. GRASSMANN WEDGE PRODUCTS & EXTERIOR ALGEBRA
@@ -232,41 +166,6 @@ canonicalizeHyperBoxel = canonicalizeCellMultiset
 public export
 lookupTesseract : Tesseract -> HyperBoxel -> BoxInt
 lookupTesseract target h = lookupBoxTree target h
-
-||| Slices a 4D HyperBoxel at a fixed temporal coordinate t = targetT into a 3D spatial Boxel.
-public export
-sliceHyperBoxelT : Nat -> HyperBoxel -> Boxel
-sliceHyperBoxelT targetT h =
-  foldBoxTreeL (\acc, (tess, w) =>
-    if tesseractT tess == targetT
-      then let v = mkVoxel (tesseractX tess) (tesseractY tess) (tesseractZ tess)
-               cur = lookupBoxTree v acc
-               newW = cur + w
-           in if boxIsZero newW
-                then setBoxTree v (intToBoxInt 0) acc
-                else setBoxTree v newW acc
-      else acc)
-    BoxLeaf
-    h
-
-||| Outer product of a temporal Vexel and a spatial Boxel: T (x) S -> 4D HyperBoxel.
-||| Evaluates directly in tree space with zero intermediate List allocations.
-public export
-outerProductVexelBoxel : Vexel -> Boxel -> HyperBoxel
-outerProductVexelBoxel tt spaces =
-  foldBoxTreeL (\accT, (u, wt) =>
-    let t = unwrapUnixel u
-    in foldBoxTreeL (\accS, (v, ws) =>
-         let cell = mkTesseract (voxelX v) (voxelY v) (voxelZ v) t
-             w    = wt * ws
-         in if boxIsZero w then accS
-            else let cur = lookupBoxTree cell accS
-                     newW = cur + w
-                 in if boxIsZero newW
-                      then setBoxTree cell (intToBoxInt 0) accS
-                      else setBoxTree cell newW accS
-       ) accT spaces
-  ) BoxLeaf tt
 
 ||| Proves that slicing a 4D HyperBoxel at time t=2 extracts the exact 3D spatial Boxel.
 public export
