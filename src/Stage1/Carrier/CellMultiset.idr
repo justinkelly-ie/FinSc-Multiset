@@ -134,6 +134,26 @@ public export
 canonicalizeCell : {dim : Nat} -> CellMultiset dim -> CellMultiset dim
 canonicalizeCell = canonicalizeCellMultiset
 
+||| Canonicalize / compress a Maxel (prunes zero weights and rebalances).
+public export
+compressMaxel : Maxel -> Maxel
+compressMaxel = canonicalizeCellMultiset
+
+||| Extracts the finite active support of a CellMultiset as a list.
+||| @deprecated Use supportCellStream (FusedStream). Materializing support as List is forbidden by Rule 04 §8.
+public export
+supportCellMultiset : {dim : Nat} -> CellMultiset dim -> List (CoordCell dim)
+supportCellMultiset t =
+  foldBoxTreeR (\c, w, acc => if boxIsNonZero w then c :: acc else acc) [] t
+
+public export
+supportMaxel : Maxel -> List Pixel
+supportMaxel = supportCellMultiset
+
+public export
+supportVexel : Vexel -> List Unixel
+supportVexel = supportCellMultiset
+
 public export
 {dim : Nat} -> Semigroup (CellMultiset dim) where
   (<+>) = addCellMultiset

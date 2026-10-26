@@ -276,11 +276,6 @@ public export
 emptyMaxel : Maxel
 emptyMaxel = BoxLeaf
 
-||| Compresses a Maxel by pruning zero weights.
-public export
-compressMaxel : Maxel -> Maxel
-compressMaxel = canonicalizeCellMultiset
-
 
 public export
 multiplyMaxel : Maxel -> Maxel -> Maxel
@@ -330,19 +325,7 @@ implementation MultisetAlgebra Vexel where
 -- 6. WILDBERGER SUPPORT & CHROMOGEOMETRIC METRIC MAXELS
 ------------------------------------------------------------------------
 
-||| Extracts the finite active support of a Maxel as a list of directed edges [i, j].
-||| @deprecated Use supportCellStream (FusedStream). Materializing support as List is forbidden by Rule 04 §8.
-public export
-supportMaxel : Maxel -> List Pixel
-supportMaxel t =
-  foldBoxTreeR (\p, w, acc => if boxIsNonZero w then p :: acc else acc) [] t
 
-||| Extracts the finite active support of a Vexel vector as a list of basis Unixels.
-||| @deprecated Use supportCellStream (FusedStream). Materializing support as List is forbidden by Rule 04 §8.
-public export
-supportVexel : Vexel -> List Unixel
-supportVexel t =
-  foldBoxTreeR (\u, w, acc => if boxIsNonZero w then u :: acc else acc) [] t
 
 
 ||| 2D Blue (Elliptic/Euclidean) Metric Maxel parameterized by (x, y):
