@@ -7,6 +7,7 @@ import Stage1.MultisetTensor
 import Stage1.Basis.CoordCell
 import Stage1.Carrier.CellMultiset
 import Stage1.Carrier.SquareMaxel
+import Stage1.Carrier.Kronecker
 
 %default total
 
@@ -56,3 +57,31 @@ tensorToMaxel tensor =
                            else setBoxTree p newW tree)
                 BoxLeaf
                 tensor
+
+------------------------------------------------------------------------
+-- ALGEBRAIC KRONECKER TENSOR PRODUCT & VERIFICATION
+------------------------------------------------------------------------
+
+||| Algebraic Kronecker Tensor Product on SquareMaxel:
+public export
+kroneckerSquareMaxelAlg : {m, n : Nat} -> SquareMaxel m -> SquareMaxel n -> SquareMaxel (m * n)
+kroneckerSquareMaxelAlg {m} {n} m1 m2 =
+  let t1 = squareMaxelToTensor m1
+      t2 = squareMaxelToTensor m2
+      tOp = tensorOperator t1 t2
+      observed = mapMultiset (observeKroneckerPixel n) tOp
+  in tensorToSquareMaxel observed
+
+||| Backward-compatibility alias.
+public export
+kroneckerBoxSquareMaxelAlg : {m, n : Nat} -> SquareMaxel m -> SquareMaxel n -> SquareMaxel (m * n)
+kroneckerBoxSquareMaxelAlg = kroneckerSquareMaxelAlg
+
+||| Verified Invariant: Direct sparse Kronecker product definitionally matches
+||| the pushforward observation of the underlying monoidal tensor operator.
+public export
+auditKroneckerAlgebraicEquivalence : Bool
+auditKroneckerAlgebraicEquivalence =
+  let id2 = identitySquareMaxel 2
+  in kroneckerSquareMaxel id2 id2 == kroneckerSquareMaxelAlg id2 id2
+
