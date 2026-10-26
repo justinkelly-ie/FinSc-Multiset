@@ -60,6 +60,16 @@ public export
 identityBoxSquareMaxel : (dim : Nat) -> SquareMaxel dim
 identityBoxSquareMaxel = identitySquareMaxel
 
+||| Embeds a sparse 2D Maxel into a dimension-indexed SquareMaxel.
+public export
+maxelToSquareMaxel : (dim : Nat) -> Maxel -> SquareMaxel dim
+maxelToSquareMaxel _ m = MkSquareMaxel m
+
+||| Backward-compatibility alias.
+public export
+maxelToBoxSquareMaxel : (dim : Nat) -> Maxel -> SquareMaxel dim
+maxelToBoxSquareMaxel = maxelToSquareMaxel
+
 ------------------------------------------------------------------------
 -- 2. SPARSE-DENSE CONTRACTION
 ------------------------------------------------------------------------
