@@ -30,12 +30,41 @@ boxSquareMaxelToTensor = squareMaxelToTensor
 public export
 tensorToSquareMaxel : {dim : Nat} -> Multiset BoxInt Pixel -> SquareMaxel dim
 tensorToSquareMaxel tensor =
-  MkSquareMaxel (foldMultiset (\p, w, tree => setBoxTree p w tree) BoxLeaf tensor)
+  MkSquareMaxel
+    (foldMultiset (\p, w, tree =>
+                    if boxIsZero w then tree
+                    else let cur = lookupBoxTree p tree
+                             newW = cur + w
+                         in if boxIsZero newW
+                              then setBoxTree p (intToBoxInt 0) tree
+                              else setBoxTree p newW tree)
+                  BoxLeaf
+                  tensor)
 
 ||| Backward-compatibility alias.
 public export
 tensorToBoxSquareMaxel : {dim : Nat} -> Multiset BoxInt Pixel -> SquareMaxel dim
 tensorToBoxSquareMaxel = tensorToSquareMaxel
+
+||| Converts a SquareMaxel into a Multiset over typed Pixels.
+public export
+squareMaxelToPixelTensor : {dim : Nat} -> SquareMaxel dim -> Multiset BoxInt Pixel
+squareMaxelToPixelTensor (MkSquareMaxel tree) =
+  foldBoxTreeR (\p, w, acc => AddM p w acc) ZeroM tree
+
+||| Reconstructs a sparse SquareMaxel from a natural coordinate pair Multiset.
+public export
+tensorNatToSquareMaxel : {dim : Nat} -> Multiset BoxInt (Nat, Nat) -> SquareMaxel dim
+tensorNatToSquareMaxel tensor =
+  tensorToSquareMaxel (mapMultiset (\(r, c) => mkPixel r c) tensor)
+
+||| Verified Invariant: Converting a SquareMaxel to Multiset and back preserves the matrix.
+public export
+auditSquareMaxelTensorRoundtrip : Bool
+auditSquareMaxelTensorRoundtrip =
+  let id2 = identitySquareMaxel 2
+  in tensorNatToSquareMaxel (squareMaxelToTensor id2) == id2 &&
+     tensorToSquareMaxel (squareMaxelToPixelTensor id2) == id2
 
 ||| Converts a general Maxel into a typed MultisetTensor over natural coordinates.
 public export

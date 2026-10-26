@@ -47,7 +47,7 @@ kroneckerSquareMaxel {m} {n} (MkSquareMaxel t1) (MkSquareMaxel t2) =
           t2)
         BoxLeaf
         t1
-  in MkSquareMaxel resultTree
+  in compressSquareMaxel (MkSquareMaxel resultTree)
 
 ||| Backward-compatibility alias.
 public export

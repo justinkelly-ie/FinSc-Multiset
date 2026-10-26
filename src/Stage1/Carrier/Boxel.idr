@@ -207,3 +207,18 @@ sliceBoxelX targetX b =
       else acc)
     BoxLeaf
     b
+
+------------------------------------------------------------------------
+-- 4. VERIFICATION AUDITS
+------------------------------------------------------------------------
+
+||| Audits that slicing an outerProductVexelMaxel along the vector coordinate recovers the scaled Maxel.
+public export
+auditBoxelSliceProof : Bool
+auditBoxelSliceProof =
+  let v = singletonCell (mkUnixel 2) (intToBoxInt 3)
+      m = singletonCell (mkPixel 1 2) (intToBoxInt 4) <+> singletonCell (mkPixel 3 1) (intToBoxInt 5)
+      b = outerProductVexelMaxel v m
+      s2 = sliceBoxelX 2 b
+      s1 = sliceBoxelX 1 b
+  in (s2 == scaleMaxel (intToBoxInt 3) m) && (s1 == emptyMaxel)

@@ -156,4 +156,12 @@ outerProductVexelBoxel tt spaces =
 public export
 auditHyperBoxelSliceProof : Bool
 auditHyperBoxelSliceProof =
-  intToBoxInt 1 == intToBoxInt 1
+  let b = singletonCell (mkVoxel 1 2 3) (intToBoxInt 5) <+> singletonCell (mkVoxel 2 1 1) (intToBoxInt 7)
+      v = singletonCell (mkUnixel 2) (intToBoxInt 1) <+> singletonCell (mkUnixel 4) (intToBoxInt 3)
+      h = outerProductVexelBoxel v b
+      bSliced2 = sliceHyperBoxelT 2 h
+      bSliced4 = sliceHyperBoxelT 4 h
+      bSliced1 = sliceHyperBoxelT 1 h
+  in (bSliced2 == b) &&
+     (bSliced4 == scaleBoxel (intToBoxInt 3) b) &&
+     (bSliced1 == emptyBoxel)

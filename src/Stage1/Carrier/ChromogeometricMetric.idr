@@ -4,6 +4,7 @@ import Stage0.BoxInt
 import Stage1.MultisetTree
 import Stage1.Basis.CoordCell
 import Stage1.Carrier.CellMultiset
+import Stage1.Carrier.Maxel
 import Stage1.Carrier.StagedLinear
 import Stage1.Carrier.SquareMaxel
 
@@ -116,20 +117,22 @@ auditParameterizedSquareMetricOperatorIdentity x y =
 public export
 auditChromogeometricMetricSupportsProof : Bool
 auditChromogeometricMetricSupportsProof =
-  let sBlue  = supportMaxel blueMetricMaxel2D
-      sRed   = supportMaxel redMetricMaxel2D
-      sGreen = supportMaxel greenMetricMaxel2D
-      tBlue  = sBlue  == [mkPixel 1 1, mkPixel 2 2]
-      tRed   = sRed   == [mkPixel 1 1, mkPixel 2 2]
-      tGreen = sGreen == [mkPixel 1 2, mkPixel 2 1]
-  in tBlue && tRed && tGreen
+  let b11 = lookupPixel (mkPixel 1 1) blueMetricMaxel2D == intToBoxInt 1
+      b22 = lookupPixel (mkPixel 2 2) blueMetricMaxel2D == intToBoxInt 1
+      r11 = lookupPixel (mkPixel 1 1) redMetricMaxel2D == intToBoxInt 1
+      r22 = lookupPixel (mkPixel 2 2) redMetricMaxel2D == intToBoxInt (-1)
+      g12 = lookupPixel (mkPixel 1 2) greenMetricMaxel2D == intToBoxInt 1
+      g21 = lookupPixel (mkPixel 2 1) greenMetricMaxel2D == intToBoxInt 1
+  in b11 && b22 && r11 && r22 && g12 && g21
 
 public export
 auditMatrixPathCompositionProof : Bool
 auditMatrixPathCompositionProof =
   let gG = greenMetricMaxel2D
       gProd = mulMaxel gG gG
-      sProd = supportMaxel gProd
-      e11 = lookupPixel (mkPixel 1 1) gProd
-      e22 = lookupPixel (mkPixel 2 2) gProd
-  in sProd == [mkPixel 1 1, mkPixel 2 2] && e11 == intToBoxInt 1 && e22 == intToBoxInt 1
+      e11 = lookupPixel (mkPixel 1 1) gProd == intToBoxInt 1
+      e22 = lookupPixel (mkPixel 2 2) gProd == intToBoxInt 1
+      e12 = lookupPixel (mkPixel 1 2) gProd == intToBoxInt 0
+      e21 = lookupPixel (mkPixel 2 1) gProd == intToBoxInt 0
+      tot = totalMaxelWeight gProd == intToBoxInt 2
+  in e11 && e22 && e12 && e21 && tot

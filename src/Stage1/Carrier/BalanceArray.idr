@@ -114,22 +114,32 @@ find2VexelBalance v1 v2 =
 public export
 auditVexelBalanceProof : Bool
 auditVexelBalanceProof =
-  (intToBoxInt 4 == intToBoxInt 4) &&
-  (intToBoxInt 3 == intToBoxInt 3)
+  let v1 = singletonCell (mkCell1 1) (intToBoxInt 1) <+> singletonCell (mkCell1 2) (intToBoxInt 2)
+      v2 = singletonCell (mkCell1 1) (intToBoxInt 3) <+> singletonCell (mkCell1 2) (intToBoxInt 1)
+      v3 = singletonCell (mkCell1 1) (intToBoxInt 4) <+> singletonCell (mkCell1 2) (intToBoxInt 3)
+      bal = MkBalanceArray [1, 1, 0] [0, 0, 1]
+  in isBalanced [v1, v2, v3] bal && isDisjointBalance bal && isNonTrivialBalance bal
 
 ||| Audits 2-Vexel proportionality balance: 3 * [2, 4] = 2 * [3, 6].
 public export
 auditVexelProportionalityBalanceProof : Bool
 auditVexelProportionalityBalanceProof =
-  (intToBoxInt 6 == intToBoxInt 6) &&
-  (intToBoxInt 12 == intToBoxInt 12)
+  let v1 = singletonCell (mkCell1 1) (intToBoxInt 2) <+> singletonCell (mkCell1 2) (intToBoxInt 4)
+      v2 = singletonCell (mkCell1 1) (intToBoxInt 3) <+> singletonCell (mkCell1 2) (intToBoxInt 6)
+      expected = MkBalanceArray [3, 0] [0, 2]
+  in case find2VexelBalance v1 v2 of
+       Just bal => bal == expected && isBalanced [v1, v2] bal
+       Nothing  => False
 
 ||| Audits that orthogonal basis Singletons [1, 0] and [0, 1] are Nat-linearly independent (no balance relation).
 public export
 auditVexelLinearIndependenceProof : Bool
 auditVexelLinearIndependenceProof =
-  (intToBoxInt 1 == intToBoxInt 1) &&
-  (intToBoxInt 0 == intToBoxInt 0)
+  let v1 = singletonCell (mkCell1 1) (intToBoxInt 1)
+      v2 = singletonCell (mkCell1 2) (intToBoxInt 1)
+  in case find2VexelBalance v1 v2 of
+       Just _  => False
+       Nothing => True
 
 ------------------------------------------------------------------------
 -- 2. MAGIC MAXELS & DOUBLY STOCHASTIC MATRICES (CH. 27)
@@ -209,14 +219,17 @@ applyMagicMaxelBoxInt (MkMagicMaxel g) v =
 public export
 auditMagicMaxel3x3Proof : Bool
 auditMagicMaxel3x3Proof =
-  (intToBoxInt 15 == intToBoxInt 15) &&
-  (intToBoxInt 45 == intToBoxInt 45)
+  let loShu = MkMagicMaxel [[4, 9, 2], [3, 5, 7], [8, 1, 6]]
+      uniformState = [1, 1, 1]
+      transformed = applyMagicMaxel loShu uniformState
+  in isMagicMaxel loShu 15 && transformed == [15, 15, 15]
 
 ||| Audits 3x3 Identity Magic Maxel (Sigma=1, Permutation Decomposition):
 ||| Preserves arbitrary token state exactly.
 public export
 auditMagicMaxelIdentityProof : Bool
 auditMagicMaxelIdentityProof =
-  (intToBoxInt 10 == intToBoxInt 10) &&
-  (intToBoxInt 20 == intToBoxInt 20) &&
-  (intToBoxInt 30 == intToBoxInt 30)
+  let id3 = MkMagicMaxel [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+      state = [10, 20, 30]
+      transformed = applyMagicMaxel id3 state
+  in isMagicMaxel id3 1 && transformed == state

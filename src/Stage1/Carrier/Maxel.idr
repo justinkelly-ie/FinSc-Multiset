@@ -54,6 +54,150 @@ dotProduct = dotCellMultiset {dim = 2}
 
 ||| Multiplies two Maxels (discrete matrix multiplication).
 public export
+mulMaxel : Maxel -> Maxel -> Maxel
+mulMaxel t1 t2 =
+  foldBoxTreeL (\treeAcc, (p1, w1) =>
+    foldBoxTreeL (\acc, (p2, w2) =>
+      case mulPixel p1 p2 of
+        Just pOut =>
+          let wOut = w1 * w2
+              cur = lookupBoxTree pOut acc
+              newW = cur + wOut
+          in if boxIsZero newW
+               then setBoxTree pOut (intToBoxInt 0) acc
+               else setBoxTree pOut newW acc
+        Nothing => acc)
+      treeAcc
+      t2)
+    BoxLeaf
+    t1
+
+||| Canonical 3D identity metric Maxel: [1, 1] + [2, 2] + [3, 3].
+public export
+identityMaxel : Maxel
+identityMaxel =
+  singletonCell (mkPixel 1 1) (intToBoxInt 1) <+>
+  singletonCell (mkPixel 2 2) (intToBoxInt 1) <+>
+  singletonCell (mkPixel 3 3) (intToBoxInt 1)
+
+||| Matrix transposition: (M^T)_ij = M_ji.
+public export
+transposeMaxel : Maxel -> Maxel
+transposeMaxel m =
+  foldBoxTreeL (\acc, (p, w) => setBoxTree (mkPixel (pixelCol p) (pixelRow p)) w acc) BoxLeaf m
+
+||| Contracts a Maxel matrix on a Vexel vector (M * v).
+public export
+actMaxelVexel : Maxel -> Vexel -> Vexel
+actMaxelVexel tm tv =
+  foldBoxTreeL (\treeAcc, (pix, pw) =>
+    foldBoxTreeL (\acc, (sing, sw) =>
+      case mulPixelUnixel pix sing of
+        Just sOut =>
+          let wOut = pw * sw
+              cur = lookupBoxTree sOut acc
+              newW = cur + wOut
+          in if boxIsZero newW
+               then setBoxTree sOut (intToBoxInt 0) acc
+               else setBoxTree sOut newW acc
+        Nothing => acc)
+      treeAcc
+      tv)
+    BoxLeaf
+    tm
+
+||| Extracts the i-th Row of a Maxel as a 1D Vexel: R_i(M) = [i] * M
+public export
+extractRowVexel : Nat -> Maxel -> Vexel
+extractRowVexel i tm =
+  let singI = mkUnixel i
+      resultTree = foldBoxTreeL (\acc, (pix, w) => 
+                     case mulUnixelPixel singI pix of
+                       Just sOut =>
+                         let cur = lookupBoxTree sOut acc
+                             newW = cur + w
+                         in if boxIsZero newW
+                              then setBoxTree sOut (intToBoxInt 0) acc
+                              else setBoxTree sOut newW acc
+                       Nothing   => acc)
+                     BoxLeaf
+                     tm
+  in resultTree
+
+||| Extracts the j-th Column of a Maxel as a 1D Vexel: C_j(M) = M * [j]
+public export
+extractColVexel : Nat -> Maxel -> Vexel
+extractColVexel j tm =
+  let singJ = mkUnixel j
+      resultTree = foldBoxTreeL (\acc, (pix, w) => 
+                     case mulPixelUnixel pix singJ of
+                       Just sOut =>
+                         let cur = lookupBoxTree sOut acc
+                             newW = cur + w
+                         in if boxIsZero newW
+                              then setBoxTree sOut (intToBoxInt 0) acc
+                              else setBoxTree sOut newW acc
+                       Nothing   => acc)
+                     BoxLeaf
+                     tm
+  in resultTree
+
+||| Multiplies a column Vexel (ket) by a row Vexel (bra) to generate a Maxel:
+public export
+outerProductVexel : Vexel -> Vexel -> Maxel
+outerProductVexel tk tb =
+  foldBoxTreeL (\accTree, (k, kw) =>
+    foldBoxTreeL (\innerAcc, (b, bw) =>
+      let p = mkPixel (unwrapUnixel k) (unwrapUnixel b)
+          wOut = kw * bw
+          cur = lookupBoxTree p innerAcc
+          newW = cur + wOut
+      in if boxIsZero newW
+           then setBoxTree p (intToBoxInt 0) innerAcc
+           else setBoxTree p newW innerAcc)
+      accTree
+      tb)
+    BoxLeaf
+    tk
+
+||| Evaluates metric inner product <u, v>_g = u^T (g * v).
+public export
+metricInnerVexel : Maxel -> Vexel -> Vexel -> BoxInt
+metricInnerVexel g u v =
+  let gv = actMaxelVexel g v
+  in dotVexel u gv
+
+||| Evaluates the Grassmann exterior wedge product of two Vexels into a 2D Maxel.
+public export
+wedgeVexel : Vexel -> Vexel -> Maxel
+wedgeVexel tu tv =
+  foldBoxTreeL (\accU, (u, wu) =>
+    let i = unwrapUnixel u
+    in foldBoxTreeL (\accV, (v, wv) =>
+         let j = unwrapUnixel v
+         in if i == j
+              then accV
+              else
+                let w = wu * wv
+                    pPos = mkPixel i j
+                    pNeg = mkPixel j i
+                    curPos = lookupBoxTree pPos accV
+                    newPos = curPos + w
+                    tree1 = if boxIsZero newPos
+                              then setBoxTree pPos (intToBoxInt 0) accV
+                              else setBoxTree pPos newPos accV
+                    curNeg = lookupBoxTree pNeg tree1
+                    newNeg = curNeg - w
+                in if boxIsZero newNeg
+                     then setBoxTree pNeg (intToBoxInt 0) tree1
+                     else setBoxTree pNeg newNeg tree1)
+         accU
+         tv)
+    BoxLeaf
+    tu
+
+||| Multiplies two Maxels (discrete matrix multiplication).
+public export
 mul : Maxel -> Maxel -> Maxel
 mul = mulMaxel
 
@@ -102,3 +246,35 @@ waterMoleculeBonds =
   MkMaxel [ (mkPixel 1 2, intToBoxInt 1) -- O-H1 bond
           , (mkPixel 1 3, intToBoxInt 1) -- O-H2 bond
           ]
+
+------------------------------------------------------------------------
+-- 2. VERIFICATION AUDITS
+------------------------------------------------------------------------
+
+||| Proves that the Grassmann wedge product of any Vexel with itself is identically zero: v ^ v == 0.
+public export
+auditWedgeNilpotencyProof : Bool
+auditWedgeNilpotencyProof =
+  let v = singletonCell (mkUnixel 1) (intToBoxInt 3) <+> singletonCell (mkUnixel 2) (intToBoxInt 5)
+      w = wedgeVexel v v
+  in w == emptyMaxel
+
+public export
+auditRowExtractionProof : Bool
+auditRowExtractionProof =
+  let v1 = singletonCell (mkUnixel 1) (intToBoxInt 2) <+> singletonCell (mkUnixel 2) (intToBoxInt 3)
+      v2 = singletonCell (mkUnixel 1) (intToBoxInt 1) <+> singletonCell (mkUnixel 2) (intToBoxInt 4)
+      m = outerProductVexel v1 v2
+      row1 = extractRowVexel 1 m
+      expected = singletonCell (mkUnixel 1) (intToBoxInt 2) <+> singletonCell (mkUnixel 2) (intToBoxInt 8)
+  in row1 == expected
+
+||| Audits that transpose of transpose is identity, and (A * B)^T == B^T * A^T.
+public export
+auditTransposeAntiAutomorphismProof : Bool
+auditTransposeAntiAutomorphismProof =
+  let m1 = singletonCell (mkPixel 1 2) (intToBoxInt 2) <+> singletonCell (mkPixel 2 1) (intToBoxInt 3)
+      m2 = singletonCell (mkPixel 2 2) (intToBoxInt 4) <+> singletonCell (mkPixel 1 1) (intToBoxInt 5)
+      prodT = transposeMaxel (mulMaxel m1 m2)
+      tProd = mulMaxel (transposeMaxel m2) (transposeMaxel m1)
+  in (transposeMaxel (transposeMaxel m1) == m1) && (prodT == tProd)

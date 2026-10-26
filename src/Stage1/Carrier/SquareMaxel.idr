@@ -38,22 +38,21 @@ MkBoxSquareMaxel = MkSquareMaxel
 
 public export
 Eq (SquareMaxel dim) where
-  (MkSquareMaxel e1) == (MkSquareMaxel e2) =
-    boxTreeToList e1 == boxTreeToList e2
+  (MkSquareMaxel e1) == (MkSquareMaxel e2) = e1 == e2
 
 public export
 {dim : Nat} -> Show (SquareMaxel dim) where
   show (MkSquareMaxel es) = "SquareMaxel[" ++ show dim ++ "](" ++ show (boxTreeToList es) ++ ")"
 
-||| Constructs a dimension-indexed identity SquareMaxel of size `dim` in O(dim log dim).
+||| Constructs a dimension-indexed identity SquareMaxel of size `dim` in O(dim log dim) without list allocation.
 public export
 identitySquareMaxel : (dim : Nat) -> SquareMaxel dim
 identitySquareMaxel dim =
-  case dim of
-    Z => MkSquareMaxel BoxLeaf
-    _ => let pxs = [mkPixel i i | i <- [0..pred dim]]
-             t   = foldl (\tree, p => setBoxTree p (intToBoxInt 1) tree) BoxLeaf pxs
-         in MkSquareMaxel t
+  MkSquareMaxel (buildId dim BoxLeaf)
+  where
+    buildId : Nat -> BoxMultisetTree Pixel -> BoxMultisetTree Pixel
+    buildId Z acc = acc
+    buildId (S k) acc = buildId k (setBoxTree (mkPixel k k) (intToBoxInt 1) acc)
 
 ||| Backward-compatibility alias.
 public export
@@ -205,8 +204,8 @@ mulSquareMaxel {dim} (MkSquareMaxel t1) (MkSquareMaxel t2) =
               let wOut = w1 * w2
                   cur = lookupBoxTree pOut innerAcc
                   newW = cur + wOut
-              in if unwrapBox newW == 0
-                   then innerAcc
+              in if boxIsZero newW
+                   then setBoxTree pOut (intToBoxInt 0) innerAcc
                    else setBoxTree pOut newW innerAcc
             Nothing => innerAcc)
           accTree
