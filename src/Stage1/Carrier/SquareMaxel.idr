@@ -258,6 +258,42 @@ public export
 addBoxSquareMaxel : {dim : Nat} -> SquareMaxel dim -> SquareMaxel dim -> SquareMaxel dim
 addBoxSquareMaxel = addSquareMaxel
 
+||| Perturbs the (0, 0) entry of a SquareMaxel with an additive defect in O(1).
+public export
+perturbSquareMaxel00 : {dim : Nat} -> SquareMaxel dim -> BoxInt -> SquareMaxel dim
+perturbSquareMaxel00 (MkSquareMaxel tree) defect =
+  let cur = lookupBoxTree (mkPixel 0 0) tree
+      newTree = setBoxTree (mkPixel 0 0) (cur + defect) tree
+  in MkSquareMaxel newTree
+
+public export
+perturbBoxSquareMaxel00 : {dim : Nat} -> SquareMaxel dim -> BoxInt -> SquareMaxel dim
+perturbBoxSquareMaxel00 = perturbSquareMaxel00
+
+||| Direct 2x2 companion spread recurrence step for spread s: M(s) * S in O(1).
+public export
+stepCompanionSpread : (s : BoxInt) -> SquareMaxel 2 -> SquareMaxel 2
+stepCompanionSpread s (MkSquareMaxel tree) =
+  let a = lookupBoxTree (mkPixel 0 0) tree
+      b = lookupBoxTree (mkPixel 0 1) tree
+      c = lookupBoxTree (mkPixel 1 0) tree
+      d = lookupBoxTree (mkPixel 1 1) tree
+      diag = intToBoxInt 2 - (intToBoxInt 4 * s)
+      newA = diag * a - c
+      newB = diag * b - d
+      newC = a
+      newD = b
+      t0 = setBoxTree (mkPixel 0 0) newA BoxLeaf
+      t1 = setBoxTree (mkPixel 0 1) newB t0
+      t2 = setBoxTree (mkPixel 1 0) newC t1
+      t3 = setBoxTree (mkPixel 1 1) newD t2
+  in MkSquareMaxel t3
+
+||| Canonical Pythagorean companion recurrence step (s = 0): M * S in O(1).
+public export
+stepPythagoreanCompanionSpread : SquareMaxel 2 -> SquareMaxel 2
+stepPythagoreanCompanionSpread = stepCompanionSpread (intToBoxInt 0)
+
 ||| Compress a SquareMaxel by canonicalizing its underlying sparse cell multiset.
 public export
 compressSquareMaxel : {dim : Nat} -> SquareMaxel dim -> SquareMaxel dim
