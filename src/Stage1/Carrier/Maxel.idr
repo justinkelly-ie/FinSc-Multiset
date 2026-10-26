@@ -522,27 +522,6 @@ auditRowExtractionProof =
       row1 = extractRowVexel 1 m
   in row1 == MkVexel [(mkUnixel 1, intToBoxInt 2), (mkUnixel 2, intToBoxInt 8)]
 
-------------------------------------------------------------------------
--- 9. MAXELN CONVERSIONS
-------------------------------------------------------------------------
-
-rowToPixelPairsHelper : Nat -> Nat -> Vect k BoxInt -> List (Pixel, BoxInt)
-rowToPixelPairsHelper _ _ [] = []
-rowToPixelPairsHelper r c (w :: ws) = (mkPixel r c, w) :: rowToPixelPairsHelper r (S c) ws
-
-matToPixelPairsHelper : Nat -> Nat -> Vect k (Vect n BoxInt) -> List (Pixel, BoxInt)
-matToPixelPairsHelper _ _ [] = []
-matToPixelPairsHelper r c (row :: rows) = rowToPixelPairsHelper r c row ++ matToPixelPairsHelper (S r) c rows
-
-||| Converts a dimension-indexed MaxelN into a canonical sparse multiset Maxel (1-indexed).
-public export
-maxelNToMaxel : {n : Nat} -> MaxelN n -> Maxel
-maxelNToMaxel (MkMaxelN rs) = canonicalizeMaxel (MkMaxel (matToPixelPairsHelper 1 1 rs))
-
-||| Converts a dimension-indexed MaxelN into a 0-indexed sparse multiset Maxel (quantum basis).
-public export
-maxelNToMaxel0 : {n : Nat} -> MaxelN n -> Maxel
-maxelNToMaxel0 (MkMaxelN rs) = canonicalizeMaxel (MkMaxel (matToPixelPairsHelper 0 0 rs))
 
 ||| @deprecated Use canonicalizeCellMultiset directly on CellMultiset trees.
 public export

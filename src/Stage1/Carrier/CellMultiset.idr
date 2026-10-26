@@ -504,6 +504,29 @@ vexelToVexelN1 n v =
       let w = lookupBoxTree (mkCell1 idx) v
       in w :: generateComponents (S idx) rem
 
+vectToMaxelRowHelper : Nat -> Nat -> Vect k BoxInt -> Maxel -> Maxel
+vectToMaxelRowHelper _ _ [] acc = acc
+vectToMaxelRowHelper r c (w :: ws) acc =
+  if boxIsZero w
+    then vectToMaxelRowHelper r (S c) ws acc
+    else vectToMaxelRowHelper r (S c) ws (setBoxTree (mkPixel r c) w acc)
+
+matToMaxelHelper : Nat -> Nat -> Vect k (Vect n BoxInt) -> Maxel -> Maxel
+matToMaxelHelper _ _ [] acc = acc
+matToMaxelHelper r c0 (row :: rows) acc =
+  let acc' = vectToMaxelRowHelper r c0 row acc
+  in matToMaxelHelper (S r) c0 rows acc'
+
+||| Converts a dimension-indexed MaxelN into a canonical sparse multiset Maxel (1-indexed).
+public export
+maxelNToMaxel : {n : Nat} -> MaxelN n -> Maxel
+maxelNToMaxel (MkMaxelN rs) = matToMaxelHelper 1 1 rs BoxLeaf
+
+||| Converts a dimension-indexed MaxelN into a 0-indexed sparse multiset Maxel (quantum basis).
+public export
+maxelNToMaxel0 : {n : Nat} -> MaxelN n -> Maxel
+maxelNToMaxel0 (MkMaxelN rs) = matToMaxelHelper 0 0 rs BoxLeaf
+
 ------------------------------------------------------------------------
 -- 7. SIGNED DIMENSION-INDEXED SPARSE MATRIX (BoxSquareMaxel)
 ------------------------------------------------------------------------
