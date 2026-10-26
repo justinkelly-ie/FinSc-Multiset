@@ -107,51 +107,9 @@ Eq (SquareMaxel dim) where
 public export
 {dim : Nat} -> Show (SquareMaxel dim) where
   show (MkSquareMaxel es) = "SquareMaxel[" ++ show dim ++ "](" ++ show (treeToList es) ++ ")"
-
-||| A MaxelN is a dimension-indexed square discrete matrix of dimension `n` x `n`,
-||| holding an n-vector of n-vector BoxInt weights for unrolled 2LTT staging.
-public export
-record MaxelN (n : Nat) where
-  constructor MkMaxelN
-  rows : Vect n (Vect n BoxInt)
-
-public export
-Eq (MaxelN n) where
-  (MkMaxelN m1) == (MkMaxelN m2) = m1 == m2
-
-public export
-{n : Nat} -> Show (MaxelN n) where
-  show (MkMaxelN m) = "Maxel" ++ show n ++ "x" ++ show n ++ "(" ++ show m ++ ")"
-
-||| Constructor for 2x2 MaxelN (single qubit unitary gate).
-public export
-mkMaxel2 : BoxInt -> BoxInt -> BoxInt -> BoxInt -> MaxelN 2
-mkMaxel2 m00 m01 m10 m11 = MkMaxelN [[m00, m01], [m10, m11]]
-
-||| Constructor for 4x4 MaxelN (two-qubit unitary gate).
-public export
-mkMaxel4 : Vect 4 (Vect 4 BoxInt) -> MaxelN 4
-mkMaxel4 rs = MkMaxelN rs
-
-||| 2LTT Staged MaxelN-VexelN Contraction:
-public export
-stagedMaxelNVec : {n : Nat} -> Lift (MaxelN n) -> VexelN n -> Code (VexelN n)
-stagedMaxelNVec qm (MkVexelN v) = quote (MkVexelN (stagedUnrollMatVec (rows (splice qm)) v))
-
-||| 2LTT Staged MaxelN Matrix Multiplication:
-public export
-stagedMaxelNMul : {n : Nat} -> Lift (MaxelN n) -> Lift (MaxelN n) -> Code (MaxelN n)
-stagedMaxelNMul qm1 qm2 = quote (MkMaxelN (stagedUnrollMatMul (rows (splice qm1)) (rows (splice qm2))))
-
-||| 2LTT Staged MaxelN Identity Matrix of dimension n:
-public export
-stagedIdentityMaxelN : (n : Nat) -> MaxelN n
-stagedIdentityMaxelN n = MkMaxelN (stagedIdentityMat n)
-
-||| 2LTT Staged MaxelN Power in O(log exp) repeated squarings:
-public export
-stagedMaxelNPower : (fuel : Nat) -> {n : Nat} -> Lift (MaxelN n) -> Nat -> Code (MaxelN n)
-stagedMaxelNPower fuel qm exp = quote (MkMaxelN (stagedFastMatPower fuel (rows (splice qm)) exp))
+------------------------------------------------------------------------
+-- 2. DIMENSION-INDEXED TYPED MATRIX (MaxelN - Provided by CellMultiset)
+------------------------------------------------------------------------
 
 ------------------------------------------------------------------------
 -- 3. SPARSE-DENSE MATRIX-VECTOR CONTRACTIONS

@@ -10,7 +10,7 @@ import Stage0.BoxInt
 import Stage0.BoxNat
 import Stage0.Multiset
 import Stage0.OnSeq.FusedStream
-import public Stage1.Basis.Coordinate
+import public Stage1.Basis.CoordCell
 import Data.Vect
 
 %default total

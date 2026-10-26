@@ -96,37 +96,13 @@ multisetToVexel m = mkCellMultiset (multisetToList m)
 
 
 ------------------------------------------------------------------------
--- 3. DIMENSION-INDEXED TYPED VEXEL (VexelN)
+-- 3. DIMENSION-INDEXED TYPED VEXEL (VexelN - Provided by CellMultiset)
 ------------------------------------------------------------------------
-
-||| A VexelN is a dimension-indexed discrete vector of dimension `n`,
-||| holding `n` BoxInt scalar weights for unrolled 2LTT staging.
-public export
-record VexelN (n : Nat) where
-  constructor MkVexelN
-  components : Vect n BoxInt
-
-public export
-Eq (VexelN n) where
-  (MkVexelN v1) == (MkVexelN v2) = v1 == v2
-
-public export
-{n : Nat} -> Show (VexelN n) where
-  show (MkVexelN v) = "Vexel" ++ show n ++ "(" ++ show v ++ ")"
-
-||| Constructor for 2-dimensional VexelN (single qubit state vector).
-public export
-mkVexel2 : BoxInt -> BoxInt -> VexelN 2
-mkVexel2 v0 v1 = MkVexelN [v0, v1]
-
-||| Constructor for 4-dimensional VexelN (two-qubit state vector).
-public export
-mkVexel4 : BoxInt -> BoxInt -> BoxInt -> BoxInt -> VexelN 4
-mkVexel4 v0 v1 v2 v3 = MkVexelN [v0, v1, v2, v3]
 
 ------------------------------------------------------------------------
 -- 4. POINT LOOKUP, TOTAL MASS & ALGEBRAIC OPERATIONS
 ------------------------------------------------------------------------
+
 
 ||| Lookups the signed BoxInt weight of a basis Unixel in O(log N) time.
 public export
@@ -246,46 +222,9 @@ vexelToSparseVexel : Vexel -> SparseVexel
 vexelToSparseVexel v = MkSparseVexel (vexelToTree v)
 
 ------------------------------------------------------------------------
--- 6. VEXELN CONVERSION BRIDGES
+-- 6. VEXELN CONVERSION BRIDGES (Provided by CellMultiset)
 ------------------------------------------------------------------------
 
-vectToUnixelPairsHelper : Nat -> Vect k BoxInt -> List (Unixel, BoxInt)
-vectToUnixelPairsHelper _ [] = []
-vectToUnixelPairsHelper idx (w :: ws) = (mkUnixel idx, w) :: vectToUnixelPairsHelper (S idx) ws
-
-||| Converts a dimension-indexed VexelN into a canonical sparse multiset Vexel (1-indexed).
-public export
-vexelNToVexel : {n : Nat} -> VexelN n -> Vexel
-vexelNToVexel (MkVexelN comps) = canonicalizeVexel (MkVexel (vectToUnixelPairsHelper 1 comps))
-
-||| Converts a dimension-indexed VexelN into a 0-indexed sparse multiset Vexel (quantum basis).
-public export
-vexelNToVexel0 : {n : Nat} -> VexelN n -> Vexel
-vexelNToVexel0 (MkVexelN comps) = canonicalizeVexel (MkVexel (vectToUnixelPairsHelper 0 comps))
-
-||| Converts a sparse multiset Vexel into a dimension-indexed VexelN (0-indexed).
-public export
-vexelToVexelN : (n : Nat) -> Vexel -> VexelN n
-vexelToVexelN n v =
-  MkVexelN (generateComponents 0 n)
-  where
-    generateComponents : Nat -> (k : Nat) -> Vect k BoxInt
-    generateComponents _ Z = []
-    generateComponents idx (S rem) =
-      let w = lookupUnixel (mkUnixel idx) v
-      in w :: generateComponents (S idx) rem
-
-||| Converts a sparse multiset Vexel into a dimension-indexed VexelN (1-indexed).
-public export
-vexelToVexelN1 : (n : Nat) -> Vexel -> VexelN n
-vexelToVexelN1 n v =
-  MkVexelN (generateComponents 1 n)
-  where
-    generateComponents : Nat -> (k : Nat) -> Vect k BoxInt
-    generateComponents _ Z = []
-    generateComponents idx (S rem) =
-      let w = lookupUnixel (mkUnixel idx) v
-      in w :: generateComponents (S idx) rem
 
 public export
 vexelNToSparseVexel : {n : Nat} -> VexelN n -> SparseVexel
