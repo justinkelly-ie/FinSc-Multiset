@@ -189,39 +189,9 @@ maxelNToSquareMaxel {dim} (MkMaxelN rs) =
 -- 4. SIGNED DIMENSION-INDEXED SPARSE MATRIX (Provided by CellMultiset)
 ------------------------------------------------------------------------
 
-||| Converts a BoxSquareMaxel into a typed MultisetTensor over natural coordinates.
-public export
-boxSquareMaxelToTensor : BoxSquareMaxel dim -> MultisetTensor Nat Nat
-boxSquareMaxelToTensor (MkBoxSquareMaxel tree) =
-  foldBoxTreeR (\p, w, acc => AddM (pixelRow p, pixelCol p) w acc) ZeroM tree
-
-||| Reconstructs a sparse BoxSquareMaxel from an observed MultisetTensor Pixel.
-public export
-tensorToBoxSquareMaxel : {dim : Nat} -> Multiset BoxInt Pixel -> BoxSquareMaxel dim
-tensorToBoxSquareMaxel tensor =
-  MkBoxSquareMaxel (foldMultiset (\p, w, tree => setBoxTree p w tree) BoxLeaf tensor)
-
-||| Converts a general Maxel into a typed MultisetTensor over natural coordinates.
-public export
-maxelToTensor : Maxel -> MultisetTensor Nat Nat
-maxelToTensor tree =
-  foldBoxTreeR (\p, w, acc => AddM (pixelRow p, pixelCol p) w acc) ZeroM tree
 
 
-||| Reconstructs a general Maxel from a MultisetTensor over natural coordinates.
-public export
-tensorToMaxel : MultisetTensor Nat Nat -> Maxel
-tensorToMaxel tensor =
-  MkMaxelTree (foldMultiset (\(r, c), w, tree =>
-                 if boxIsZero w then tree
-                 else let p = mkPixel r c
-                          cur = lookupBoxTree p tree
-                          newW = cur + w
-                      in if boxIsZero newW
-                           then setBoxTree p (intToBoxInt 0) tree
-                           else setBoxTree p newW tree)
-                 BoxLeaf
-                 tensor)
+
 
 ||| Algebraic Kronecker Tensor Product on BoxSquareMaxel:
 public export
@@ -605,26 +575,6 @@ maxelNToMaxel (MkMaxelN rs) = canonicalizeMaxel (MkMaxel (matToPixelPairsHelper 
 public export
 maxelNToMaxel0 : {n : Nat} -> MaxelN n -> Maxel
 maxelNToMaxel0 (MkMaxelN rs) = canonicalizeMaxel (MkMaxel (matToPixelPairsHelper 0 0 rs))
-
-||| Kronecker tensor product of two dimension-indexed MaxelN square matrices: MaxelN (n * m).
-public export
-kroneckerMaxelN : {n, m : Nat} -> MaxelN n -> MaxelN m -> MaxelN (n * m)
-kroneckerMaxelN (MkMaxelN rowsA) (MkMaxelN rowsB) =
-  let blockRows : Vect n (Vect m (Vect (n * m) BoxInt))
-      blockRows = map (\ra => map (\rb => kroneckerVect ra rb) rowsB) rowsA
-  in MkMaxelN (concat blockRows)
-
-||| 2LTT Staged Kronecker tensor product of two MaxelN square matrices at Stage 1.
-public export
-stagedKroneckerMaxelN : {n, m : Nat} -> Lift (MaxelN n) -> Lift (MaxelN m) -> Code (MaxelN (n * m))
-stagedKroneckerMaxelN qm1 qm2 = quote (kroneckerMaxelN (splice qm1) (splice qm2))
-
-||| Wildberger multiple-spread companion transfer matrix M(s) = [[2 - 4s, -1], [1, 0]] in MaxelN 2.
-public export
-companionSpreadMaxelN2 : BoxInt -> MaxelN 2
-companionSpreadMaxelN2 s =
-  let diag = subBox (intToBoxInt 2) (mulBox (intToBoxInt 4) s)
-  in mkMaxel2 diag (intToBoxInt (-1)) (intToBoxInt 1) (intToBoxInt 0)
 
 ||| @deprecated Use canonicalizeCellMultiset directly on CellMultiset trees.
 public export

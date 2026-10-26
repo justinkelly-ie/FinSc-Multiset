@@ -11,6 +11,7 @@ import Stage1.TypeTheory.Staging
 import public Stage0.OnSeq.FusedStream
 import public Stage1.MultisetTree
 import public Stage1.Basis.CoordCell
+import public Stage1.MultisetTensor
 
 %default total
 
@@ -708,4 +709,73 @@ kroneckerBoxSquareMaxel {m} {n} (MkBoxSquareMaxel t1) (MkBoxSquareMaxel t2) =
 public export
 stagedKroneckerBoxSquareMaxel : {m, n : Nat} -> Lift (BoxSquareMaxel m) -> Lift (BoxSquareMaxel n) -> Code (BoxSquareMaxel (m * n))
 stagedKroneckerBoxSquareMaxel qm1 qm2 = quote (kroneckerBoxSquareMaxel (splice qm1) (splice qm2))
+
+||| Multiplies two Vect BoxInt vectors via Kronecker tensor product: Vect (n * m) BoxInt.
+public export
+kroneckerVect : {n, m : Nat} -> Vect n BoxInt -> Vect m BoxInt -> Vect (n * m) BoxInt
+kroneckerVect u v = concat (map (\x => map (mulBox x) v) u)
+
+||| Kronecker tensor product of two dimension-indexed VexelN vectors: VexelN (n * m).
+public export
+kroneckerVexelN : {n, m : Nat} -> VexelN n -> VexelN m -> VexelN (n * m)
+kroneckerVexelN (MkVexelN u) (MkVexelN v) = MkVexelN (kroneckerVect u v)
+
+||| 2LTT Staged Kronecker tensor product of two VexelN vectors at Stage 1.
+public export
+stagedKroneckerVexelN : {n, m : Nat} -> Lift (VexelN n) -> Lift (VexelN m) -> Code (VexelN (n * m))
+stagedKroneckerVexelN qv1 qv2 = quote (kroneckerVexelN (splice qv1) (splice qv2))
+
+||| Kronecker tensor product of two dimension-indexed MaxelN square matrices: MaxelN (n * m).
+public export
+kroneckerMaxelN : {n, m : Nat} -> MaxelN n -> MaxelN m -> MaxelN (n * m)
+kroneckerMaxelN (MkMaxelN rowsA) (MkMaxelN rowsB) =
+  let blockRows : Vect n (Vect m (Vect (n * m) BoxInt))
+      blockRows = map (\ra => map (\rb => kroneckerVect ra rb) rowsB) rowsA
+  in MkMaxelN (concat blockRows)
+
+||| 2LTT Staged Kronecker tensor product of two MaxelN square matrices at Stage 1.
+public export
+stagedKroneckerMaxelN : {n, m : Nat} -> Lift (MaxelN n) -> Lift (MaxelN m) -> Code (MaxelN (n * m))
+stagedKroneckerMaxelN qm1 qm2 = quote (kroneckerMaxelN (splice qm1) (splice qm2))
+
+||| Wildberger multiple-spread companion transfer matrix M(s) = [[2 - 4s, -1], [1, 0]] in MaxelN 2.
+public export
+companionSpreadMaxelN2 : BoxInt -> MaxelN 2
+companionSpreadMaxelN2 s =
+  let diag = subBox (intToBoxInt 2) (mulBox (intToBoxInt 4) s)
+  in mkMaxel2 diag (intToBoxInt (-1)) (intToBoxInt 1) (intToBoxInt 0)
+
+||| Converts a BoxSquareMaxel into a MultisetTensor over natural coordinate pairs.
+public export
+boxSquareMaxelToTensor : {dim : Nat} -> BoxSquareMaxel dim -> Multiset BoxInt (Nat, Nat)
+boxSquareMaxelToTensor (MkBoxSquareMaxel tree) =
+  foldBoxTreeR (\p, w, acc => AddM (pixelRow p, pixelCol p) w acc) ZeroM tree
+
+||| Reconstructs a sparse BoxSquareMaxel from an observed MultisetTensor Pixel.
+public export
+tensorToBoxSquareMaxel : {dim : Nat} -> Multiset BoxInt Pixel -> BoxSquareMaxel dim
+tensorToBoxSquareMaxel tensor =
+  MkBoxSquareMaxel (foldMultiset (\p, w, tree => setBoxTree p w tree) BoxLeaf tensor)
+
+||| Converts a general Maxel into a typed MultisetTensor over natural coordinates.
+public export
+maxelToTensor : Maxel -> MultisetTensor Nat Nat
+maxelToTensor tree =
+  foldBoxTreeR (\p, w, acc => AddM (pixelRow p, pixelCol p) w acc) ZeroM tree
+
+||| Reconstructs a general Maxel from a MultisetTensor over natural coordinates.
+public export
+tensorToMaxel : MultisetTensor Nat Nat -> Maxel
+tensorToMaxel tensor =
+  foldMultiset (\(r, c), w, tree =>
+                 if boxIsZero w then tree
+                 else let p = mkPixel r c
+                          cur = lookupBoxTree p tree
+                          newW = cur + w
+                      in if boxIsZero newW
+                           then setBoxTree p (intToBoxInt 0) tree
+                           else setBoxTree p newW tree)
+                BoxLeaf
+                tensor
+
 

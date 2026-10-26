@@ -243,15 +243,7 @@ lookupSparseVexel u (MkSparseVexel t) = natToBoxInt (lookupTokenTree u t)
 -- DIMENSION-MULTIPLYING KRONECKER TENSOR OPERATORS (RULE 03 & 2LTT)
 ------------------------------------------------------------------------
 
-||| Multiplies two Vect BoxInt vectors via Kronecker tensor product: Vect (n * m) BoxInt.
-public export
-kroneckerVect : {n, m : Nat} -> Vect n BoxInt -> Vect m BoxInt -> Vect (n * m) BoxInt
-kroneckerVect u v = concat (map (\x => map (mulBox x) v) u)
 
-||| Kronecker tensor product of two dimension-indexed VexelN vectors: VexelN (n * m).
-public export
-kroneckerVexelN : {n, m : Nat} -> VexelN n -> VexelN m -> VexelN (n * m)
-kroneckerVexelN (MkVexelN u) (MkVexelN v) = MkVexelN (kroneckerVect u v)
 
 ||| @deprecated Use canonicalizeCellMultiset directly on CellMultiset trees.
 public export
