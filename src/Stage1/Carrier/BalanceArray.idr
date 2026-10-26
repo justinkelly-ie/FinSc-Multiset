@@ -8,7 +8,6 @@ import Stage1.Order.Preorder
 import Data.List
 import Data.Vect
 import public Stage1.Basis.Coordinate
-import public Stage1.Carrier.Vexel
 
 %default total
 
@@ -49,18 +48,18 @@ Show (BalanceArray n) where
 ||| Computes a linear combination of Vexels weighted by natural numbers.
 public export
 linearComboVexel : {n : Nat} -> Vect n Nat -> Vect n Vexel -> Vexel
-linearComboVexel [] [] = MkVexel []
+linearComboVexel [] [] = emptyCellMultiset
 linearComboVexel (c :: cs) (v :: vs) =
-  let scaled = scaleVexel (intToBoxInt (cast c)) v
+  let scaled = scaleCellMultiset (intToBoxInt (cast c)) v
       rest   = linearComboVexel cs vs
-  in addVexel scaled rest
+  in addCellMultiset scaled rest
 
 ||| Evaluates the positive and negative sides of a BalanceArray over a list of Vexels: (posVex, negVex).
 public export
 evalVexelBalance : {n : Nat} -> Vect n Vexel -> BalanceArray n -> (Vexel, Vexel)
 evalVexelBalance vexels (MkBalanceArray posW negW) =
-  (canonicalizeVexel (linearComboVexel posW vexels),
-   canonicalizeVexel (linearComboVexel negW vexels))
+  (canonicalizeCellMultiset (linearComboVexel posW vexels),
+   canonicalizeCellMultiset (linearComboVexel negW vexels))
 
 ||| A BalanceArray is balanced when its positive side equals its negative side in canonical multiset form.
 public export
@@ -87,8 +86,8 @@ isNonTrivialBalance (MkBalanceArray posW negW) =
 public export
 find2VexelBalance : Vexel -> Vexel -> Maybe (BalanceArray 2)
 find2VexelBalance v1 v2 =
-  let m1 = totalVexelMass v1
-      m2 = totalVexelMass v2
+  let m1 = totalCellMultisetWeight v1
+      m2 = totalCellMultisetWeight v2
       zero = intToBoxInt 0
   in if m1 <= zero || m2 <= zero
        then Nothing
