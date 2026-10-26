@@ -543,10 +543,6 @@ boxTreeToList : BoxMultisetTree a -> List (a, BoxInt)
 boxTreeToList tree = foldBoxTreeR (\x, c, acc => if boxIsNonZero c then (x, c) :: acc else acc) [] tree
 
 public export
-Eq a => Eq (BoxMultisetTree a) where
-  t1 == t2 = boxTreeToList t1 == boxTreeToList t2
-
-public export
 Show a => Show (BoxMultisetTree a) where
   show t = "BoxMultisetTree(" ++ show (boxTreeToList t) ++ ")"
 
@@ -580,6 +576,27 @@ public export
 boxTreeSize : BoxMultisetTree a -> Nat
 boxTreeSize BoxLeaf = 0
 boxTreeSize (BoxNode _ l _ _ r) = S (boxTreeSize l + boxTreeSize r)
+
+||| Evaluates the number of active non-zero weight nodes in a BoxMultisetTree with zero allocations.
+public export
+treeSizeNonZero : BoxMultisetTree a -> Nat
+treeSizeNonZero = foldBoxTreeL (\acc, (_, w) => if boxIsNonZero w then S acc else acc) 0
+
+||| Zero-allocation equality comparison between two BoxMultisetTrees via deforested lockstep streaming.
+public export
+boxTreeEqual : Eq a => BoxMultisetTree a -> BoxMultisetTree a -> Bool
+boxTreeEqual t1 t2 =
+  let sz1 = treeSizeNonZero t1
+      sz2 = treeSizeNonZero t2
+  in if sz1 /= sz2 then False
+     else if sz1 == 0 then True
+     else eqStreamNat ((boxTreeSize t1 + boxTreeSize t2 + 16) * 4)
+                      (streamBoxMultisetTree t1)
+                      (streamBoxMultisetTree t2)
+
+public export
+Eq a => Eq (BoxMultisetTree a) where
+  (==) = boxTreeEqual
 
 ||| Audit witness verifying BoxMultisetTree O(log N) lookup and streaming.
 public export

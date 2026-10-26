@@ -142,6 +142,36 @@ public export
 runFueledStreamFuelModel : GohFuel cap -> FusedStream a -> List a
 runFueledStreamFuelModel fuel = runFueledStreamNat (gohSteps fuel)
 
+||| Zero-allocation lockstep equality comparison between two FusedStreams with structural Nat fuel.
+public export
+eqStreamNat : (Eq a) => Nat -> FusedStream a -> FusedStream a -> Bool
+eqStreamNat fuel (MkStream {s = s1} step1 seed1) (MkStream {s = s2} step2 seed2) =
+  loop fuel seed1 seed2
+  where
+    loop : Nat -> s1 -> s2 -> Bool
+    loop Z _ _ = False
+    loop (S f) st1 st2 =
+      case step1 st1 of
+        Skip st1' => loop f st1' st2
+        Done =>
+          case step2 st2 of
+            Done => True
+            Skip st2' => loop f st1 st2'
+            Yield _ _ => False
+        Yield x1 st1' =>
+          case step2 st2 of
+            Skip st2' => loop f st1 st2'
+            Done => False
+            Yield x2 st2' =>
+              if x1 == x2 then loop f st1' st2' else False
+
+||| Model-indexed GohFuel stream equality comparison.
+public export
+%inline
+eqStreamFuelModel : (Eq a) => GohFuel cap -> FusedStream a -> FusedStream a -> Bool
+eqStreamFuelModel fuel = eqStreamNat (gohSteps fuel)
+
+
 ------------------------------------------------------------------------
 -- DEFORESTED STREAM FUSION COMBINATOR LIBRARY
 ------------------------------------------------------------------------
