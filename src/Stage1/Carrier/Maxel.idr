@@ -298,27 +298,6 @@ implementation MultisetAlgebra Vexel where
 
 
 
-||| 2D Blue (Elliptic/Euclidean) Metric Maxel parameterized by (x, y):
-public export
-parameterizedBlueMetricMaxel : BoxInt -> BoxInt -> Maxel
-parameterizedBlueMetricMaxel x y =
-  singletonCell (mkPixel 1 1) (x * x) <+>
-  singletonCell (mkPixel 2 2) (y * y)
-
-||| 2D Red (Hyperbolic/Relativistic) Metric Maxel parameterized by (x, y):
-public export
-parameterizedRedMetricMaxel : BoxInt -> BoxInt -> Maxel
-parameterizedRedMetricMaxel x y =
-  singletonCell (mkPixel 1 1) (x * x) <+>
-  singletonCell (mkPixel 2 2) (mulBox (intToBoxInt (-1)) (y * y))
-
-||| 2D Green (Parabolic/Null) Metric Maxel parameterized by (x, y):
-public export
-parameterizedGreenMetricMaxel : BoxInt -> BoxInt -> Maxel
-parameterizedGreenMetricMaxel x y =
-  let xy = x * y
-  in singletonCell (mkPixel 1 2) xy <+>
-     singletonCell (mkPixel 2 1) xy
 
 ||| Invariant audit verifying the parameterized chromogeometric operator identity:
 public export
@@ -437,17 +416,6 @@ auditParameterizedSquareMetricOperatorIdentity x y =
       rhsExpected = scaleSquareMaxel qBlue gB
   in lhsSum == rhsExpected
 
-public export
-blueMetricMaxel2D : Maxel
-blueMetricMaxel2D = parameterizedBlueMetricMaxel (intToBoxInt 1) (intToBoxInt 1)
-
-public export
-redMetricMaxel2D : Maxel
-redMetricMaxel2D = parameterizedRedMetricMaxel (intToBoxInt 1) (intToBoxInt 1)
-
-public export
-greenMetricMaxel2D : Maxel
-greenMetricMaxel2D = parameterizedGreenMetricMaxel (intToBoxInt 1) (intToBoxInt 1)
 
 public export
 auditChromogeometricMetricSupportsProof : Bool
