@@ -221,10 +221,6 @@ stagedKroneckerBoxSquareMaxel qm1 qm2 = quote (kroneckerBoxSquareMaxel (splice q
 ------------------------------------------------------------------------
 
 
-||| Lookups the signed BoxInt weight of a coordinate Pixel in O(log N) time.
-public export
-lookupPixel : Pixel -> Maxel -> BoxInt
-lookupPixel p t = lookupBoxTree p t
 
 ||| Adds two Maxels and consolidates duplicate coordinates directly via BoxMultisetTree in O(N log N).
 public export

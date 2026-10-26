@@ -104,10 +104,6 @@ multisetToVexel m = mkCellMultiset (multisetToList m)
 ------------------------------------------------------------------------
 
 
-||| Lookups the signed BoxInt weight of a basis Unixel in O(log N) time.
-public export
-lookupUnixel : Unixel -> Vexel -> BoxInt
-lookupUnixel u t = lookupBoxTree u t
 
 ||| Computes the total integer mass of a Vexel vector via in-order tree fold in O(N).
 public export

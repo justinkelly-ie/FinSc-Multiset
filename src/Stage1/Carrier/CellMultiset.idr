@@ -116,6 +116,16 @@ public export Maxel       : Type; Maxel       = CellMultiset 2
 public export Boxel       : Type; Boxel       = CellMultiset 3
 public export HyperBoxel  : Type; HyperBoxel  = CellMultiset 4
 
+||| Lookups the signed BoxInt weight of a coordinate Pixel in O(log N) time.
+public export
+lookupPixel : Pixel -> Maxel -> BoxInt
+lookupPixel = lookupCellMultiset
+
+||| Lookups the signed BoxInt weight of a coordinate Unixel in O(log N) time.
+public export
+lookupUnixel : Unixel -> Vexel -> BoxInt
+lookupUnixel = lookupCellMultiset
+
 ||| Universal tree field identity projection for backwards compatibility with (.tree).
 public export
 tree : CellMultiset dim -> CellMultiset dim
