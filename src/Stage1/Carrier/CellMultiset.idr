@@ -126,6 +126,11 @@ public export
 lookupUnixel : Unixel -> Vexel -> BoxInt
 lookupUnixel = lookupCellMultiset
 
+public export totalVexelMass : Vexel -> BoxInt; totalVexelMass = totalCellMultisetWeight
+public export totalVexelWeight : Vexel -> BoxInt; totalVexelWeight = totalCellMultisetWeight
+public export totalMaxelWeight : Maxel -> BoxInt; totalMaxelWeight = totalCellMultisetWeight
+public export totalBoxelWeight : Boxel -> BoxInt; totalBoxelWeight = totalCellMultisetWeight
+
 ||| Universal tree field identity projection for backwards compatibility with (.tree).
 public export
 tree : CellMultiset dim -> CellMultiset dim

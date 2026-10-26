@@ -4,7 +4,6 @@ import Stage0.BoxInt
 import Stage0.SignedFraction
 import Stage0.StructuralFuel
 import public Stage1.Basis.Coordinate
-import Stage1.Carrier.Vexel
 import Stage0.Multiset
 import Stage1.Order.Preorder
 

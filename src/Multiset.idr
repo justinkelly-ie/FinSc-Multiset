@@ -20,9 +20,7 @@ import public Stage0.OnSeq.FusedStream
 import public Stage0.OnSeq.OnMSet
 
 import public Stage1.Basis.Coordinate
-import public Stage1.Carrier.Vexel
-import public Stage1.Carrier.Maxel
-import public Stage1.Carrier.Boxel
+import public Stage1.Carrier.CellMultiset
 import public Stage1.Carrier.BalanceArray
 import public Stage1.UnixelFraction
 
