@@ -89,6 +89,18 @@ public export
 streamPolyAdd : StreamPolynumber -> StreamPolynumber -> StreamPolynumber
 streamPolyAdd = appendStream
 
+||| Polynomial subtraction via deforested scaled stream concatenation: P1 - P2 = P1 + (-1) * P2.
+public export
+streamPolySub : StreamPolynumber -> StreamPolynumber -> StreamPolynumber
+streamPolySub p1 p2 = streamPolyAdd p1 (streamPolyScale (intToBoxInt (-1)) p2)
+
+||| Deforested monomial degree shift: x^k * P(x) = sum c_i * x^(i + k).
+||| Executes in O(1) auxiliary registers without allocating polynomial terms.
+public export
+streamPolyShiftDegree : (shift : Nat) -> StreamPolynumber -> StreamPolynumber
+streamPolyShiftDegree Z p = p
+streamPolyShiftDegree k p = mapStream (\(d, c) => (d + k, c)) p
+
 ||| Standard Cauchy multiplication (convolution of monomial terms):
 ||| (c_a * x^a) * (c_b * x^b) = (c_a * c_b) * x^(a + b).
 public export
@@ -186,3 +198,12 @@ auditStreamPolyEddingtonScaleProof =
       dm38 = streamPolyDeriv m38
       dTerms = streamPolyToListNat 5 dm38
   in supp == [38] && dTerms == [(37, MkBoxInt 38)]
+
+||| Verifies deforested monomial degree shift: (3 x^2 + 5 x + 7) * x = 3 x^3 + 5 x^2 + 7 x.
+public export
+auditStreamPolyShiftDegreeProof : Bool
+auditStreamPolyShiftDegreeProof =
+  let p = streamPolyFromList [(2, MkBoxInt 3), (1, MkBoxInt 5), (0, MkBoxInt 7)]
+      pShifted = streamPolyShiftDegree 1 p
+      res = streamPolyToListNat 10 pShifted
+  in res == [(3, MkBoxInt 3), (2, MkBoxInt 5), (1, MkBoxInt 7)]
