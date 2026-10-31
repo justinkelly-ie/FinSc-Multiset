@@ -736,6 +736,46 @@ auditBoxMultisetTreeProof =
   in v10 == intToBoxInt 5 && vm3 == intToBoxInt (-2) && v0 == intToBoxInt 0 &&
      elems == [(-3, intToBoxInt (-2)), (10, intToBoxInt 5)]
 
+------------------------------------------------------------------------
+-- 8. ZERO-ALLOCATION MULTISETTREE & BOXMULTISETTREE STREAMING BRIDGES
+------------------------------------------------------------------------
+
+||| Converts a Nat-counted MultisetTree to a signed BoxMultisetTree via deforested streaming in O(N) time.
+public export
+multisetTreeToBoxTree : Ord a => MultisetTree a -> BoxMultisetTree a
+multisetTreeToBoxTree tree =
+  foldStream (\acc, (x, cnt) => setBoxTree x (natToBoxInt cnt) acc)
+             BoxLeaf
+             (streamMultisetTreeDirect tree)
+
+||| Converts a non-negative BoxMultisetTree to a MultisetTree via deforested streaming in O(N) time.
+public export
+boxTreeToMultisetTree : Ord a => BoxMultisetTree a -> MultisetTree a
+boxTreeToMultisetTree tree =
+  foldStream (\acc, (x, w) => insertTokenTree x (boxToNat w) acc)
+             Leaf
+             (streamBoxMultisetTree tree)
+
+||| Audit witness verifying that round-tripping a MultisetTree through BoxMultisetTree preserves multiset structure.
+public export
+auditTreeBridgeRoundtripProof : Bool
+auditTreeBridgeRoundtripProof =
+  let t0 : MultisetTree BoxInt = Leaf
+      t1 = insertTokenTree (intToBoxInt 10) 5 t0
+      t2 = insertTokenTree (intToBoxInt 20) 3 t1
+      bTree = multisetTreeToBoxTree t2
+      t3 = boxTreeToMultisetTree bTree
+  in treeTokenSum t3 == 8 &&
+     treeElementCount t3 == 2 &&
+     lookupTokenTree (intToBoxInt 10) t3 == 5 &&
+     lookupTokenTree (intToBoxInt 20) t3 == 3
+
+public export
+%macro
+auditTreeBridgeRoundtrip : Elab (Stage1.MultisetTree.auditTreeBridgeRoundtripProof = True)
+auditTreeBridgeRoundtrip = pure Refl
+
+
 
 
 

@@ -500,3 +500,39 @@ public export
 0 prfStagedUnrollQuad2D : (c : CoordCell 2) ->
   splice (stagedUnrollQuadrance 2 (quote c)) = (coordAxis 0 c * coordAxis 0 c) + (coordAxis 1 c * coordAxis 1 c)
 prfStagedUnrollQuad2D _ = Refl
+
+------------------------------------------------------------------------
+-- 10. 2LTT STAGED DIVISOR & COMPANION SPREAD MATRIX PIPELINES
+------------------------------------------------------------------------
+
+||| 2LTT Staged Divisor Factorization: evaluates divisor decomposition at compile-time (Level 1)
+||| delivering a flat, unrolled list of harmonic divisors for runtime Level 0 execution without division.
+public export
+stagedDivisors : (n : Nat) -> Lift (List Nat)
+stagedDivisors n = quote (runFueledStreamNat (S n) (divisorStream n))
+
+||| 2LTT Staged 2x2 companion spread matrix power unrolled at compile time.
+||| M(s) = [ [2 - 4s, -1], [1, 0] ].
+public export
+stagedCompanionSpreadPower : (fuel : Nat) -> (power : Nat) -> (s : BoxInt) -> Lift (Vect 2 (Vect 2 BoxInt))
+stagedCompanionSpreadPower fuel power s =
+  let c11 = subBox (intToBoxInt 2) (mulBox (intToBoxInt 4) s)
+      mat : Vect 2 (Vect 2 BoxInt) =
+        [ [c11, intToBoxInt (-1)]
+        , [intToBoxInt 1, intToBoxInt 0]
+        ]
+  in quote (stagedFastMatPower fuel mat power)
+
+||| 2LTT Definitional Inverse Law: Splicing staged divisors definitionally equals direct evaluation.
+public export
+0 prfStagedDivisorsDefinitional : (n : Nat) ->
+  splice (stagedDivisors n) = runFueledStreamNat (S n) (divisorStream n)
+prfStagedDivisorsDefinitional _ = Refl
+
+||| 2LTT Definitional Inverse Law: Splicing staged companion power definitionally equals direct evaluation.
+public export
+0 prfStagedCompanionSpreadPowerDefinitional : (fuel, p : Nat) -> (s : BoxInt) ->
+  splice (stagedCompanionSpreadPower fuel p s) =
+    stagedFastMatPower fuel [ [subBox (intToBoxInt 2) (mulBox (intToBoxInt 4) s), intToBoxInt (-1)]
+                            , [intToBoxInt 1, intToBoxInt 0] ] p
+prfStagedCompanionSpreadPowerDefinitional _ _ _ = Refl

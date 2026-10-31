@@ -7,6 +7,7 @@ import public Stage0.OnSeq.FusedStream
 import Data.Nat
 import Data.List
 import Data.Maybe
+import public Data.DPair
 
 %default total
 
@@ -144,6 +145,16 @@ SmoothDimension bound = Dimension bound
 public export
 certifiedDimension : (bound : Nat) -> (n : Nat) -> {auto prf : SmoothWitness bound n} -> Dimension bound
 certifiedDimension bound n {prf} = (n ** prf)
+
+||| Zero-runtime-overhead subset dimension carrying QTT 0 erased smoothness evidence (Data.DPair.Subset).
+public export
+SubsetDimension : (bound : Nat) -> Type
+SubsetDimension bound = Subset Nat (SmoothWitness bound)
+
+||| Smart constructor for zero-runtime-overhead subset dimension with QTT 0 erased proof:
+public export
+elementDimension : (bound : Nat) -> (n : Nat) -> {auto 0 prf : SmoothWitness bound n} -> SubsetDimension bound
+elementDimension bound n {prf} = Element n prf
 
 public export
 {bound : Nat} -> Eq (Dimension bound) where
