@@ -82,17 +82,36 @@ balanceNode l x c r =
                          else rotateLeft l x c (rotateRight rl rx rc rr)
               else mkNode l x c r
 
+||| Structurally recursive in-order tree left fold accumulator.
+public export
+foldTreeL : (b -> (a, Nat) -> b) -> b -> MultisetTree a -> b
+foldTreeL _ acc Leaf = acc
+foldTreeL f acc (Node _ l x c r) =
+  let accL = foldTreeL f acc l
+      accNode = f accL (x, c)
+  in foldTreeL f accNode r
+
+||| Structurally recursive in-order tree right fold accumulator.
+public export
+foldTreeR : (a -> Nat -> b -> b) -> b -> MultisetTree a -> b
+foldTreeR _ z Leaf = z
+foldTreeR f z (Node _ l x c r) =
+  foldTreeR f (f x c (foldTreeR f z r)) l
+
+||| Flattens a MultisetTree into a list of (element, multiplicity) pairs in linear O(N) time without (++) concatenations.
+public export
+treeToList : MultisetTree a -> List (a, Nat)
+treeToList tree = foldTreeR (\x, c, acc => (x, c) :: acc) [] tree
+
 ||| Returns the total number of distinct elements in the tree:
 public export
 treeElementCount : MultisetTree a -> Nat
-treeElementCount Leaf = Z
-treeElementCount (Node _ l _ _ r) = S (treeElementCount l + treeElementCount r)
+treeElementCount tree = foldTreeL (\acc, _ => S acc) Z tree
 
 ||| Returns the total multiplicity sum of all tokens in the tree:
 public export
 treeTokenSum : MultisetTree a -> Nat
-treeTokenSum Leaf = Z
-treeTokenSum (Node _ l _ c r) = c + treeTokenSum l + treeTokenSum r
+treeTokenSum tree = foldTreeL (\acc, (_, c) => acc + c) Z tree
 
 ||| Inserts a token with multiplicity count into the multiset tree with AVL rebalancing:
 public export
@@ -122,15 +141,10 @@ fromBoxMultiset : Ord a => Box a -> MultisetTree a
 fromBoxMultiset (MkBox items) =
   foldl (\acc, (x, w) => insertTokenTree x (boxToNat w) acc) Leaf items
 
-||| Converts a balanced MultisetTree back into a linear Box multiset:
+||| Converts a balanced MultisetTree back into a linear Box multiset in a single deforested O(N) pass:
 public export
 toBoxMultiset : Eq a => MultisetTree a -> Box a
-toBoxMultiset Leaf = emptyBox
-toBoxMultiset (Node _ l x c r) =
-  let leftBox = toBoxMultiset l
-      rightBox = toBoxMultiset r
-      nodeBox = unixelBox x (natToBoxInt c)
-  in unionBox (unionBox leftBox nodeBox) rightBox
+toBoxMultiset tree = MkBox (foldTreeR (\x, c, acc => (x, natToBoxInt c) :: acc) [] tree)
 
 ------------------------------------------------------------------------
 -- 2. ELABORATOR REFLECTION MACROS FOR MULTISETTREE
@@ -406,13 +420,6 @@ stepTreeCyclotomicInflux (MkTreeUniverseState ep vm de dm) n =
                          divStrm
   in MkTreeUniverseState (S ep) newVM de newDM
 
-||| Canonical alias for backwards compatibility:
-public export
-stepTreeGenesisInflux : (1 state : TreeUniverseState) ->
-                        (coordIndex : Nat) ->
-                        TreeUniverseState
-stepTreeGenesisInflux = stepTreeCyclotomicInflux
-
 ||| Streams N ticks of cyclotomic divisor influx from the empty vacuum into the tree universe state:
 public export
 streamCyclotomicInfluxN : (n : Nat) -> TreeUniverseState -> TreeUniverseState
@@ -420,11 +427,6 @@ streamCyclotomicInfluxN Z st = st
 streamCyclotomicInfluxN (S k) st =
   let st' = stepTreeCyclotomicInflux st k
   in streamCyclotomicInfluxN k st'
-
-||| Canonical alias for backwards compatibility:
-public export
-streamGenesisInfluxN : (n : Nat) -> TreeUniverseState -> TreeUniverseState
-streamGenesisInfluxN = streamCyclotomicInfluxN
 
 ||| Audits that discreteCubeRoot accurately extracts the manifest spatial dimension L = 3 from 27 cells:
 public export
@@ -451,32 +453,13 @@ auditEmergentCosmicObservationProof =
 public export
 runStreamingEmergenceSimulation : (n : Nat) -> Maybe EmergentCosmicObservation
 runStreamingEmergenceSimulation n =
-  observeEmergentCosmos (streamGenesisInfluxN n emptyTreeUniverseState)
+  observeEmergentCosmos (streamCyclotomicInfluxN n emptyTreeUniverseState)
 
 ------------------------------------------------------------------------
 -- 6. PARALLEL O(LOG N) MULTISETTREE STREAM PARTITIONING
 ------------------------------------------------------------------------
 
-||| Structurally recursive in-order tree left fold accumulator.
-public export
-foldTreeL : (b -> (a, Nat) -> b) -> b -> MultisetTree a -> b
-foldTreeL _ acc Leaf = acc
-foldTreeL f acc (Node _ l x c r) =
-  let accL = foldTreeL f acc l
-      accNode = f accL (x, c)
-  in foldTreeL f accNode r
 
-||| Structurally recursive in-order tree right fold accumulator.
-public export
-foldTreeR : (a -> Nat -> b -> b) -> b -> MultisetTree a -> b
-foldTreeR _ z Leaf = z
-foldTreeR f z (Node _ l x c r) =
-  foldTreeR f (f x c (foldTreeR f z r)) l
-
-||| Flattens a MultisetTree into a list of (element, multiplicity) pairs in linear O(N) time without (++) concatenations.
-public export
-treeToList : MultisetTree a -> List (a, Nat)
-treeToList tree = foldTreeR (\x, c, acc => (x, c) :: acc) [] tree
 
 ||| Traverses and pushes all left ancestor nodes of a subtree onto a search stack in O(log N) steps.
 public export
@@ -504,16 +487,6 @@ public export
 foldTreeStream : (b -> (a, Nat) -> b) -> b -> MultisetTree a -> b
 foldTreeStream f acc0 tree = foldStream f acc0 (streamMultisetTreeDirect tree)
 
-||| Evaluates a stream catamorphism fold in parallel across the left and right subtrees of a MultisetTree.
-public export
-fusedParallelTreeFold : Fuel -> (a -> Nat -> b -> b) -> b -> (b -> b -> b) -> MultisetTree a -> b
-fusedParallelTreeFold _ _ acc0 _ Leaf = acc0
-fusedParallelTreeFold f stepAcc acc0 combineBin (Node _ left key val right) =
-  let leftRes  = fusedParallelTreeFold f stepAcc acc0 combineBin left
-      rightRes = fusedParallelTreeFold f stepAcc acc0 combineBin right
-      nodeRes  = stepAcc key val acc0
-  in combineBin (combineBin leftRes nodeRes) rightRes
-
 ||| Evaluates a stream catamorphism fold in parallel across the left and right subtrees over Nat fuel.
 public export
 fusedParallelTreeFoldNat : Nat -> (a -> Nat -> b -> b) -> b -> (b -> b -> b) -> MultisetTree a -> b
@@ -523,6 +496,13 @@ fusedParallelTreeFoldNat n stepAcc acc0 combineBin (Node _ left key val right) =
       rightRes = fusedParallelTreeFoldNat n stepAcc acc0 combineBin right
       nodeRes  = stepAcc key val acc0
   in combineBin (combineBin leftRes nodeRes) rightRes
+
+||| Evaluates a stream catamorphism fold in parallel across the left and right subtrees of a MultisetTree.
+public export
+fusedParallelTreeFold : Fuel -> (a -> Nat -> b -> b) -> b -> (b -> b -> b) -> MultisetTree a -> b
+fusedParallelTreeFold Dry _ acc0 _ _ = acc0
+fusedParallelTreeFold (More _) stepAcc acc0 combineBin tree =
+  fusedParallelTreeFoldNat (boxNatToNat masterSubstrateGohFuel) stepAcc acc0 combineBin tree
 
 ||| Audit witness verifying parallel MultisetTree stream partition fold equivalence.
 public export
