@@ -92,7 +92,7 @@ composeInvertibleDepScaleTransform {d1} {d2} {d3} {a} {b} {c} z =
 ||| Static compile-time proof verifying that DepScaleTransform preserves identity definitionally.
 public export
 0 auditDepScaleTransformIdentityProof :
-  (depScaleTransform {sourceDim = Stage1.TypeTheory.Smoothness.dimElliptic27} {targetDim = Stage1.TypeTheory.Smoothness.dimElliptic27} (the Nat 137)) = the Nat 137
+  (depScaleTransform {sourceDim = Stage1.TypeTheory.Smoothness.dimElliptic} {targetDim = Stage1.TypeTheory.Smoothness.dimElliptic} (the Nat 137)) = the Nat 137
 auditDepScaleTransformIdentityProof = Refl
 
 ------------------------------------------------------------------------
@@ -101,47 +101,47 @@ auditDepScaleTransformIdentityProof = Refl
 
 ||| Möbius Unfolding Phase Transition: Elliptic 27 manifest space to Hyperbolic 128 spectral storage.
 public export
-DepScaleTransform Stage1.TypeTheory.Smoothness.dimElliptic27 Stage1.TypeTheory.Smoothness.dimHyperbolic128 BoxInt BoxInt where
+DepScaleTransform Stage1.TypeTheory.Smoothness.dimElliptic Stage1.TypeTheory.Smoothness.dimHyperbolic BoxInt BoxInt where
   depScaleTransform x = divBox (mulBox x (intToBoxInt 128)) (intToBoxInt 27)
 
 public export
-InvertibleDepScaleTransform Stage1.TypeTheory.Smoothness.dimElliptic27 Stage1.TypeTheory.Smoothness.dimHyperbolic128 BoxInt BoxInt where
+InvertibleDepScaleTransform Stage1.TypeTheory.Smoothness.dimElliptic Stage1.TypeTheory.Smoothness.dimHyperbolic BoxInt BoxInt where
   invertDepScaleTransform y = divBox (mulBox y (intToBoxInt 27)) (intToBoxInt 128)
 
 ||| Remainder Dissipation Drain: Hyperbolic 128 spectral space to Parabolic 55 dissipation sink.
 public export
-DepScaleTransform Stage1.TypeTheory.Smoothness.dimHyperbolic128 Stage1.TypeTheory.Smoothness.dimParabolic55 BoxInt BoxInt where
+DepScaleTransform Stage1.TypeTheory.Smoothness.dimHyperbolic Stage1.TypeTheory.Smoothness.dimParabolic BoxInt BoxInt where
   depScaleTransform x = divBox (mulBox x (intToBoxInt 55)) (intToBoxInt 128)
 
 public export
-InvertibleDepScaleTransform Stage1.TypeTheory.Smoothness.dimHyperbolic128 Stage1.TypeTheory.Smoothness.dimParabolic55 BoxInt BoxInt where
+InvertibleDepScaleTransform Stage1.TypeTheory.Smoothness.dimHyperbolic Stage1.TypeTheory.Smoothness.dimParabolic BoxInt BoxInt where
   invertDepScaleTransform y = divBox (mulBox y (intToBoxInt 128)) (intToBoxInt 55)
 
 ||| Primorial 210 Saturation: Elliptic 27 to Master Substrate Primorial 210 ground state.
 public export
-DepScaleTransform Stage1.TypeTheory.Smoothness.dimElliptic27 Stage1.TypeTheory.Smoothness.dimPrimorial210 BoxInt BoxInt where
+DepScaleTransform Stage1.TypeTheory.Smoothness.dimElliptic Stage1.TypeTheory.Smoothness.dimPrimorial BoxInt BoxInt where
   depScaleTransform x = divBox (mulBox x (intToBoxInt 210)) (intToBoxInt 27)
 
 public export
-InvertibleDepScaleTransform Stage1.TypeTheory.Smoothness.dimElliptic27 Stage1.TypeTheory.Smoothness.dimPrimorial210 BoxInt BoxInt where
+InvertibleDepScaleTransform Stage1.TypeTheory.Smoothness.dimElliptic Stage1.TypeTheory.Smoothness.dimPrimorial BoxInt BoxInt where
   invertDepScaleTransform y = divBox (mulBox y (intToBoxInt 27)) (intToBoxInt 210)
 
 ||| Observer Epoch Embedding: Observer dimension 39 (3 * 13) into Elliptic 27 lattice.
 public export
-DepScaleTransform Stage1.TypeTheory.Smoothness.dimObserver Stage1.TypeTheory.Smoothness.dimElliptic27 BoxInt BoxInt where
+DepScaleTransform Stage1.TypeTheory.Smoothness.dimObserver Stage1.TypeTheory.Smoothness.dimElliptic BoxInt BoxInt where
   depScaleTransform x = divBox (mulBox x (intToBoxInt 27)) (intToBoxInt 39)
 
 public export
-InvertibleDepScaleTransform Stage1.TypeTheory.Smoothness.dimObserver Stage1.TypeTheory.Smoothness.dimElliptic27 BoxInt BoxInt where
+InvertibleDepScaleTransform Stage1.TypeTheory.Smoothness.dimObserver Stage1.TypeTheory.Smoothness.dimElliptic BoxInt BoxInt where
   invertDepScaleTransform y = divBox (mulBox y (intToBoxInt 39)) (intToBoxInt 27)
 
 ||| Static compile-time proof verifying 27 -> 128 -> 55 composition on 270 BoxInt units:
 ||| (270 * 128 / 27) = 1280, (1280 * 55 / 128) = 550.
 public export
 0 auditComposedGeometryTransformProof :
-  composeDepScaleTransform {d1 = Stage1.TypeTheory.Smoothness.dimElliptic27}
-                           {d2 = Stage1.TypeTheory.Smoothness.dimHyperbolic128}
-                           {d3 = Stage1.TypeTheory.Smoothness.dimParabolic55}
+  composeDepScaleTransform {d1 = Stage1.TypeTheory.Smoothness.dimElliptic}
+                           {d2 = Stage1.TypeTheory.Smoothness.dimHyperbolic}
+                           {d3 = Stage1.TypeTheory.Smoothness.dimParabolic}
                            {b = BoxInt}
                            (intToBoxInt 270) = intToBoxInt 550
 auditComposedGeometryTransformProof = Refl

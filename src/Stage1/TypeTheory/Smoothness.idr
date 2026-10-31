@@ -146,6 +146,12 @@ public export
 certifiedDimension : (bound : Nat) -> (n : Nat) -> {auto prf : SmoothWitness bound n} -> Dimension bound
 certifiedDimension bound n {prf} = (n ** prf)
 
+||| Projection extracting the underlying natural capacity value of a Dimension:
+public export
+%inline
+dimensionValue : {bound : Nat} -> Dimension bound -> Nat
+dimensionValue (n ** _) = n
+
 ||| Zero-runtime-overhead subset dimension carrying QTT 0 erased smoothness evidence (Data.DPair.Subset).
 public export
 SubsetDimension : (bound : Nat) -> Type
@@ -299,6 +305,12 @@ public export
 CosmicDimension : Type
 CosmicDimension = Dimension CosmicSmoothHorizon
 
+||| Projection extracting the natural capacity value of a CosmicDimension:
+public export
+%inline
+cosmicDimensionValue : CosmicDimension -> Nat
+cosmicDimensionValue (n ** _) = n
+
 ||| Cosmological indexed dimension witness.
 public export
 CosmicDimensionWitness : (n : Nat) -> Type
@@ -317,43 +329,43 @@ contraSmooth137 p = case p of Refl impossible
 
 ||| Canonical validated manifest spatial dimension L = 3 (Sigma-pair).
 public export
-dimManifest3 : CosmicDimension
-dimManifest3 = certifiedDimension CosmicSmoothHorizon 3
+dimManifest : CosmicDimension
+dimManifest = certifiedDimension CosmicSmoothHorizon 3
 
-||| Canonical validated elliptic lattice capacity dimension 27 (Sigma-pair).
+||| Canonical validated elliptic lattice capacity dimension: 3^3 = 27 (Sigma-pair).
 public export
-dimElliptic27 : CosmicDimension
-dimElliptic27 = certifiedDimension CosmicSmoothHorizon 27
+dimElliptic : CosmicDimension
+dimElliptic = certifiedDimension CosmicSmoothHorizon (computeVMSize 3)
 
-||| Canonical validated observer epoch dimension 39 (Sigma-pair).
+||| Canonical validated observer epoch dimension: 39 = 3 * 13 (Sigma-pair).
 public export
 dimObserver : CosmicDimension
-dimObserver = certifiedDimension CosmicSmoothHorizon 39
+dimObserver = certifiedDimension CosmicSmoothHorizon (3 * CosmicSmoothHorizon)
 
-||| Canonical validated holographic boundary surface area dimension 54 (Sigma-pair).
+||| Canonical validated holographic boundary surface area dimension: 6 * L^2 = 54 (Sigma-pair).
 public export
-dimHolographic54 : CosmicDimension
-dimHolographic54 = certifiedDimension CosmicSmoothHorizon 54
+dimHolographic : CosmicDimension
+dimHolographic = certifiedDimension CosmicSmoothHorizon (6 * 3 * 3)
 
-||| Canonical validated parabolic dissipation sink dimension 55 (Sigma-pair).
+||| Canonical validated parabolic dissipation sink dimension: T_10 = 55 (Sigma-pair).
 public export
-dimParabolic55 : CosmicDimension
-dimParabolic55 = certifiedDimension CosmicSmoothHorizon 55
+dimParabolic : CosmicDimension
+dimParabolic = certifiedDimension CosmicSmoothHorizon (triangularSum 10)
 
-||| Canonical validated hyperbolic ROM capacity dimension 128 (Sigma-pair).
+||| Canonical validated hyperbolic ROM capacity dimension: 2^7 = 128 (Sigma-pair).
 public export
-dimHyperbolic128 : CosmicDimension
-dimHyperbolic128 = certifiedDimension CosmicSmoothHorizon 128
+dimHyperbolic : CosmicDimension
+dimHyperbolic = certifiedDimension CosmicSmoothHorizon (computeDESize 7)
 
-||| Canonical validated Primorial 210 cosmic ground state dimension (Sigma-pair).
+||| Canonical validated Primorial 210 cosmic ground state dimension: 27 + 128 + 55 = 210 (Sigma-pair).
 public export
-dimPrimorial210 : CosmicDimension
-dimPrimorial210 = certifiedDimension CosmicSmoothHorizon 210
+dimPrimorial : CosmicDimension
+dimPrimorial = certifiedDimension CosmicSmoothHorizon (computeVMSize 3 + computeDESize 7 + triangularSum 10)
 
-||| Canonical validated multi-sector holographic capacity dimension 216 (Sigma-pair).
+||| Canonical validated multi-sector holographic capacity enclosure: 4 * 54 = 216 (Sigma-pair).
 public export
-dimHolographic216 : CosmicDimension
-dimHolographic216 = certifiedDimension CosmicSmoothHorizon 216
+dimHolographicEnclosure : CosmicDimension
+dimHolographicEnclosure = certifiedDimension CosmicSmoothHorizon (4 * (6 * 3 * 3))
 
 ||| Canonical Emergent Cosmic Dimension (bound = CosmicSmoothHorizon = 13).
 public export
@@ -362,36 +374,36 @@ EmergentCosmicDimension = EmergentDimension CosmicSmoothHorizon
 
 ||| Canonical Emergent Cosmic Dimension instances.
 public export
-dimEmergentManifest3 : EmergentCosmicDimension
-dimEmergentManifest3 = emergentDimension CosmicSmoothHorizon 3
+dimEmergentManifest : EmergentCosmicDimension
+dimEmergentManifest = emergentDimension CosmicSmoothHorizon 3
 
 public export
-dimEmergentElliptic27 : EmergentCosmicDimension
-dimEmergentElliptic27 = emergentDimension CosmicSmoothHorizon 27
+dimEmergentElliptic : EmergentCosmicDimension
+dimEmergentElliptic = emergentDimension CosmicSmoothHorizon (computeVMSize 3)
 
 public export
-dimEmergentObserver39 : EmergentCosmicDimension
-dimEmergentObserver39 = emergentDimension CosmicSmoothHorizon 39
+dimEmergentObserver : EmergentCosmicDimension
+dimEmergentObserver = emergentDimension CosmicSmoothHorizon (3 * CosmicSmoothHorizon)
 
 public export
-dimEmergentHolographic54 : EmergentCosmicDimension
-dimEmergentHolographic54 = emergentDimension CosmicSmoothHorizon 54
+dimEmergentHolographic : EmergentCosmicDimension
+dimEmergentHolographic = emergentDimension CosmicSmoothHorizon (6 * 3 * 3)
 
 public export
-dimEmergentParabolic55 : EmergentCosmicDimension
-dimEmergentParabolic55 = emergentDimension CosmicSmoothHorizon 55
+dimEmergentParabolic : EmergentCosmicDimension
+dimEmergentParabolic = emergentDimension CosmicSmoothHorizon (triangularSum 10)
 
 public export
-dimEmergentHyperbolic128 : EmergentCosmicDimension
-dimEmergentHyperbolic128 = emergentDimension CosmicSmoothHorizon 128
+dimEmergentHyperbolic : EmergentCosmicDimension
+dimEmergentHyperbolic = emergentDimension CosmicSmoothHorizon (computeDESize 7)
 
 public export
-dimEmergentPrimorial210 : EmergentCosmicDimension
-dimEmergentPrimorial210 = emergentDimension CosmicSmoothHorizon 210
+dimEmergentPrimorial : EmergentCosmicDimension
+dimEmergentPrimorial = emergentDimension CosmicSmoothHorizon (computeVMSize 3 + computeDESize 7 + triangularSum 10)
 
 public export
-dimEmergentHolographic216 : EmergentCosmicDimension
-dimEmergentHolographic216 = emergentDimension CosmicSmoothHorizon 216
+dimEmergentHolographicEnclosure : EmergentCosmicDimension
+dimEmergentHolographicEnclosure = emergentDimension CosmicSmoothHorizon (4 * (6 * 3 * 3))
 
 ||| Safely lifts a validated Dimension to a DimensionCarrier if 13-smooth.
 public export
@@ -437,19 +449,19 @@ gohFuelForDim (cap ** _) = gohFuelForCapacity cap
 
 ||| Definitional compile-time reflection proofs verifying exact fuel steps across cosmic dimensions:
 public export
-0 prfDimEllipticGohFuel : (gohFuelForDim Stage1.TypeTheory.Smoothness.dimElliptic27).fuelSteps = 42
+0 prfDimEllipticGohFuel : (gohFuelForDim Stage1.TypeTheory.Smoothness.dimElliptic).fuelSteps = 42
 prfDimEllipticGohFuel = Refl
 
 public export
-0 prfDimHyperbolicGohFuel : (gohFuelForDim Stage1.TypeTheory.Smoothness.dimHyperbolic128).fuelSteps = 193
+0 prfDimHyperbolicGohFuel : (gohFuelForDim Stage1.TypeTheory.Smoothness.dimHyperbolic).fuelSteps = 193
 prfDimHyperbolicGohFuel = Refl
 
 public export
-0 prfDimParabolicGohFuel : (gohFuelForDim Stage1.TypeTheory.Smoothness.dimParabolic55).fuelSteps = 84
+0 prfDimParabolicGohFuel : (gohFuelForDim Stage1.TypeTheory.Smoothness.dimParabolic).fuelSteps = 84
 prfDimParabolicGohFuel = Refl
 
 public export
-0 prfDimPrimorialGohFuel : (gohFuelForDim Stage1.TypeTheory.Smoothness.dimPrimorial210).fuelSteps = 316
+0 prfDimPrimorialGohFuel : (gohFuelForDim Stage1.TypeTheory.Smoothness.dimPrimorial).fuelSteps = 316
 prfDimPrimorialGohFuel = Refl
 
 public export
@@ -466,32 +478,32 @@ public export
 dimensionNatFuel : CosmicDimension -> Nat
 dimensionNatFuel dim = (gohFuelForDim dim).fuelSteps
 
-||| Static compile-time witness: Elliptic lattice fuel derived from dimElliptic27
+||| Static compile-time witness: Elliptic lattice fuel derived from dimElliptic
 ||| definitionally equals ellipticGohFuel (Rule 01, Rule 03, Rule 04).
 public export
 0 prfEllipticFuelEquiv :
-  dimensionGohFuel Stage1.TypeTheory.Smoothness.dimElliptic27 = Stage0.StructuralFuel.ellipticGohFuel
+  dimensionGohFuel Stage1.TypeTheory.Smoothness.dimElliptic = Stage0.StructuralFuel.ellipticGohFuel
 prfEllipticFuelEquiv = Refl
 
-||| Static compile-time witness: Hyperbolic spectral fuel derived from dimHyperbolic128
+||| Static compile-time witness: Hyperbolic spectral fuel derived from dimHyperbolic
 ||| definitionally equals hyperbolicGohFuel.
 public export
 0 prfHyperbolicFuelEquiv :
-  dimensionGohFuel Stage1.TypeTheory.Smoothness.dimHyperbolic128 = Stage0.StructuralFuel.hyperbolicGohFuel
+  dimensionGohFuel Stage1.TypeTheory.Smoothness.dimHyperbolic = Stage0.StructuralFuel.hyperbolicGohFuel
 prfHyperbolicFuelEquiv = Refl
 
-||| Static compile-time witness: Parabolic dissipation fuel derived from dimParabolic55
+||| Static compile-time witness: Parabolic dissipation fuel derived from dimParabolic
 ||| definitionally equals parabolicGohFuel.
 public export
 0 prfParabolicFuelEquiv :
-  dimensionGohFuel Stage1.TypeTheory.Smoothness.dimParabolic55 = Stage0.StructuralFuel.parabolicGohFuel
+  dimensionGohFuel Stage1.TypeTheory.Smoothness.dimParabolic = Stage0.StructuralFuel.parabolicGohFuel
 prfParabolicFuelEquiv = Refl
 
-||| Static compile-time witness: Primorial 210 master ground fuel derived from dimPrimorial210
+||| Static compile-time witness: Primorial 210 master ground fuel derived from dimPrimorial
 ||| definitionally equals masterSubstrateGohFuel.
 public export
 0 prfPrimorialFuelEquiv :
-  dimensionGohFuel Stage1.TypeTheory.Smoothness.dimPrimorial210 = Stage0.StructuralFuel.masterSubstrateGohFuel
+  dimensionGohFuel Stage1.TypeTheory.Smoothness.dimPrimorial = Stage0.StructuralFuel.masterSubstrateGohFuel
 prfPrimorialFuelEquiv = Refl
 
 ||| Static compile-time witness: Observer epoch fuel derived from dimObserver (k=38, n=39=3x13).
@@ -503,23 +515,23 @@ prfObserverFuelMatchesProduct = Refl
 ||| Static compile-time proofs verifying that canonical cosmic dimensions
 ||| factorize cleanly into certified 13-smooth GohPrimeMultisets.
 public export
-0 prfElliptic27Carrier : isJust (factorizeGohSmooth 27) = True
-prfElliptic27Carrier = Refl
+0 prfEllipticCarrier : isJust (factorizeGohSmooth (cosmicDimensionValue Stage1.TypeTheory.Smoothness.dimElliptic)) = True
+prfEllipticCarrier = Refl
 
 public export
-0 prfHyperbolic128Carrier : isJust (factorizeGohSmooth 128) = True
-prfHyperbolic128Carrier = Refl
+0 prfHyperbolicCarrier : isJust (factorizeGohSmooth (cosmicDimensionValue Stage1.TypeTheory.Smoothness.dimHyperbolic)) = True
+prfHyperbolicCarrier = Refl
 
 public export
-0 prfParabolic55Carrier : isJust (factorizeGohSmooth 55) = True
-prfParabolic55Carrier = Refl
+0 prfParabolicCarrier : isJust (factorizeGohSmooth (cosmicDimensionValue Stage1.TypeTheory.Smoothness.dimParabolic)) = True
+prfParabolicCarrier = Refl
 
 public export
-0 prfPrimorial210Carrier : isJust (factorizeGohSmooth 210) = True
-prfPrimorial210Carrier = Refl
+0 prfPrimorialCarrier : isJust (factorizeGohSmooth (cosmicDimensionValue Stage1.TypeTheory.Smoothness.dimPrimorial)) = True
+prfPrimorialCarrier = Refl
 
 public export
-0 prfObserver39Carrier : isJust (factorizeGohSmooth 39) = True
-prfObserver39Carrier = Refl
+0 prfObserverCarrier : isJust (factorizeGohSmooth (cosmicDimensionValue Stage1.TypeTheory.Smoothness.dimObserver)) = True
+prfObserverCarrier = Refl
 
 
