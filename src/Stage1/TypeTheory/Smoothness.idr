@@ -4,7 +4,6 @@ import public Stage0.BoxInt
 import public Stage0.PrimeMultiset
 import public Stage0.StructuralFuel
 import public Stage0.OnSeq.FusedStream
-import public Stage1.TypeTheory.MultisetLevel
 import Data.Nat
 import Data.List
 import Data.Maybe
@@ -140,6 +139,11 @@ Dimension bound = (n : Nat ** SmoothWitness bound n)
 public export
 SmoothDimension : (bound : Nat) -> Type
 SmoothDimension bound = Dimension bound
+
+||| Certified dimension constructor: auto-dispatches compile-time smoothness proof.
+public export
+certifiedDimension : (bound : Nat) -> (n : Nat) -> {auto prf : SmoothWitness bound n} -> Dimension bound
+certifiedDimension bound n {prf} = (n ** prf)
 
 public export
 {bound : Nat} -> Eq (Dimension bound) where
@@ -287,9 +291,9 @@ public export
 prfSmooth216 : SmoothWitness CosmicSmoothHorizon 216
 prfSmooth216 = Refl
 
-||| Canonical proof certifying that 137 (Fine-Structure Constant / Grid Wall) is decoherent.
+||| Canonical proof certifying that 137 (Fine-Structure Constant / Grid Wall) is decoherent (QTT 0 erased).
 public export
-prfDecoherent137 : isSmoothNat CosmicSmoothHorizon 137 = False
+0 prfDecoherent137 : isSmoothNat CosmicSmoothHorizon 137 = False
 prfDecoherent137 = Refl
 
 ||| Canonical refutation witness that 137 is smooth.
@@ -300,42 +304,42 @@ contraSmooth137 p = case p of Refl impossible
 ||| Canonical validated manifest spatial dimension L = 3 (Sigma-pair).
 public export
 dimManifest3 : CosmicDimension
-dimManifest3 = (the Nat 3 ** Refl)
+dimManifest3 = certifiedDimension CosmicSmoothHorizon 3
 
 ||| Canonical validated elliptic lattice capacity dimension 27 (Sigma-pair).
 public export
 dimElliptic27 : CosmicDimension
-dimElliptic27 = (the Nat 27 ** Refl)
+dimElliptic27 = certifiedDimension CosmicSmoothHorizon 27
 
 ||| Canonical validated observer epoch dimension 39 (Sigma-pair).
 public export
 dimObserver : CosmicDimension
-dimObserver = (the Nat 39 ** Refl)
+dimObserver = certifiedDimension CosmicSmoothHorizon 39
 
 ||| Canonical validated holographic boundary surface area dimension 54 (Sigma-pair).
 public export
 dimHolographic54 : CosmicDimension
-dimHolographic54 = (the Nat 54 ** Refl)
+dimHolographic54 = certifiedDimension CosmicSmoothHorizon 54
 
 ||| Canonical validated parabolic dissipation sink dimension 55 (Sigma-pair).
 public export
 dimParabolic55 : CosmicDimension
-dimParabolic55 = (the Nat 55 ** Refl)
+dimParabolic55 = certifiedDimension CosmicSmoothHorizon 55
 
 ||| Canonical validated hyperbolic ROM capacity dimension 128 (Sigma-pair).
 public export
 dimHyperbolic128 : CosmicDimension
-dimHyperbolic128 = (the Nat 128 ** Refl)
+dimHyperbolic128 = certifiedDimension CosmicSmoothHorizon 128
 
 ||| Canonical validated Primorial 210 cosmic ground state dimension (Sigma-pair).
 public export
 dimPrimorial210 : CosmicDimension
-dimPrimorial210 = (the Nat 210 ** Refl)
+dimPrimorial210 = certifiedDimension CosmicSmoothHorizon 210
 
 ||| Canonical validated multi-sector holographic capacity dimension 216 (Sigma-pair).
 public export
 dimHolographic216 : CosmicDimension
-dimHolographic216 = (the Nat 216 ** Refl)
+dimHolographic216 = certifiedDimension CosmicSmoothHorizon 216
 
 ||| Safely lifts a validated Dimension to a DimensionCarrier if 13-smooth.
 public export
@@ -348,7 +352,7 @@ toDimensionCarrier (n ** prf) =
 ||| Constructive mapping from any constructivist Goh prime to its 13-smooth certificate.
 public export
 gohPrimeWitness : GohPrime p -> SmoothWitness CosmicSmoothHorizon p
-gohPrimeWitness Prime2  = prfSmooth2
+gohPrimeWitness Prime2  = Refl
 gohPrimeWitness Prime3  = Refl
 gohPrimeWitness Prime5  = Refl
 gohPrimeWitness Prime7  = Refl
