@@ -3,6 +3,7 @@ module Stage1.MultisetDuality
 import Stage0.Multiset
 import public Stage1.MultisetTensor
 import Stage0.OnSeq.FusedStream
+import Stage1.ConjugateHylo
 import Data.Fuel
 
 %default total
@@ -209,17 +210,14 @@ fusedAdjointHylomorphism : Fuel ->
                            (s -> Step s (l a)) -> 
                            (a -> b -> b) -> 
                            b -> s -> b
-fusedAdjointHylomorphism Dry _ _ _ acc _ = acc
-fusedAdjointHylomorphism (More f') adj next consumerFold acc seed = loop f' seed acc
-  where
-    loop : Fuel -> s -> b -> b
-    loop Dry _ currentAcc = currentAcc
-    loop (More f'') st currentAcc = case next st of
-      Done => currentAcc
-      Skip st' => loop f'' st' currentAcc
-      Yield leftVal st' =>
-        let val = rightAdjoint @{adj} leftVal
-        in loop f'' st' (consumerFold val currentAcc)
+fusedAdjointHylomorphism fuel adj next consumerFold acc seed =
+  fusedConjugateHylo fuel next
+    (\case
+        Done => acc
+        Skip s => s
+        Yield val s => consumerFold val s)
+    (rightAdjoint @{adj})
+    acc seed
 
 ||| Canonical 2LTT dual hylomorphism alias
 public export

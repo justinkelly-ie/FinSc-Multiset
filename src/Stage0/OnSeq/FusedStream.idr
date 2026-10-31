@@ -764,4 +764,55 @@ auditParallelStreamPartitionProof =
       parRes = fusedParallelStreamFoldNat (length items) (+) 0 (+) items
   in seqRes == parRes
 
+------------------------------------------------------------------------
+-- 10. DEFORESTED DIVISOR STREAMS & CYCLOTOMIC TOTIENT ACCOUNTING
+------------------------------------------------------------------------
+
+||| Fuel-bounded greatest common divisor for natural numbers.
+public export
+natGCDFuel : Nat -> Nat -> Nat -> Nat
+natGCDFuel Z _ b = b
+natGCDFuel (S f) a Z = a
+natGCDFuel (S f) a b = natGCDFuel f b (a `mod` b)
+
+||| Greatest common divisor for natural numbers.
+public export
+natGCD : Nat -> Nat -> Nat
+natGCD a b = natGCDFuel (a + b) a b
+
+||| Euler's totient function phi(n) tracking algebraic degree and multiset support cardinality.
+public export
+totientNat : Nat -> Nat
+totientNat Z = Z
+totientNat (S Z) = S Z
+totientNat (S n) =
+  let k = S n
+  in length (filter (\d => natGCD k d == 1) [1..k])
+
+||| Deforested stream of all divisors d | n (from 1 up to n).
+||| Zero intermediate heap List allocation via stream fusion Skip/Yield.
+public export
+divisorStream : Nat -> FusedStream Nat
+divisorStream Z = stream []
+divisorStream (S n) = unfoldStream nextStep (1, S n)
+  where
+    nextStep : (Nat, Nat) -> Step (Nat, Nat) Nat
+    nextStep (cand, target) =
+      if cand > target then Done
+      else if target `mod` cand == Z then
+        Yield cand (S cand, target)
+      else
+        Skip (S cand, target)
+
+||| Audits Gauss's totient sum identity: sum_{d | n} phi(d) == n
+public export
+auditTotientConservationProof : (n : Nat) -> Bool
+auditTotientConservationProof Z = True
+auditTotientConservationProof (S n) =
+  let target = S n
+      divStrm = divisorStream target
+      phiSum = foldStreamNat (target + 10) (\acc, d => acc + totientNat d) 0 divStrm
+  in phiSum == target
+
+
 

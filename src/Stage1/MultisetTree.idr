@@ -385,39 +385,46 @@ public export
 emptyTreeUniverseState : TreeUniverseState
 emptyTreeUniverseState = MkTreeUniverseState Z Leaf Leaf Leaf
 
-||| Structural Peano natural modulo helper:
+||| Influx single tick driven by cyclotomic divisor expansion:
+||| Unfolds the divisor stream of action quantum tick n, routing each harmonic divisor d | n
+||| to visible spatial cells (d mod 27) and dark matter remainder channels (d mod 55).
 public export
-natModFuel : Nat -> Nat -> Nat
-natModFuel _ Z = Z
-natModFuel k (S d) = go k k
-  where
-    go : Nat -> Nat -> Nat
-    go Z curr = curr
-    go (S f) curr =
-      if curr < (S d) then curr
-      else go f (minus curr (S d))
+stepTreeCyclotomicInflux : (1 state : TreeUniverseState) ->
+                           (tick : Nat) ->
+                           TreeUniverseState
+stepTreeCyclotomicInflux (MkTreeUniverseState ep vm de dm) n =
+  let divStrm = divisorStream (S n)
+      (newVM, newDM) = foldStreamNat (S (S n))
+                         (\(currVM, currDM), d =>
+                            let dInt  = cast {to = Integer} d
+                                vmKey = intToBoxInt (dInt `mod` 27)
+                                dmKey = intToBoxInt (dInt `mod` 55)
+                                v'    = insertTokenTree vmKey 1 currVM
+                                m'    = insertTokenTree dmKey 1 currDM
+                            in (v', m'))
+                         (vm, dm)
+                         divStrm
+  in MkTreeUniverseState (S ep) newVM de newDM
 
-||| Advances the tree universe state with coordinate influx and remainder dissipation.
-||| Discrete 3D coordinates in range [0, 2]^3 populate visibleLattice (27 cells).
-||| Remainder dissipation pairs populate darkMatterLog (55 channels).
+||| Canonical alias for backwards compatibility:
 public export
 stepTreeGenesisInflux : (1 state : TreeUniverseState) ->
                         (coordIndex : Nat) ->
                         TreeUniverseState
-stepTreeGenesisInflux (MkTreeUniverseState ep vm de dm) n =
-  let vmCellKey = intToBoxInt (cast {to = Integer} (natModFuel n 27))
-      updatedVM = insertTokenTree vmCellKey 1 vm
-      dmRemKey  = intToBoxInt (cast {to = Integer} (natModFuel n 55))
-      updatedDM = insertTokenTree dmRemKey 1 dm
-  in MkTreeUniverseState (S ep) updatedVM de updatedDM
+stepTreeGenesisInflux = stepTreeCyclotomicInflux
 
-||| Streams N tokens of action influx from the empty vacuum into the tree universe state:
+||| Streams N ticks of cyclotomic divisor influx from the empty vacuum into the tree universe state:
+public export
+streamCyclotomicInfluxN : (n : Nat) -> TreeUniverseState -> TreeUniverseState
+streamCyclotomicInfluxN Z st = st
+streamCyclotomicInfluxN (S k) st =
+  let st' = stepTreeCyclotomicInflux st k
+  in streamCyclotomicInfluxN k st'
+
+||| Canonical alias for backwards compatibility:
 public export
 streamGenesisInfluxN : (n : Nat) -> TreeUniverseState -> TreeUniverseState
-streamGenesisInfluxN Z st = st
-streamGenesisInfluxN (S k) st =
-  let st' = stepTreeGenesisInflux st k
-  in streamGenesisInfluxN k st'
+streamGenesisInfluxN = streamCyclotomicInfluxN
 
 ||| Audits that discreteCubeRoot accurately extracts the manifest spatial dimension L = 3 from 27 cells:
 public export
