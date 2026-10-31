@@ -9,7 +9,6 @@ import Stage1.MultisetTree
 import Stage1.Order.Preorder
 import Data.List
 import Data.Nat
-import Data.Fuel
 import Language.Reflection
 import public Data.Vect
 
@@ -368,11 +367,6 @@ supportPolynumber (MkPolynumber cs) = go 0 cs
          then deg :: go (S deg) rest
          else go (S deg) rest
 
-||| Extracts the exact Wildberger Support Supp(P) of a Polynumber (alias to supportPolynumber).
-public export
-polynumberSupport : Polynumber -> List Nat
-polynumberSupport = supportPolynumber
-
 ||| Computes the cardinality |Supp(P)| of Wildberger's Support.
 public export
 polynumberSupportSize : Polynumber -> Nat
@@ -524,12 +518,6 @@ fromStreamPolyNat fuelSteps strm =
   let terms = FS.foldStreamNat fuelSteps (\acc, (deg, c) => insertAtDeg deg c acc) (the (List BoxInt) []) strm
   in trimPolynumber (MkPolynumber terms)
 
-||| Reconstructs a dense Polynumber from a StreamPolynumber under fuel.
-public export
-fromStreamPoly : Fuel -> StreamPolynumber -> Polynumber
-fromStreamPoly Dry _ = zeroPolynumber
-fromStreamPoly (More _) strm = fromStreamPolyNat (gohSteps (gohFuelForCapacity 137)) strm
-
 ||| Converts a dense Polynumber with positive coefficients into an O(log N) BoxSpecTree.
 public export
 polyToBoxSpecTree : Polynumber -> BoxSpecTree
@@ -557,11 +545,11 @@ boxSpecTreeToStreamPoly : BoxSpecTree -> StreamPolynumber
 boxSpecTreeToStreamPoly tree =
   FS.mapStream (\(spec, count) => (boxSize spec, natToBoxInt count)) (streamMultisetTreeDirect tree)
 
-||| Converts a StreamPolynumber with positive terms into an O(log N) BoxSpecTree under fuel.
+||| Converts a StreamPolynumber with positive terms into an O(log N) BoxSpecTree under Nat fuel.
 public export
-streamPolyToBoxSpecTree : Fuel -> StreamPolynumber -> BoxSpecTree
-streamPolyToBoxSpecTree fuel strm =
-  FS.foldStreamFuel fuel (\tree, (deg, c) =>
+streamPolyToBoxSpecTreeNat : (fuel : Nat) -> StreamPolynumber -> BoxSpecTree
+streamPolyToBoxSpecTreeNat fuelSteps strm =
+  FS.foldStreamNat fuelSteps (\tree, (deg, c) =>
     let n = boxToNat c
     in if n > 0
           then insertTokenTree (fromNatBoxSpec deg) n tree

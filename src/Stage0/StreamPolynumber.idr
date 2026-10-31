@@ -57,12 +57,6 @@ public export
 streamPolyToListFuelModel : GohFuel cap -> StreamPolynumber -> List (Nat, BoxInt)
 streamPolyToListFuelModel fuel = streamPolyToListNat (gohSteps fuel)
 
-||| Unfolds a StreamPolynumber into a list of sparse terms under structural fuel bounds.
-public export
-streamPolyToList : Fuel -> StreamPolynumber -> List (Nat, BoxInt)
-streamPolyToList Dry _ = []
-streamPolyToList (More _) p = streamPolyToListNat (boxNatToNat masterSubstrateGohFuel) p
-
 ------------------------------------------------------------------------
 -- 2. WILDBERGER SUPPORT STREAM EXTRACTION (RULE 04 SECTION 8)
 ------------------------------------------------------------------------
@@ -147,12 +141,6 @@ public export
 evalStreamPolyGoh : BoxInt -> StreamPolynumber -> BoxInt
 evalStreamPolyGoh x strm =
   evalStreamPolyNat (boxNatToNat masterSubstrateGohFuel) x strm
-
-||| Evaluates a StreamPolynumber with explicit Fuel bound.
-public export
-evalStreamPolyFuel : Fuel -> BoxInt -> StreamPolynumber -> BoxInt
-evalStreamPolyFuel Dry _ _ = MkBoxInt 0
-evalStreamPolyFuel (More _) x strm = evalStreamPolyGoh x strm
 
 ------------------------------------------------------------------------
 -- 5. COMPILE-TIME INVARIANT AUDITS (RULE 01)

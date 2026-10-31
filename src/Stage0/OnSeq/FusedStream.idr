@@ -785,6 +785,11 @@ public export
 totientNat : Nat -> Nat
 totientNat Z = Z
 totientNat (S Z) = S Z
+totientNat 2 = 1
+totientNat 3 = 2
+totientNat 4 = 2
+totientNat 5 = 4
+totientNat 6 = 2
 totientNat (S n) =
   let k = S n
   in length (filter (\d => natGCD k d == 1) [1..k])
