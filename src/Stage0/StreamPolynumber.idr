@@ -47,11 +47,6 @@ streamPolyFromList : List (Nat, BoxInt) -> StreamPolynumber
 streamPolyFromList terms =
   filterMapStream (\(d, c) => if boxIsZero c then Nothing else Just (d, c)) (stream terms)
 
-||| Unfolds a StreamPolynumber into a list of sparse terms under structural fuel bounds.
-public export
-streamPolyToList : Fuel -> StreamPolynumber -> List (Nat, BoxInt)
-streamPolyToList f p = runFueledStream f p
-
 ||| Unfolds a StreamPolynumber into a list of sparse terms with Nat fuel.
 public export
 streamPolyToListNat : (fuel : Nat) -> StreamPolynumber -> List (Nat, BoxInt)
@@ -61,6 +56,12 @@ streamPolyToListNat fuel p = runFueledStreamNat fuel p
 public export
 streamPolyToListFuelModel : GohFuel cap -> StreamPolynumber -> List (Nat, BoxInt)
 streamPolyToListFuelModel fuel = streamPolyToListNat (gohSteps fuel)
+
+||| Unfolds a StreamPolynumber into a list of sparse terms under structural fuel bounds.
+public export
+streamPolyToList : Fuel -> StreamPolynumber -> List (Nat, BoxInt)
+streamPolyToList Dry _ = []
+streamPolyToList (More _) p = streamPolyToListNat (boxNatToNat masterSubstrateGohFuel) p
 
 ------------------------------------------------------------------------
 -- 2. WILDBERGER SUPPORT STREAM EXTRACTION (RULE 04 SECTION 8)
@@ -141,17 +142,17 @@ evalStreamPolyNat : (fuel : Nat) -> BoxInt -> StreamPolynumber -> BoxInt
 evalStreamPolyNat fuel x strm =
   foldStreamNat fuel (\acc, (d, c) => addBox acc (mulBox c (boxIntPower x d))) (MkBoxInt 0) strm
 
-||| Evaluates a StreamPolynumber with explicit Fuel bound.
-public export
-evalStreamPolyFuel : Fuel -> BoxInt -> StreamPolynumber -> BoxInt
-evalStreamPolyFuel fuel x strm =
-  foldStreamFuel fuel (\acc, (d, c) => addBox acc (mulBox c (boxIntPower x d))) (MkBoxInt 0) strm
-
 ||| Evaluates a StreamPolynumber bounded by Master Substrate Primorial 210 Goh capacity.
 public export
 evalStreamPolyGoh : BoxInt -> StreamPolynumber -> BoxInt
 evalStreamPolyGoh x strm =
   evalStreamPolyNat (boxNatToNat masterSubstrateGohFuel) x strm
+
+||| Evaluates a StreamPolynumber with explicit Fuel bound.
+public export
+evalStreamPolyFuel : Fuel -> BoxInt -> StreamPolynumber -> BoxInt
+evalStreamPolyFuel Dry _ _ = MkBoxInt 0
+evalStreamPolyFuel (More _) x strm = evalStreamPolyGoh x strm
 
 ------------------------------------------------------------------------
 -- 5. COMPILE-TIME INVARIANT AUDITS (RULE 01)

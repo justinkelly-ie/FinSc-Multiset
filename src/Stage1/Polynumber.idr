@@ -160,6 +160,12 @@ mulPolynumber (MkPolynumber []) _ = zeroPolynumber
 mulPolynumber (MkPolynumber (c :: cs)) q = 
   addPolynumber (scalePolynumber c q) (shiftPolynumber 1 (mulPolynumber (MkPolynumber cs) q))
 
+||| Natural exponentiation of a Polynumber: p^n via repeated Cauchy multiplication.
+public export
+powerPolynumber : Polynumber -> Nat -> Polynumber
+powerPolynumber _ Z = constantPolynumber (intToBoxInt 1)
+powerPolynumber p (S k) = mulPolynumber p (powerPolynumber p k)
+
 ||| Exact discrete polynumber evaluation at an integer scalar x = a (Horner's rule).
 public export
 evalPolyList : List BoxInt -> BoxInt -> BoxInt
@@ -259,22 +265,7 @@ spreadPolynumberIter (S (S remaining)) prev2 prev1 =
 ||| Recurrence: S_n(s) = 2(1 - 2s) * S_{n-1}(s) - S_{n-2}(s) + 2s (for n >= 2)
 public export
 spreadPolynumber : (n : Nat) -> Polynumber
-spreadPolynumber Z = zeroPolynumber
-spreadPolynumber (S Z) = monomialPolynumber (intToBoxInt 1) 1
-spreadPolynumber (S (S Z)) =
-  addPolynumber (monomialPolynumber (intToBoxInt 4) 1)
-                (monomialPolynumber (intToBoxInt (-4)) 2)
-spreadPolynumber (S (S (S Z))) =
-  addPolynumber (monomialPolynumber (intToBoxInt 9) 1)
-                (addPolynumber (monomialPolynumber (intToBoxInt (-24)) 2)
-                               (monomialPolynumber (intToBoxInt 16) 3))
-spreadPolynumber (S (S (S (S Z)))) =
-  addPolynumber (monomialPolynumber (intToBoxInt 16) 1)
-                (addPolynumber (monomialPolynumber (intToBoxInt (-112)) 2)
-                               (addPolynumber (monomialPolynumber (intToBoxInt 224) 3)
-                                              (monomialPolynumber (intToBoxInt (-128)) 4)))
-spreadPolynumber (S (S (S (S (S k))))) =
-  spreadPolynumberIter (S (S (S (S (S k))))) zeroPolynumber (monomialPolynumber (intToBoxInt 1) 1)
+spreadPolynumber n = spreadPolynumberIter n zeroPolynumber (monomialPolynumber (intToBoxInt 1) 1)
 
 ||| Generates the sequence of Wildberger Spread Polynumbers as a deforested stream
 ||| with O(1) auxiliary registers (Rule 04, Item 4).
@@ -365,15 +356,27 @@ public export
 polynumberToSparse : Polynumber -> List (Nat, BoxInt)
 polynumberToSparse (MkPolynumber cs) = toSparseHelper 0 cs
 
-||| Extracts the exact Wildberger Support Supp(P) of a Polynumber (degrees k with non-zero coefficients).
+||| Extracts the active support degrees where coeff /= 0 (Wildberger finite support).
+public export
+supportPolynumber : Polynumber -> List Nat
+supportPolynumber (MkPolynumber cs) = go 0 cs
+  where
+    go : Nat -> List BoxInt -> List Nat
+    go _ [] = []
+    go deg (c :: rest) =
+      if boxIsNonZero c
+         then deg :: go (S deg) rest
+         else go (S deg) rest
+
+||| Extracts the exact Wildberger Support Supp(P) of a Polynumber (alias to supportPolynumber).
 public export
 polynumberSupport : Polynumber -> List Nat
-polynumberSupport p = map fst (polynumberToSparse p)
+polynumberSupport = supportPolynumber
 
 ||| Computes the cardinality |Supp(P)| of Wildberger's Support.
 public export
 polynumberSupportSize : Polynumber -> Nat
-polynumberSupportSize p = length (polynumberSupport p)
+polynumberSupportSize p = length (supportPolynumber p)
 
 ||| Converts a sparse list of (degree, coeff) pairs back to a normalized dense Polynumber.
 public export
@@ -493,17 +496,13 @@ makePolynumber cs = pure (genPolyAST cs)
 -- 9. WILDBERGER SUPPORT & DUALITY BRIDGES (STREAMING & MULTISET TREE)
 ------------------------------------------------------------------------
 
-||| Extracts the active support degrees where coeff /= 0 (Wildberger finite support).
+||| Helper to insert a term at degree into coefficient list.
 public export
-supportPolynumber : Polynumber -> List Nat
-supportPolynumber (MkPolynumber cs) = go 0 cs
-  where
-    go : Nat -> List BoxInt -> List Nat
-    go _ [] = []
-    go deg (c :: rest) =
-      if boxIsNonZero c
-         then deg :: go (S deg) rest
-         else go (S deg) rest
+insertAtDeg : Nat -> BoxInt -> List BoxInt -> List BoxInt
+insertAtDeg Z c [] = [c]
+insertAtDeg Z c (x :: xs) = (addBox x c) :: xs
+insertAtDeg (S k) c [] = (intToBoxInt 0) :: insertAtDeg k c []
+insertAtDeg (S k) c (x :: xs) = x :: insertAtDeg k c xs
 
 ||| Converts a dense Polynumber into a deforested StreamPolynumber.
 public export
@@ -518,37 +517,18 @@ toStreamPoly (MkPolynumber cs) =
         then FS.Yield (deg, c) (S deg, rest)
         else FS.Skip (S deg, rest)
 
-||| Reconstructs a dense Polynumber from a StreamPolynumber under fuel.
-public export
-fromStreamPoly : Fuel -> StreamPolynumber -> Polynumber
-fromStreamPoly fuel strm =
-  let terms = FS.foldStreamFuel fuel insertTerm (the (List BoxInt) []) strm
-  in trimPolynumber (MkPolynumber terms)
-  where
-    insertAt : Nat -> BoxInt -> List BoxInt -> List BoxInt
-    insertAt Z c [] = [c]
-    insertAt Z c (x :: xs) = (addBox x c) :: xs
-    insertAt (S k) c [] = (intToBoxInt 0) :: insertAt k c []
-    insertAt (S k) c (x :: xs) = x :: insertAt k c xs
-
-    insertTerm : List BoxInt -> (Nat, BoxInt) -> List BoxInt
-    insertTerm acc (deg, c) = insertAt deg c acc
-
 ||| Reconstructs a dense Polynumber from a StreamPolynumber over Nat fuel.
 public export
 fromStreamPolyNat : Nat -> StreamPolynumber -> Polynumber
 fromStreamPolyNat fuelSteps strm =
-  let terms = FS.foldStreamNat fuelSteps insertTerm (the (List BoxInt) []) strm
+  let terms = FS.foldStreamNat fuelSteps (\acc, (deg, c) => insertAtDeg deg c acc) (the (List BoxInt) []) strm
   in trimPolynumber (MkPolynumber terms)
-  where
-    insertAt : Nat -> BoxInt -> List BoxInt -> List BoxInt
-    insertAt Z c [] = [c]
-    insertAt Z c (x :: xs) = (addBox x c) :: xs
-    insertAt (S k) c [] = (intToBoxInt 0) :: insertAt k c []
-    insertAt (S k) c (x :: xs) = x :: insertAt k c xs
 
-    insertTerm : List BoxInt -> (Nat, BoxInt) -> List BoxInt
-    insertTerm acc (deg, c) = insertAt deg c acc
+||| Reconstructs a dense Polynumber from a StreamPolynumber under fuel.
+public export
+fromStreamPoly : Fuel -> StreamPolynumber -> Polynumber
+fromStreamPoly Dry _ = zeroPolynumber
+fromStreamPoly (More _) strm = fromStreamPolyNat (gohSteps (gohFuelForCapacity 137)) strm
 
 ||| Converts a dense Polynumber with positive coefficients into an O(log N) BoxSpecTree.
 public export

@@ -156,6 +156,73 @@ public export
 elementDimension : (bound : Nat) -> (n : Nat) -> {auto 0 prf : SmoothWitness bound n} -> SubsetDimension bound
 elementDimension bound n {prf} = Element n prf
 
+------------------------------------------------------------------------
+-- 2B. ALGEBRAIC AND EMERGENT DIMENSIONS (WILDBERGER SUPPORT & DEGREE)
+------------------------------------------------------------------------
+
+||| An Algebraic Dimension grounded in the finite active support Supp(M)
+||| and algebraic degree of a cyclotomic or polynomial carrier.
+public export
+record AlgebraicDimension where
+  constructor MkAlgebraicDimension
+  dimValue        : Nat
+  supportSize     : Nat
+  0 prfSupportEq  : supportSize = dimValue
+
+public export
+Eq AlgebraicDimension where
+  (MkAlgebraicDimension d1 s1 _) == (MkAlgebraicDimension d2 s2 _) = d1 == d2 && s1 == s2
+
+public export
+Show AlgebraicDimension where
+  show (MkAlgebraicDimension d s _) = "AlgebraicDimension(dim=" ++ show d ++ ", supp=" ++ show s ++ ")"
+
+||| An Emergent Dimension bundling an AlgebraicDimension with a constructive
+||| SmoothWitness under prime bound (e.g. CosmicSmoothHorizon = 13).
+public export
+record EmergentDimension (bound : Nat) where
+  constructor MkEmergentDimension
+  algebraicDim  : AlgebraicDimension
+  smoothWitness : SmoothWitness bound algebraicDim.dimValue
+
+public export
+{bound : Nat} -> Eq (EmergentDimension bound) where
+  (MkEmergentDimension a1 _) == (MkEmergentDimension a2 _) = a1 == a2
+
+public export
+{bound : Nat} -> Show (EmergentDimension bound) where
+  show (MkEmergentDimension a _) = "EmergentDimension(" ++ show bound ++ ", " ++ show a.dimValue ++ ")"
+
+||| Smart constructor for an EmergentDimension from a verified smooth degree:
+public export
+emergentDimension : (bound : Nat) -> (n : Nat) ->
+                    {auto prfSmooth : SmoothWitness bound n} ->
+                    EmergentDimension bound
+emergentDimension bound n {prfSmooth} =
+  MkEmergentDimension (MkAlgebraicDimension n n Refl) prfSmooth
+
+||| Smart constructor for an EmergentDimension directly from a cyclotomic factor index d:
+public export
+cyclotomicEmergentDimension : (bound : Nat) -> (d : Nat) ->
+                              {auto prfSmooth : SmoothWitness bound (totientNat d)} ->
+                              EmergentDimension bound
+cyclotomicEmergentDimension bound d {prfSmooth} =
+  MkEmergentDimension (MkAlgebraicDimension (totientNat d) (totientNat d) Refl) prfSmooth
+
+||| Bidirectional conversion between existing Dimension (Sigma pair) and EmergentDimension:
+public export
+toEmergentDimension : Dimension bound -> EmergentDimension bound
+toEmergentDimension (n ** prf) = MkEmergentDimension (MkAlgebraicDimension n n Refl) prf
+
+public export
+fromEmergentDimension : EmergentDimension bound -> Dimension bound
+fromEmergentDimension ed = (ed.algebraicDim.dimValue ** ed.smoothWitness)
+
+||| Zero-runtime-overhead subset dimension from EmergentDimension (Data.DPair.Subset):
+public export
+toSubsetDimension : EmergentDimension bound -> SubsetDimension bound
+toSubsetDimension ed = Element ed.algebraicDim.dimValue ed.smoothWitness
+
 public export
 {bound : Nat} -> Eq (Dimension bound) where
   (n1 ** _) == (n2 ** _) = n1 == n2
@@ -287,6 +354,44 @@ dimPrimorial210 = certifiedDimension CosmicSmoothHorizon 210
 public export
 dimHolographic216 : CosmicDimension
 dimHolographic216 = certifiedDimension CosmicSmoothHorizon 216
+
+||| Canonical Emergent Cosmic Dimension (bound = CosmicSmoothHorizon = 13).
+public export
+EmergentCosmicDimension : Type
+EmergentCosmicDimension = EmergentDimension CosmicSmoothHorizon
+
+||| Canonical Emergent Cosmic Dimension instances.
+public export
+dimEmergentManifest3 : EmergentCosmicDimension
+dimEmergentManifest3 = emergentDimension CosmicSmoothHorizon 3
+
+public export
+dimEmergentElliptic27 : EmergentCosmicDimension
+dimEmergentElliptic27 = emergentDimension CosmicSmoothHorizon 27
+
+public export
+dimEmergentObserver39 : EmergentCosmicDimension
+dimEmergentObserver39 = emergentDimension CosmicSmoothHorizon 39
+
+public export
+dimEmergentHolographic54 : EmergentCosmicDimension
+dimEmergentHolographic54 = emergentDimension CosmicSmoothHorizon 54
+
+public export
+dimEmergentParabolic55 : EmergentCosmicDimension
+dimEmergentParabolic55 = emergentDimension CosmicSmoothHorizon 55
+
+public export
+dimEmergentHyperbolic128 : EmergentCosmicDimension
+dimEmergentHyperbolic128 = emergentDimension CosmicSmoothHorizon 128
+
+public export
+dimEmergentPrimorial210 : EmergentCosmicDimension
+dimEmergentPrimorial210 = emergentDimension CosmicSmoothHorizon 210
+
+public export
+dimEmergentHolographic216 : EmergentCosmicDimension
+dimEmergentHolographic216 = emergentDimension CosmicSmoothHorizon 216
 
 ||| Safely lifts a validated Dimension to a DimensionCarrier if 13-smooth.
 public export
