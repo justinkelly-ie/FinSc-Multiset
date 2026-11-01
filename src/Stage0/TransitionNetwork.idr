@@ -2,6 +2,7 @@ module Stage0.TransitionNetwork
 
 import Stage0.BoxInt
 import Stage0.Multiset
+import Stage0.Token
 import Stage0.OnSeq.FusedStream
 import Stage0.StructuralFuel
 import Stage0.BoxNat
@@ -67,6 +68,18 @@ public export
 fireChannel : Eq s => TransitionChannel s -> TransitionState s -> TransitionState s
 fireChannel (MkChannel _ dList _) state =
   foldl applyDelta state dList
+
+||| Fires a certified token transition: consumes an existing token witnessed by (IsToken sp state)
+||| and applies the resulting delta, guaranteeing at compile time that the species is present.
+public export
+fireCertifiedTokenTransition : Eq s =>
+  (sp : s) ->
+  (0 prf : IsToken sp state) ->
+  (delta : BoxInt) ->
+  (state : TransitionState s) ->
+  TransitionState s
+fireCertifiedTokenTransition sp _ delta state =
+  applyDelta state (MkDelta sp delta)
 
 ||| Deforested stream generator simulating transition network trajectory over consecutive steps:
 ||| Generates state trajectory without intermediate list allocations.

@@ -88,10 +88,11 @@ normL1Vexel : Vexel -> BoxInt
 normL1Vexel v =
   foldBoxTreeL (\acc, (_, w) => acc + absBox w) (intToBoxInt 0) (the (BoxMultisetTree (CoordCell 1)) v)
 
-||| A Quark Vexel represents the 3 color charges (Red=[1], Green=[2], Blue=[3]) of a Baryon singlet.
+||| A Quark Vexel represents the 3 color charges (Red=[1], Green=[2], Blue=[3]) of a Baryon singlet,
+||| constructed via type-safe token injections without raw integer constants.
 public export
 nucleonQuarkVexel : Vexel
 nucleonQuarkVexel =
-  singletonCell (mkCell1 1) (intToBoxInt 1) <+>
-  singletonCell (mkCell1 2) (intToBoxInt 1) <+>
-  singletonCell (mkCell1 3) (intToBoxInt 1)
+  tokenToVexel (toToken (mkCell1 1)) <+>
+  tokenToVexel (toToken (mkCell1 2)) <+>
+  tokenToVexel (toToken (mkCell1 3))

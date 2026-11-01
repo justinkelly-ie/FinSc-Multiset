@@ -52,6 +52,14 @@ Show a => Show (Token a) where
   show (MkToken x) = "Token(" ++ show x ++ ")"
 
 public export
+Eq a => Eq (LToken a) where
+  (MkLToken x) == (MkLToken y) = x == y
+
+public export
+Show a => Show (LToken a) where
+  show (MkLToken x) = "LToken(" ++ show x ++ ")"
+
+public export
 Functor Token where
   map f (MkToken x) = MkToken (f x)
 
@@ -154,3 +162,33 @@ isTokenWitness x = HereToken
 public export
 depTokenToBox : DepToken a x -> (m : Multiset BoxInt a ** IsToken x m)
 depTokenToBox (MkDepToken x) = (AddM x (intToBoxInt 1) ZeroM ** HereToken)
+
+------------------------------------------------------------------------
+-- 6. UNIVERSAL FREE ADJUNCTION EXTENSION (liftToken)
+------------------------------------------------------------------------
+
+||| Scales a BoxInt multiset by an integer factor.
+public export
+scaleMultisetInt : Integer -> Multiset BoxInt b -> Multiset BoxInt b
+scaleMultisetInt _ ZeroM = ZeroM
+scaleMultisetInt 1 m = m
+scaleMultisetInt k (AddM y (MkBoxInt v) xs) =
+  AddM y (MkBoxInt (k * v)) (scaleMultisetInt k xs)
+
+||| Universal Monoid Extension (Free Adjunction F ⊣ U):
+||| Lifts a transformation defined on atomic tokens to a unique homomorphism over entire multisets.
+||| By the universal property of free commutative monoids, this uniquely determines
+||| the linear multiset pushforward from its action on single basis tokens.
+public export
+liftToken : (Token a -> Multiset BoxInt b) -> Multiset BoxInt a -> Multiset BoxInt b
+liftToken f ZeroM = ZeroM
+liftToken f (AddM x (MkBoxInt w) rest) =
+  if w <= 0 then liftToken f rest
+  else let img = f (MkToken x)
+           scaled = scaleMultisetInt w img
+       in addMultiset scaled (liftToken f rest)
+
+||| Identity Proof: Lifting on the empty multiset definitionally preserves the empty multiset.
+public export
+liftTokenZeroProof : (f : Token a -> Multiset BoxInt b) -> liftToken f ZeroM = ZeroM
+liftTokenZeroProof _ = Refl

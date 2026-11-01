@@ -6,6 +6,7 @@ import Data.Nat
 import Data.Fuel
 import Stage0.BoxInt
 import Stage0.Multiset
+import Stage0.Token
 import public Stage0.StructuralFuel
 import public Stage0.Basis.GeometricPixel
 
@@ -516,6 +517,29 @@ streamToMultisetFuel f' strm = fueLedFoldStream f' (\acc, (k, v) => insertItemBo
 public export
 streamToMultiset : Eq a => FusedStream (a, BoxInt) -> Multiset BoxInt a
 streamToMultiset strm = streamToMultisetFuel substrateFuel strm
+
+||| Converts an algebraic multiset into a deforested stream of atomic individual tokens.
+||| Emits single tokens in O(1) auxiliary registers without intermediate heap allocation (Rule 04 §8).
+public export
+streamTokens : Multiset BoxInt a -> FusedStream (Token a)
+streamTokens m =
+  MkStream {s = (Multiset BoxInt a, Nat)}
+    (\case
+       (ZeroM, _) => Done
+       (AddM x (MkBoxInt w) rest, 0) =>
+         let count = boxToNat (absBox (MkBoxInt w))
+         in if count == 0 then Skip (rest, 0)
+            else Yield (MkToken x) (AddM x (MkBoxInt w) rest, pred count)
+       (AddM x w rest, S k) =>
+         Yield (MkToken x) (if k == 0 then (rest, 0) else (AddM x w rest, k))
+    )
+    (m, 0)
+
+||| Folds a deforested stream of tokens back into an algebraic multiset with unit weights.
+public export
+streamTokensToMultiset : Eq a => FusedStream (Token a) -> Multiset BoxInt a
+streamTokensToMultiset strm =
+  foldStream (\acc, tok => addMultiset (tokenToBox tok) acc) ZeroM strm
 
 
 

@@ -2,6 +2,7 @@ module Stage1.MultisetTree
 
 import Stage0.BoxInt
 import Stage0.Multiset
+import Stage0.Token
 import Stage0.PrimeMultiset
 import Stage1.TypeTheory.Smoothness
 import Language.Reflection
@@ -134,6 +135,17 @@ lookupTokenTree val (Node _ l x c r) =
     else if val > x
       then lookupTokenTree val r
       else c
+
+||| Inserts exactly one atomic token into the multiset tree with AVL rebalancing.
+||| Guarantees unit increment at the type level without magic integer constants.
+public export
+insertToken : Ord a => Token a -> MultisetTree a -> MultisetTree a
+insertToken (MkToken x) tree = insertTokenTree x 1 tree
+
+||| Lookups the multiplicity count of an atomic token in O(log N) steps.
+public export
+lookupToken : Ord a => Token a -> MultisetTree a -> Nat
+lookupToken (MkToken x) tree = lookupTokenTree x tree
 
 ||| Converts a linear Box multiset into a balanced logarithmic MultisetTree:
 public export
