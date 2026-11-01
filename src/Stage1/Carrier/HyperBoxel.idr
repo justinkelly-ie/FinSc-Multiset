@@ -1,6 +1,7 @@
 module Stage1.Carrier.HyperBoxel
 
 import Data.Nat
+import Data.Fin
 import Stage0.BoxInt
 import Stage0.OnSeq.FusedStream
 import Stage1.MultisetTree
@@ -115,7 +116,7 @@ sliceHyperBoxelT : Nat -> HyperBoxel -> Boxel
 sliceHyperBoxelT targetT h =
   foldBoxTreeL (\acc, (tess, w) =>
     if tesseractT tess == targetT
-      then let v = mkVoxel (tesseractX tess) (tesseractY tess) (tesseractZ tess)
+      then let v = faceCell (FS (FS (FS FZ))) tess
                cur = lookupBoxTree v acc
                newW = cur + w
            in if boxIsZero newW
@@ -131,18 +132,17 @@ public export
 outerProductVexelBoxel : Vexel -> Boxel -> HyperBoxel
 outerProductVexelBoxel tt spaces =
   foldBoxTreeL (\accT, (u, wt) =>
-    let t = unwrapUnixel u
-    in foldBoxTreeL (\accS, (v, ws) =>
-         let cell = mkTesseract (voxelX v) (voxelY v) (voxelZ v) t
-             w    = wt * ws
-         in if boxIsZero w then accS
-            else let cur = lookupBoxTree cell accS
-                     newW = cur + w
-                 in if boxIsZero newW
-                      then setBoxTree cell (intToBoxInt 0) accS
-                      else setBoxTree cell newW accS)
-          accT
-          spaces
+    foldBoxTreeL (\accS, (v, ws) =>
+      let cell = voxelUnixelToTesseract v u
+          w    = wt * ws
+      in if boxIsZero w then accS
+         else let cur = lookupBoxTree cell accS
+                  newW = cur + w
+              in if boxIsZero newW
+                   then setBoxTree cell (intToBoxInt 0) accS
+                   else setBoxTree cell newW accS)
+      accT
+      spaces
   ) BoxLeaf tt
 
 ||| Proves that slicing a 4D HyperBoxel at time t=2 extracts the exact 3D spatial Boxel.

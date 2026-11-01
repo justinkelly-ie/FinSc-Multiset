@@ -103,6 +103,17 @@ public export
 coordCellAxis : Nat -> CoordCell dim -> Nat
 coordCellAxis = coordAxis
 
+||| Total compile-time axis indexing: extracts the k-th Token Nat without runtime bounds check.
+public export
+coordCellToken : Fin dim -> CoordCell dim -> Token Nat
+coordCellToken FZ (ConsCell tok _) = tok
+coordCellToken (FS k) (ConsCell _ rest) = coordCellToken k rest
+
+||| Extracts the natural coordinate along the k-th axis with total type-level bounds.
+public export
+coordCellCoord : Fin dim -> CoordCell dim -> Nat
+coordCellCoord k c = let MkToken x = coordCellToken k c in x
+
 ||| Sets the coordinate component along the specified axis.
 public export
 coordCellSetAxis : Nat -> Nat -> CoordCell dim -> CoordCell dim
@@ -393,6 +404,42 @@ tesseractT (ConsCell _ (ConsCell _ (ConsCell _ (ConsCell (MkToken t) _)))) = t
 public export
 tesseractEq : Tesseract -> Tesseract -> Bool
 tesseractEq = coordCellEq
+
+||| Monoidal tensor product fusing a 1D Unixel and a 2D Pixel into a 3D Voxel in O(1).
+public export
+unixelPixelToVoxel : Unixel -> Pixel -> Voxel
+unixelPixelToVoxel (ConsCell tu ZeroCell) (ConsCell tr (ConsCell tc ZeroCell)) =
+  ConsCell tu (ConsCell tr (ConsCell tc ZeroCell))
+
+||| Monoidal tensor product fusing a 2D Pixel and a 1D Unixel into a 3D Voxel in O(1).
+public export
+pixelUnixelToVoxel : Pixel -> Unixel -> Voxel
+pixelUnixelToVoxel (ConsCell tr (ConsCell tc ZeroCell)) (ConsCell tu ZeroCell) =
+  ConsCell tr (ConsCell tc (ConsCell tu ZeroCell))
+
+||| Splits a 3D Voxel into its leading Pixel and trailing Unixel (depth).
+public export
+voxelSplitPixelUnixel : Voxel -> (Pixel, Unixel)
+voxelSplitPixelUnixel (ConsCell tx (ConsCell ty (ConsCell tz ZeroCell))) =
+  (ConsCell tx (ConsCell ty ZeroCell), ConsCell tz ZeroCell)
+
+||| Splits a 3D Voxel into its leading Unixel and trailing Pixel.
+public export
+voxelSplitUnixelPixel : Voxel -> (Unixel, Pixel)
+voxelSplitUnixelPixel (ConsCell tx (ConsCell ty (ConsCell tz ZeroCell))) =
+  (ConsCell tx ZeroCell, ConsCell ty (ConsCell tz ZeroCell))
+
+||| Monoidal tensor product fusing a 3D Voxel and a 1D temporal Unixel into a 4D Tesseract in O(1).
+public export
+voxelUnixelToTesseract : Voxel -> Unixel -> Tesseract
+voxelUnixelToTesseract (ConsCell tx (ConsCell ty (ConsCell tz ZeroCell))) (ConsCell tt ZeroCell) =
+  ConsCell tx (ConsCell ty (ConsCell tz (ConsCell tt ZeroCell)))
+
+||| Splits a 4D Tesseract into its 3D spatial Voxel and 1D temporal Unixel.
+public export
+tesseractSplit : Tesseract -> (Voxel, Unixel)
+tesseractSplit (ConsCell tx (ConsCell ty (ConsCell tz (ConsCell tt ZeroCell)))) =
+  (ConsCell tx (ConsCell ty (ConsCell tz ZeroCell)), ConsCell tt ZeroCell)
 
 ||| Evaluates 2D symmetric matrix determinant: det([a b; b c]) = a*c - b^2.
 %inline public export

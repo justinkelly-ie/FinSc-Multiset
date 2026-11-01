@@ -1,6 +1,7 @@
 module Stage1.Carrier.Boxel
 
 import Data.Nat
+import Data.Fin
 import Stage0.BoxInt
 import Stage0.OnSeq.FusedStream
 import Stage1.MultisetTree
@@ -138,7 +139,7 @@ outerProductVexelMaxel : Vexel -> Maxel -> Boxel
 outerProductVexelMaxel tk tm =
   foldBoxTreeL (\accK, (s, sw) =>
     foldBoxTreeL (\accM, (p, pw) =>
-      let v = mkVoxel (unwrapUnixel s) (pixelRow p) (pixelCol p)
+      let v = unixelPixelToVoxel s p
           w = sw * pw
       in if boxIsZero w then accM
          else let cur = lookupBoxTree v accM
@@ -159,7 +160,7 @@ sliceBoxelZ : Nat -> Boxel -> Maxel
 sliceBoxelZ targetZ b =
   foldBoxTreeL (\acc, (v, w) =>
     if voxelZ v == targetZ
-      then let p = mkPixel (voxelX v) (voxelY v)
+      then let p = faceCell (FS (FS FZ)) v
                cur = lookupBoxTree p acc
                newW = cur + w
            in if boxIsZero newW
@@ -175,7 +176,7 @@ sliceBoxelY : Nat -> Boxel -> Maxel
 sliceBoxelY targetY b =
   foldBoxTreeL (\acc, (v, w) =>
     if voxelY v == targetY
-      then let p = mkPixel (voxelX v) (voxelZ v)
+      then let p = faceCell (FS FZ) v
                cur = lookupBoxTree p acc
                newW = cur + w
            in if boxIsZero newW
@@ -191,7 +192,7 @@ sliceBoxelX : Nat -> Boxel -> Maxel
 sliceBoxelX targetX b =
   foldBoxTreeL (\acc, (v, w) =>
     if voxelX v == targetX
-      then let p = mkPixel (voxelY v) (voxelZ v)
+      then let p = faceCell FZ v
                cur = lookupBoxTree p acc
                newW = cur + w
            in if boxIsZero newW

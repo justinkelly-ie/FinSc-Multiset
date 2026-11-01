@@ -30,6 +30,11 @@ mkFractionalBox : numType -> Nat -> FractionalBox numType
 mkFractionalBox num Z     = OverUnixel num (mkUnixel 1)
 mkFractionalBox num (S k) = OverUnixel num (mkUnixel (S k))
 
+||| Extracts the natural denominator value from a FractionalBox without manual constructor deconstruction.
+public export
+fracDenNat : FractionalBox a -> Nat
+fracDenNat fb = unwrapUnixel fb.denominator
+
 ||| A fractional singleton: an atomic basis element over a Unixel denominator.
 public export
 SingFraction : Type -> Type
