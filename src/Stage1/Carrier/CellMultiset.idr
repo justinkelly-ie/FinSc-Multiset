@@ -128,6 +128,23 @@ translateCell : CoordCell dim -> CellMultiset dim -> CellMultiset dim
 translateCell delta mset =
   foldBoxTreeL (\acc, (c, w) => setBoxTree (addCoordCell c delta) w acc) BoxLeaf mset
 
+||| Universal Free Adjunction Spatial Pushforward (F ⊣ U):
+||| Lifts a transformation on coordinate basis tokens to a unique homomorphism over entire CellMultisets.
+public export
+liftCoordCellToken : {dim, dim' : Nat} -> (Token (CoordCell dim) -> CellMultiset dim') -> CellMultiset dim -> CellMultiset dim'
+liftCoordCellToken f BoxLeaf = BoxLeaf
+liftCoordCellToken f (BoxNode _ l c w r) =
+  let leftM = liftCoordCellToken f l
+      rightM = liftCoordCellToken f r
+      thisM = if boxIsZero w then BoxLeaf
+              else scaleCellMultiset w (f (MkToken c))
+  in addCellMultiset (addCellMultiset leftM thisM) rightM
+
+||| Identity Proof: Lifting on empty CellMultiset definitionally preserves empty CellMultiset.
+public export
+0 prfLiftCoordCellZero : {dim, dim' : Nat} -> (f : Token (CoordCell dim) -> CellMultiset dim') -> liftCoordCellToken f (the (CellMultiset dim) BoxLeaf) = the (CellMultiset dim') BoxLeaf
+prfLiftCoordCellZero _ = Refl
+
 ||| Canonical zero-cost dimension synonyms:
 public export Vexel       : Type; Vexel       = CellMultiset 1
 public export Maxel       : Type; Maxel       = CellMultiset 2

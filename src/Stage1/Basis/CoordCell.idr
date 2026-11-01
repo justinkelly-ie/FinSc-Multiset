@@ -1,9 +1,9 @@
 module Stage1.Basis.CoordCell
 
 import Data.Nat
-import Data.Vect
 import Stage0.BoxInt
 import Stage0.BoxNat
+import Stage0.Token
 import Stage0.StructuralFuel
 import public Stage0.OnSeq.FusedStream
 import public Stage1.MultisetTree
@@ -45,94 +45,97 @@ Dim10 = 10
 ------------------------------------------------------------------------
 
 ||| Arbitrary D-dimensional coordinate basis cell, indexed by Peano Nat dimension.
-||| Backed by a balanced AVL MultisetTree Nat mapping dimension axes to coordinates.
-||| Completely eliminates Data.Vect heap allocations and vector consing conflicts.
+||| Directly formed by an inductive sequence of atomic coordinate tokens (Token Nat).
+||| Dimension is definitionally the token cardinality of the cell (|C| = dim).
+||| Completely eliminates intermediate AVL tree balancing, list flattening, and heap consing.
 public export
-record CoordCell (dim : Nat) where
-  constructor MkCoordCell
-  coords : MultisetTree Nat
+data CoordCell : Nat -> Type where
+  ZeroCell : CoordCell 0
+  ConsCell : Token Nat -> CoordCell dim -> CoordCell (S dim)
 
 public export
 coordCellEq : CoordCell dim -> CoordCell dim -> Bool
-coordCellEq (MkCoordCell cs1) (MkCoordCell cs2) = cs1 == cs2
+coordCellEq ZeroCell ZeroCell = True
+coordCellEq (ConsCell (MkToken x) xs) (ConsCell (MkToken y) ys) =
+  x == y && coordCellEq xs ys
 
 public export
 Eq (CoordCell dim) where
-  (MkCoordCell cs1) == (MkCoordCell cs2) = cs1 == cs2
+  (==) = coordCellEq
 
 public export
 Ord (CoordCell dim) where
-  compare (MkCoordCell cs1) (MkCoordCell cs2) =
-    compare (treeToList cs1) (treeToList cs2)
+  compare ZeroCell ZeroCell = EQ
+  compare (ConsCell (MkToken x) xs) (ConsCell (MkToken y) ys) =
+    case compare x y of
+      EQ => compare xs ys
+      other => other
+
+public export
+cellToList : CoordCell dim -> List Nat
+cellToList ZeroCell = []
+cellToList (ConsCell (MkToken x) rest) = x :: cellToList rest
 
 public export
 Show (CoordCell dim) where
-  show (MkCoordCell tree) =
-    let pairs = foldStream (\acc, (axis, val) => acc ++ [val]) (the (List Nat) []) (streamMultisetTreeDirect tree)
-    in show pairs
+  show c = show (cellToList c)
 
 ||| Converts a D-dimensional coordinate cell into a zero-allocation deforested FusedStream of (axis, coord).
 public export
 streamCoordCell : CoordCell dim -> FusedStream (Nat, Nat)
-streamCoordCell (MkCoordCell tree) = streamMultisetTreeDirect tree
+streamCoordCell c =
+  let pairs = let go : Nat -> List Nat -> List (Nat, Nat)
+                  go _ [] = []
+                  go n (x :: xs) = (n, x) :: go (S n) xs
+              in go 0 (cellToList c)
+  in stream pairs
 
-||| Lookups the coordinate component along any specified dimension axis (0 .. dim-1) in O(log D) time.
+||| Lookups the coordinate component along any specified dimension axis (0 .. dim-1).
 public export
 coordAxis : Nat -> CoordCell dim -> Nat
-coordAxis axis (MkCoordCell tree) = lookupTokenTree axis tree
+coordAxis _ ZeroCell = 0
+coordAxis Z (ConsCell (MkToken x) _) = x
+coordAxis (S k) (ConsCell _ rest) = coordAxis k rest
 
 ||| Canonical alias for coordAxis.
 public export
 coordCellAxis : Nat -> CoordCell dim -> Nat
 coordCellAxis = coordAxis
 
-||| Sets the coordinate component along the specified axis in O(log D) time.
+||| Sets the coordinate component along the specified axis.
 public export
 coordCellSetAxis : Nat -> Nat -> CoordCell dim -> CoordCell dim
-coordCellSetAxis axis val (MkCoordCell tree) = MkCoordCell (insertTokenTree axis val tree)
+coordCellSetAxis _ _ ZeroCell = ZeroCell
+coordCellSetAxis Z v (ConsCell _ rest) = ConsCell (MkToken v) rest
+coordCellSetAxis (S k) v (ConsCell tok rest) = ConsCell tok (coordCellSetAxis k v rest)
 
 ------------------------------------------------------------------------
 -- 3. UNIFIED CONSTRUCTORS, TYPE SYNONYMS & DIMENSION PROJECTIONS
 ------------------------------------------------------------------------
 
-||| Builds a CoordCell directly from a deforested stream of (axis, coordinate) pairs in O(1) auxiliary registers.
+||| Builds a CoordCell from a list of natural numbers up to dimension dim.
 public export
-mkCoordCellFromStream : (dim : Nat) -> FusedStream (Nat, Nat) -> CoordCell dim
-mkCoordCellFromStream dim strm =
-  let resTree = foldStream (\acc, (axis, val) =>
-                  if axis >= dim || val == 0 then acc
-                  else insertTokenTree axis val acc)
-                Leaf
-                strm
-  in MkCoordCell resTree
-
-||| Builds a CoordCell from a deforested stream of coordinate values in O(1) auxiliary registers.
-public export
-mkCoordCellFromValStream : (dim : Nat) -> FusedStream Nat -> CoordCell dim
-mkCoordCellFromValStream dim strm =
-  let (_, resTree) = foldStream (\(axis, acc), val =>
-                       if axis >= dim then (axis, acc)
-                       else (S axis, if val == 0 then acc else insertTokenTree axis val acc))
-                     (0, Leaf)
-                     strm
-  in MkCoordCell resTree
+mkCoordCellFromList : (dim : Nat) -> List Nat -> CoordCell dim
+mkCoordCellFromList Z _ = ZeroCell
+mkCoordCellFromList (S k) [] = ConsCell (MkToken 0) (mkCoordCellFromList k [])
+mkCoordCellFromList (S k) (x :: xs) = ConsCell (MkToken x) (mkCoordCellFromList k xs)
 
 ||| Curried dimension-indexed constructors.
 public export
 mkCell1 : Nat -> CoordCell Dim1
-mkCell1 i = MkCoordCell (Node 1 Leaf 0 i Leaf)
+mkCell1 i = ConsCell (MkToken i) ZeroCell
 
 public export
 mkCell2 : Nat -> Nat -> CoordCell Dim2
-mkCell2 r c = MkCoordCell (Node 2 Leaf 0 r (Node 1 Leaf 1 c Leaf))
+mkCell2 r c = ConsCell (MkToken r) (ConsCell (MkToken c) ZeroCell)
 
 public export
 mkCell3 : Nat -> Nat -> Nat -> CoordCell Dim3
-mkCell3 x y z = MkCoordCell (Node 2 (Node 1 Leaf 0 x Leaf) 1 y (Node 1 Leaf 2 z Leaf))
+mkCell3 x y z = ConsCell (MkToken x) (ConsCell (MkToken y) (ConsCell (MkToken z) ZeroCell))
 
 public export
 mkCell4 : Nat -> Nat -> Nat -> Nat -> CoordCell Dim4
-mkCell4 x y z t = MkCoordCell (Node 3 (Node 1 Leaf 0 x Leaf) 1 y (Node 2 Leaf 2 z (Node 1 Leaf 3 t Leaf)))
+mkCell4 x y z t = ConsCell (MkToken x) (ConsCell (MkToken y) (ConsCell (MkToken z) (ConsCell (MkToken t) ZeroCell)))
 
 -- 1D Unixel
 public export
@@ -148,8 +151,16 @@ MkUnixel : Nat -> Unixel
 MkUnixel = mkUnixel
 
 %inline public export
+mkUnixelToken : Token Nat -> Unixel
+mkUnixelToken tok = ConsCell tok ZeroCell
+
+%inline public export
+unixelToken : Unixel -> Token Nat
+unixelToken (ConsCell tok ZeroCell) = tok
+
+%inline public export
 unwrapUnixel : Unixel -> Nat
-unwrapUnixel = coordAxis 0
+unwrapUnixel (ConsCell (MkToken x) ZeroCell) = x
 
 public export
 unixelEq : Unixel -> Unixel -> Bool
@@ -177,27 +188,96 @@ MkPixel : Nat -> Nat -> Pixel
 MkPixel = mkPixel
 
 %inline public export
+mkPixelTokens : Token Nat -> Token Nat -> Pixel
+mkPixelTokens tokR tokC = ConsCell tokR (ConsCell tokC ZeroCell)
+
+%inline public export
+pixelRowToken : Pixel -> Token Nat
+pixelRowToken (ConsCell tokR _) = tokR
+
+%inline public export
+pixelColToken : Pixel -> Token Nat
+pixelColToken (ConsCell _ (ConsCell tokC _)) = tokC
+
+%inline public export
+pixelTokens : Pixel -> (Token Nat, Token Nat)
+pixelTokens p = (pixelRowToken p, pixelColToken p)
+
+%inline public export
 pixelRow : Pixel -> Nat
-pixelRow = coordAxis 0
+pixelRow (ConsCell (MkToken r) (ConsCell _ ZeroCell)) = r
 
 %inline public export
 pixelCol : Pixel -> Nat
-pixelCol = coordAxis 1
+pixelCol (ConsCell _ (ConsCell (MkToken c) ZeroCell)) = c
 
 public export
 pixelEq : Pixel -> Pixel -> Bool
 pixelEq = coordCellEq
 
-||| Multiplies a Pixel by a Pixel (discrete matrix basis multiplication).
+------------------------------------------------------------------------
+-- POLARIZED MATRIX TOKENS & STOICHIOMETRIC MULTI-TOKEN ANNIHILATION
+------------------------------------------------------------------------
+
+||| Polarity of an internal matrix basis token (Rule 03 §6).
+public export
+data Polarity = In | Out
+
+public export
+Eq Polarity where
+  In == In = True
+  Out == Out = True
+  _ == _ = False
+
+public export
+Show Polarity where
+  show In = "In"
+  show Out = "Out"
+
+||| A polarized matrix basis token carrying an index and orientation.
+public export
+record DirPixelToken where
+  constructor MkDirPixelToken
+  index    : Nat
+  polarity : Polarity
+
+public export
+Eq DirPixelToken where
+  (MkDirPixelToken i1 p1) == (MkDirPixelToken i2 p2) = i1 == i2 && p1 == p2
+
+public export
+Show DirPixelToken where
+  show (MkDirPixelToken i p) = show p ++ "(" ++ show i ++ ")"
+
+||| Decomposes a discrete Pixel into its pair of polarized basis tokens: {Out(row), In(col)}.
+public export
+pixelToDirTokens : Pixel -> (Token DirPixelToken, Token DirPixelToken)
+pixelToDirTokens (ConsCell (MkToken r) (ConsCell (MkToken c) ZeroCell)) =
+  (MkToken (MkDirPixelToken r Out), MkToken (MkDirPixelToken c In))
+
+||| Reconstructs a discrete Pixel from a pair of polarized basis tokens.
+public export
+dirTokensToPixel : Token DirPixelToken -> Token DirPixelToken -> Maybe Pixel
+dirTokensToPixel (MkToken (MkDirPixelToken r Out)) (MkToken (MkDirPixelToken c In)) =
+  Just (mkPixel r c)
+dirTokensToPixel _ _ = Nothing
+
+||| Multiplies two Pixels via stoichiometric annihilation of internal conjugate tokens:
+||| {Out(i), In(j)} + {Out(j), In(k)} -> {Out(i), In(k)} iff target == source.
+public export
+mulPixelMultiToken : Pixel -> Pixel -> Maybe Pixel
+mulPixelMultiToken p1 p2 =
+  let (out1, in1) = pixelToDirTokens p1
+      (out2, in2) = pixelToDirTokens p2
+  in if (fromToken in1).index == (fromToken out2).index
+       then dirTokensToPixel out1 in2
+       else Nothing
+
+||| Canonical discrete matrix basis multiplication:
 ||| [i, j] * [k, l] = [i, l] if j == k, otherwise Nothing.
 %inline public export
 mulPixel : Pixel -> Pixel -> Maybe Pixel
-mulPixel p1 p2 =
-  let r1 = pixelRow p1
-      c1 = pixelCol p1
-      r2 = pixelRow p2
-      c2 = pixelCol p2
-  in if c1 == r2 then Just (mkPixel r1 c2) else Nothing
+mulPixel = mulPixelMultiToken
 
 ||| Multiplies a Pixel on the left by a Unixel: [i, j] * [j] = [i] (matrix-vector contraction).
 %inline public export
@@ -232,15 +312,15 @@ MkVoxel = mkVoxel
 
 %inline public export
 voxelX : Voxel -> Nat
-voxelX = coordAxis 0
+voxelX (ConsCell (MkToken x) _) = x
 
 %inline public export
 voxelY : Voxel -> Nat
-voxelY = coordAxis 1
+voxelY (ConsCell _ (ConsCell (MkToken y) _)) = y
 
 %inline public export
 voxelZ : Voxel -> Nat
-voxelZ = coordAxis 2
+voxelZ (ConsCell _ (ConsCell _ (ConsCell (MkToken z) _))) = z
 
 public export
 voxelEq : Voxel -> Voxel -> Bool
@@ -265,19 +345,19 @@ MkTesseract = mkTesseract
 
 %inline public export
 tesseractX : Tesseract -> Nat
-tesseractX = coordAxis 0
+tesseractX (ConsCell (MkToken x) _) = x
 
 %inline public export
 tesseractY : Tesseract -> Nat
-tesseractY = coordAxis 1
+tesseractY (ConsCell _ (ConsCell (MkToken y) _)) = y
 
 %inline public export
 tesseractZ : Tesseract -> Nat
-tesseractZ = coordAxis 2
+tesseractZ (ConsCell _ (ConsCell _ (ConsCell (MkToken z) _))) = z
 
 %inline public export
 tesseractT : Tesseract -> Nat
-tesseractT = coordAxis 3
+tesseractT (ConsCell _ (ConsCell _ (ConsCell _ (ConsCell (MkToken t) _)))) = t
 
 public export
 tesseractEq : Tesseract -> Tesseract -> Bool
@@ -294,51 +374,37 @@ detSymmetricMatrix2D a b c = subBox (a * c) (b * b)
 
 ||| Additive neutral zero coordinate cell 0 = (0, 0, ..., 0).
 public export
-zeroCoordCell : CoordCell dim
-zeroCoordCell = MkCoordCell Leaf
+zeroCoordCell : {dim : Nat} -> CoordCell dim
+zeroCoordCell {dim = Z} = ZeroCell
+zeroCoordCell {dim = S k} = ConsCell (MkToken 0) zeroCoordCell
 
 ||| Vector / componentwise addition of two coordinate cells (c1 + c2).
 public export
 addCoordCell : CoordCell dim -> CoordCell dim -> CoordCell dim
-addCoordCell (MkCoordCell cs1) (MkCoordCell cs2) =
-  MkCoordCell (mergeMultisetTrees cs1 cs2)
+addCoordCell ZeroCell ZeroCell = ZeroCell
+addCoordCell (ConsCell (MkToken x) xs) (ConsCell (MkToken y) ys) =
+  ConsCell (MkToken (x + y)) (addCoordCell xs ys)
 
 ||| Componentwise direct product (Hadamard product) of two coordinate cells (c1 * c2).
 public export
 mulCoordCell : CoordCell dim -> CoordCell dim -> CoordCell dim
-mulCoordCell (MkCoordCell cs1) (MkCoordCell cs2) =
-  let pairs = streamMultisetTreeDirect cs1
-      resTree = foldStream (\acc, (axis, v1) =>
-                  let v2 = lookupTokenTree axis cs2
-                      p = v1 * v2
-                  in if p == 0 then acc else insertTokenTree axis p acc)
-                Leaf
-                pairs
-  in MkCoordCell resTree
+mulCoordCell ZeroCell ZeroCell = ZeroCell
+mulCoordCell (ConsCell (MkToken x) xs) (ConsCell (MkToken y) ys) =
+  ConsCell (MkToken (x * y)) (mulCoordCell xs ys)
 
 ||| Scalar multiplication of a coordinate cell by a natural number (k * c).
 public export
 scaleCoordCell : Nat -> CoordCell dim -> CoordCell dim
-scaleCoordCell Z _ = MkCoordCell Leaf
-scaleCoordCell (S Z) c = c
-scaleCoordCell k (MkCoordCell cs) =
-  let pairs = streamMultisetTreeDirect cs
-      resTree = foldStream (\acc, (axis, v) =>
-                  let p = k * v
-                  in if p == 0 then acc else insertTokenTree axis p acc)
-                Leaf
-                pairs
-  in MkCoordCell resTree
+scaleCoordCell _ ZeroCell = ZeroCell
+scaleCoordCell k (ConsCell (MkToken x) xs) =
+  ConsCell (MkToken (k * x)) (scaleCoordCell k xs)
 
 ||| Inner / dot product of two coordinate cells (u · v).
 public export
 dotCoordCell : CoordCell dim -> CoordCell dim -> Nat
-dotCoordCell (MkCoordCell cs1) (MkCoordCell cs2) =
-  foldStream (\acc, (axis, v1) =>
-    let v2 = lookupTokenTree axis cs2
-    in acc + (v1 * v2))
-  0
-  (streamMultisetTreeDirect cs1)
+dotCoordCell ZeroCell ZeroCell = 0
+dotCoordCell (ConsCell (MkToken x) xs) (ConsCell (MkToken y) ys) =
+  (x * y) + dotCoordCell xs ys
 
 ||| Wildberger Quadrance Q(c) = c · c = sum (c_i)^2.
 public export
@@ -348,28 +414,15 @@ quadranceCoordCell c = dotCoordCell c c
 ||| Componentwise subtraction / bounded natural difference of two coordinate cells.
 public export
 minusCoordCell : CoordCell dim -> CoordCell dim -> CoordCell dim
-minusCoordCell (MkCoordCell cs1) (MkCoordCell cs2) =
-  let pairs = streamMultisetTreeDirect cs1
-      resTree = foldStream (\acc, (axis, v1) =>
-                  let v2 = lookupTokenTree axis cs2
-                      d = minus v1 v2
-                  in if d == 0 then acc else insertTokenTree axis d acc)
-                Leaf
-                pairs
-  in MkCoordCell resTree
+minusCoordCell ZeroCell ZeroCell = ZeroCell
+minusCoordCell (ConsCell (MkToken x) xs) (ConsCell (MkToken y) ys) =
+  ConsCell (MkToken (minus x y)) (minusCoordCell xs ys)
 
 ||| Populates a coordinate cell of dimension dim with a constant coordinate k across all axes.
 public export
 constCoordCell : (dim : Nat) -> Nat -> CoordCell dim
-constCoordCell dim k =
-  if k == 0 then zeroCoordCell
-  else
-    let go : (fuel : Nat) -> Nat -> MultisetTree Nat -> MultisetTree Nat
-        go Z _ acc = acc
-        go (S fuel) axis acc =
-          if axis >= dim then acc
-          else go fuel (S axis) (insertTokenTree axis k acc)
-    in MkCoordCell (go dim 0 Leaf)
+constCoordCell Z _ = ZeroCell
+constCoordCell (S k) n = ConsCell (MkToken n) (constCoordCell k n)
 
 ||| Canonical 1-vector of ones: 1 = (1, 1, ..., 1).
 public export
@@ -383,7 +436,7 @@ Semigroup (CoordCell dim) where
 
 ||| Monoid implementation for CoordCell (dim : Nat).
 public export
-Monoid (CoordCell dim) where
+{dim : Nat} -> Monoid (CoordCell dim) where
   neutral = zeroCoordCell
 
 ||| Universal Num instance for CoordCell of any dimension.
@@ -448,15 +501,15 @@ prfUnixelAddZeroLeft i = Refl
 
 public export
 0 prfUnixelAddZeroRight : (i : Nat) -> addUnixel (mkUnixel i) (mkUnixel 0) = mkUnixel i
-prfUnixelAddZeroRight i = cong mkUnixel (plusZeroRightNeutral i)
+prfUnixelAddZeroRight i = cong (\x => ConsCell (MkToken x) ZeroCell) (plusZeroRightNeutral i)
 
 public export
 0 prfUnixelAddComm : (i, j : Nat) -> addUnixel (mkUnixel i) (mkUnixel j) = addUnixel (mkUnixel j) (mkUnixel i)
-prfUnixelAddComm i j = cong mkUnixel (plusCommutative i j)
+prfUnixelAddComm i j = cong (\x => ConsCell (MkToken x) ZeroCell) (plusCommutative i j)
 
 public export
 0 prfUnixelAddAssoc : (i, j, k : Nat) -> addUnixel (addUnixel (mkUnixel i) (mkUnixel j)) (mkUnixel k) = addUnixel (mkUnixel i) (addUnixel (mkUnixel j) (mkUnixel k))
-prfUnixelAddAssoc i j k = cong mkUnixel (sym (plusAssociative i j k))
+prfUnixelAddAssoc i j k = cong (\x => ConsCell (MkToken x) ZeroCell) (sym (plusAssociative i j k))
 
 public export
 0 prfUnixelMulZeroLeft : (i : Nat) -> mulUnixel (mkUnixel 0) (mkUnixel i) = mkUnixel 0
@@ -464,15 +517,15 @@ prfUnixelMulZeroLeft i = Refl
 
 public export
 0 prfUnixelMulOneLeft : (i : Nat) -> mulUnixel (mkUnixel 1) (mkUnixel i) = mkUnixel i
-prfUnixelMulOneLeft i = cong mkUnixel (multOneLeftNeutral i)
+prfUnixelMulOneLeft i = cong (\x => ConsCell (MkToken x) ZeroCell) (multOneLeftNeutral i)
 
 public export
 0 prfUnixelMulComm : (i, j : Nat) -> mulUnixel (mkUnixel i) (mkUnixel j) = mulUnixel (mkUnixel j) (mkUnixel i)
-prfUnixelMulComm i j = cong mkUnixel (multCommutative i j)
+prfUnixelMulComm i j = cong (\x => ConsCell (MkToken x) ZeroCell) (multCommutative i j)
 
 public export
 0 prfUnixelDistributesLeft : (i, j, k : Nat) -> mulUnixel (addUnixel (mkUnixel i) (mkUnixel j)) (mkUnixel k) = addUnixel (mulUnixel (mkUnixel i) (mkUnixel k)) (mulUnixel (mkUnixel j) (mkUnixel k))
-prfUnixelDistributesLeft i j k = cong mkUnixel (multDistributesOverPlusLeft i j k)
+prfUnixelDistributesLeft i j k = cong (\x => ConsCell (MkToken x) ZeroCell) (multDistributesOverPlusLeft i j k)
 
 -- 2D Pixel Semiring Lemmas
 public export
