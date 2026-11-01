@@ -232,6 +232,44 @@ public export
 stepPythagoreanCompanionSpread : SquareMaxel 2 -> SquareMaxel 2
 stepPythagoreanCompanionSpread = stepCompanionSpread (intToBoxInt 0)
 
+||| Dynamic 2x2 companion spread matrix parameterized by dynamic coordinates (x, y):
+||| [[2 * Q_Red, -Q_Blue], [Q_Blue, 0]].
+public export
+pythagoreanCompanionSquareMaxel : (x : BoxInt) -> (y : BoxInt) -> SquareMaxel 2
+pythagoreanCompanionSquareMaxel x y =
+  let qBlue = (x * x) + (y * y)
+      qRed  = (x * x) - (y * y)
+      c00   = intToBoxInt 2 * qRed
+      c01   = mulBox (intToBoxInt (-1)) qBlue
+      c10   = qBlue
+      c11   = intToBoxInt 0
+      t0    = setBoxTree (mkPixel 0 0) c00 BoxLeaf
+      t1    = setBoxTree (mkPixel 0 1) c01 t0
+      t2    = setBoxTree (mkPixel 1 0) c10 t1
+      t3    = setBoxTree (mkPixel 1 1) c11 t2
+  in MkSquareMaxel t3
+
+||| Dynamic Pythagorean companion recurrence step: M(x, y) * S in O(1).
+public export
+stepDynamicPythagoreanCompanionSpread : (x : BoxInt) -> (y : BoxInt) -> SquareMaxel 2 -> SquareMaxel 2
+stepDynamicPythagoreanCompanionSpread x y (MkSquareMaxel tree) =
+  let a = lookupBoxTree (mkPixel 0 0) tree
+      b = lookupBoxTree (mkPixel 0 1) tree
+      c = lookupBoxTree (mkPixel 1 0) tree
+      d = lookupBoxTree (mkPixel 1 1) tree
+      qBlue = (x * x) + (y * y)
+      qRed  = (x * x) - (y * y)
+      twoQRed = intToBoxInt 2 * qRed
+      newA = (twoQRed * a) - (qBlue * c)
+      newB = (twoQRed * b) - (qBlue * d)
+      newC = qBlue * a
+      newD = qBlue * b
+      t0 = setBoxTree (mkPixel 0 0) newA BoxLeaf
+      t1 = setBoxTree (mkPixel 0 1) newB t0
+      t2 = setBoxTree (mkPixel 1 0) newC t1
+      t3 = setBoxTree (mkPixel 1 1) newD t2
+  in MkSquareMaxel t3
+
 ||| Compress a SquareMaxel by canonicalizing its underlying sparse cell multiset.
 public export
 compressSquareMaxel : {dim : Nat} -> SquareMaxel dim -> SquareMaxel dim
