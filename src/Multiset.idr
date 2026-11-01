@@ -12,6 +12,7 @@ import public Stage0.IntPolynumber
 import public Stage0.StreamPolynumber
 import public Stage0.LinearBuffer
 import public Stage0.Interfaces
+import public Stage0.Token
 import public Stage0.Singleton.Bit
 import public Stage0.Singleton.Bit2
 import public Stage0.Singleton.Sing

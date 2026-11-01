@@ -5,6 +5,9 @@ import Stage0.SignedFraction
 import Stage0.StructuralFuel
 import public Stage1.Basis.Coordinate
 import Stage0.Multiset
+import Stage0.Token
+import Stage0.Singleton.Sing
+import Stage0.Singleton.DepSing
 import Stage1.Order.Preorder
 
 %default total
@@ -26,6 +29,36 @@ public export
 mkFractionalBox : numType -> Nat -> FractionalBox numType
 mkFractionalBox num Z     = OverUnixel num (mkUnixel 1)
 mkFractionalBox num (S k) = OverUnixel num (mkUnixel (S k))
+
+||| A fractional singleton: an atomic basis element over a Unixel denominator.
+public export
+SingFraction : Type -> Type
+SingFraction a = FractionalBox (Sing a)
+
+||| A fractional token: an atomic basis token over a Unixel denominator.
+public export
+TokenFraction : Type -> Type
+TokenFraction a = FractionalBox (Token a)
+
+||| A fractional multiset: an entire multiset distribution over a Unixel denominator.
+public export
+MultisetFraction : Type -> Type
+MultisetFraction a = FractionalBox (Multiset BoxInt a)
+
+||| Smart constructor for SingFraction.
+public export
+mkSingFraction : Sing a -> Nat -> SingFraction a
+mkSingFraction s d = mkFractionalBox s d
+
+||| Smart constructor for TokenFraction.
+public export
+mkTokenFraction : Token a -> Nat -> TokenFraction a
+mkTokenFraction t d = mkFractionalBox t d
+
+||| Smart constructor for MultisetFraction.
+public export
+mkMultisetFraction : Multiset BoxInt a -> Nat -> MultisetFraction a
+mkMultisetFraction m d = mkFractionalBox m d
 
 ------------------------------------------------------------------------
 -- 2. SING FRACTION (EXACT RATIONAL TALLIES)
@@ -70,6 +103,50 @@ zeroUnixelFraction = mkUnixelFraction (intToBoxInt 0) 1
 public export
 unitUnixelFraction : UnixelFraction
 unitUnixelFraction = mkUnixelFraction (intToBoxInt 1) 1
+
+------------------------------------------------------------------------
+-- 2a. SINGLETON & TOKEN FRACTION LENSES
+------------------------------------------------------------------------
+
+||| Bridges a SingFraction over BoxInt to an exact UnixelFraction.
+public export
+singFractionToUnixelFraction : SingFraction BoxInt -> UnixelFraction
+singFractionToUnixelFraction (OverUnixel (MkSing n) d) = MkUnixelFraction n d
+
+||| Bridges a TokenFraction over BoxInt to an exact UnixelFraction.
+public export
+tokenFractionToUnixelFraction : TokenFraction BoxInt -> UnixelFraction
+tokenFractionToUnixelFraction (OverUnixel (MkToken n) d) = MkUnixelFraction n d
+
+||| Embeds an exact UnixelFraction into a SingFraction over BoxInt.
+public export
+unixelFractionToSingFraction : UnixelFraction -> SingFraction BoxInt
+unixelFractionToSingFraction (MkUnixelFraction n d) = OverUnixel (MkSing n) d
+
+||| Embeds an exact UnixelFraction into a TokenFraction over BoxInt.
+public export
+unixelFractionToTokenFraction : UnixelFraction -> TokenFraction BoxInt
+unixelFractionToTokenFraction (MkUnixelFraction n d) = OverUnixel (MkToken n) d
+
+||| Injects a Sing into a UnixelFraction with denominator 1.
+public export
+singToFraction : Sing BoxInt -> UnixelFraction
+singToFraction (MkSing n) = mkUnixelFraction n 1
+
+||| Injects a Token into a UnixelFraction with denominator 1.
+public export
+tokenToFraction : Token BoxInt -> UnixelFraction
+tokenToFraction (MkToken n) = mkUnixelFraction n 1
+
+||| Proof witness that UnixelFraction -> SingFraction -> UnixelFraction is identity.
+public export
+unixelSingFractionRoundTripProof : (q : UnixelFraction) -> singFractionToUnixelFraction (unixelFractionToSingFraction q) = q
+unixelSingFractionRoundTripProof (MkUnixelFraction _ _) = Refl
+
+||| Proof witness that UnixelFraction -> TokenFraction -> UnixelFraction is identity.
+public export
+unixelTokenFractionRoundTripProof : (q : UnixelFraction) -> tokenFractionToUnixelFraction (unixelFractionToTokenFraction q) = q
+unixelTokenFractionRoundTripProof (MkUnixelFraction _ _) = Refl
 
 ------------------------------------------------------------------------
 -- UPSTREAM MSETFRACTION CONVERSION LENSES & SCALAR RATIONAL MEASURE

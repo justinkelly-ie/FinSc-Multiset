@@ -8,6 +8,8 @@ import Stage0.BoxNat
 import Stage0.StructuralFuel
 import Language.Reflection
 import Stage1.TypeTheory.Staging
+import Stage0.Token
+import Stage0.Singleton.Sing
 import public Stage0.OnSeq.FusedStream
 import public Stage1.MultisetTree
 import public Stage1.Basis.CoordCell
@@ -35,6 +37,16 @@ singletonCell : {dim : Nat} -> CoordCell dim -> BoxInt -> CellMultiset dim
 singletonCell c w =
   if boxIsZero w then BoxLeaf
   else BoxNode 1 BoxLeaf c w BoxLeaf
+
+||| Direct O(1) construction of a CellMultiset from a basis token with unit weight 1.
+public export
+tokenToCellMultiset : {dim : Nat} -> Token (CoordCell dim) -> CellMultiset dim
+tokenToCellMultiset (MkToken c) = singletonCell c (intToBoxInt 1)
+
+||| Direct O(1) construction of a CellMultiset from a basis singleton with unit weight 1.
+public export
+singToCellMultiset : {dim : Nat} -> Sing (CoordCell dim) -> CellMultiset dim
+singToCellMultiset (MkSing c) = singletonCell c (intToBoxInt 1)
 
 ||| Constructs a CellMultiset from a fixed-length Vect of coordinate-weight pairs
 ||| with compile-time known length k and structural fuel bounds.

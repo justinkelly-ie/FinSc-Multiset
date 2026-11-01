@@ -3,6 +3,8 @@ module Stage1.Carrier.Vexel
 import Data.Nat
 import Stage0.BoxInt
 import Stage0.OnSeq.FusedStream
+import Stage0.Token
+import Stage0.Singleton.Sing
 import Stage1.MultisetTree
 import Stage1.Basis.CoordCell
 import public Stage1.Carrier.CellMultiset
@@ -17,6 +19,16 @@ import public Stage1.Carrier.CellMultiset
 public export
 MkVexelTree : BoxMultisetTree Unixel -> Vexel
 MkVexelTree t = t
+
+||| Injects a 1D coordinate token into a Vexel with unit weight 1.
+public export
+tokenToVexel : Token (CoordCell 1) -> Vexel
+tokenToVexel = tokenToCellMultiset
+
+||| Injects a 1D coordinate singleton into a Vexel with unit weight 1.
+public export
+singToVexel : Sing (CoordCell 1) -> Vexel
+singToVexel = singToCellMultiset
 
 
 
