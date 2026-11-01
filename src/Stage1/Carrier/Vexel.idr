@@ -18,14 +18,7 @@ public export
 MkVexelTree : BoxMultisetTree Unixel -> Vexel
 MkVexelTree t = t
 
-||| Backward-compatibility constructor alias for list of unixel-weight pairs.
-public export
-MkVexel : List (Unixel, BoxInt) -> Vexel
-MkVexel = mkCellMultiset
 
-public export
-mkVexel : List (Unixel, BoxInt) -> Vexel
-mkVexel = mkCellMultiset
 
 ||| Extracts unixel-weight terms association list from a Vexel.
 public export

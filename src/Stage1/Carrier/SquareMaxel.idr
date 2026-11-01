@@ -26,15 +26,7 @@ record SquareMaxel (dim : Nat) where
   constructor MkSquareMaxel
   entries : CellMultiset 2
 
-||| Backward-compatibility alias for BoxSquareMaxel.
-public export
-BoxSquareMaxel : (dim : Nat) -> Type
-BoxSquareMaxel = SquareMaxel
 
-||| Backward-compatibility constructor alias.
-public export
-MkBoxSquareMaxel : {dim : Nat} -> CellMultiset 2 -> SquareMaxel dim
-MkBoxSquareMaxel = MkSquareMaxel
 
 public export
 Eq (SquareMaxel dim) where
@@ -54,30 +46,21 @@ identitySquareMaxel dim =
     buildId Z acc = acc
     buildId (S k) acc = buildId k (setBoxTree (mkPixel k k) (intToBoxInt 1) acc)
 
-||| Backward-compatibility alias.
-public export
-identityBoxSquareMaxel : (dim : Nat) -> SquareMaxel dim
-identityBoxSquareMaxel = identitySquareMaxel
+
 
 ||| Embeds a sparse 2D Maxel into a dimension-indexed SquareMaxel.
 public export
 maxelToSquareMaxel : (dim : Nat) -> Maxel -> SquareMaxel dim
 maxelToSquareMaxel _ m = MkSquareMaxel m
 
-||| Backward-compatibility alias.
-public export
-maxelToBoxSquareMaxel : (dim : Nat) -> Maxel -> SquareMaxel dim
-maxelToBoxSquareMaxel = maxelToSquareMaxel
+
 
 ||| Extracts the underlying sparse Maxel (CellMultiset 2) from a SquareMaxel.
 public export
 squareMaxelToMaxel : {dim : Nat} -> SquareMaxel dim -> Maxel
 squareMaxelToMaxel (MkSquareMaxel m) = m
 
-||| Backward-compatibility alias.
-public export
-boxSquareMaxelToMaxel : {dim : Nat} -> SquareMaxel dim -> Maxel
-boxSquareMaxelToMaxel = squareMaxelToMaxel
+
 
 ------------------------------------------------------------------------
 -- 2. SPARSE-DENSE CONTRACTION
@@ -110,30 +93,10 @@ contractSquareMaxelDense {dim} (MkSquareMaxel tree) (MkVexelN vec) =
       foldedAcc = foldBoxTreeL (\acc, (p, w) => sparseDenseAccumStepBox dim vec acc p w) initAcc tree
   in MkVexelN foldedAcc
 
-||| Backward-compatibility alias.
-public export
-contractBoxSquareDense : {dim : Nat} -> SquareMaxel dim -> VexelN dim -> VexelN dim
-contractBoxSquareDense = contractSquareMaxelDense
-
-||| Backward-compatibility alias for contractSquareMaxelDense.
-public export
-contractSparseDenseVexel : {dim : Nat} -> SquareMaxel dim -> VexelN dim -> VexelN dim
-contractSparseDenseVexel = contractSquareMaxelDense
-
 ||| 2LTT Staged Sparse-Dense Contraction for SquareMaxel:
 public export
 stagedContractSquareMaxelDense : {dim : Nat} -> Lift (SquareMaxel dim) -> VexelN dim -> Code (VexelN dim)
 stagedContractSquareMaxelDense qm v = quote (contractSquareMaxelDense (splice qm) v)
-
-||| Backward-compatibility alias.
-public export
-stagedContractBoxSquareDense : {dim : Nat} -> Lift (SquareMaxel dim) -> VexelN dim -> Code (VexelN dim)
-stagedContractBoxSquareDense = stagedContractSquareMaxelDense
-
-||| Backward-compatibility alias for stagedContractSquareMaxelDense.
-public export
-stagedContractSparseDense : {dim : Nat} -> Lift (SquareMaxel dim) -> VexelN dim -> Code (VexelN dim)
-stagedContractSparseDense = stagedContractSquareMaxelDense
 
 ||| Helper inserting non-zero row elements into a BoxMultisetTree Pixel.
 public export
@@ -156,10 +119,6 @@ maxelNToSquareMaxel {dim} (MkMaxelN rs) =
       t = foldl insertMatrixBoxPixels BoxLeaf indexedRows
   in MkSquareMaxel t
 
-||| Backward-compatibility alias.
-public export
-maxelNToBoxSquareMaxel : {dim : Nat} -> MaxelN dim -> SquareMaxel dim
-maxelNToBoxSquareMaxel = maxelNToSquareMaxel
 
 ||| Accumulator step for converting sparse SquareMaxel tree entries into dense MaxelN rows.
 public export
@@ -172,9 +131,6 @@ squareMaxelToMaxelNStep dim acc p w =
          updateVectAt rFin (updateVectAt cFin (\curr => addBox curr w)) acc
        _ => acc
 
-public export
-boxSquareMaxelToMaxelNStep : (dim : Nat) -> Vect dim (Vect dim BoxInt) -> Pixel -> BoxInt -> Vect dim (Vect dim BoxInt)
-boxSquareMaxelToMaxelNStep = squareMaxelToMaxelNStep
 
 ||| Dense conversion of a sparse SquareMaxel of size `dim` into a dense MaxelN.
 public export
@@ -185,9 +141,6 @@ squareMaxelToMaxelN dim (MkSquareMaxel tree) =
       foldedRows = foldBoxTreeL (\acc, (p, w) => squareMaxelToMaxelNStep dim acc p w) initRows tree
   in MkMaxelN foldedRows
 
-public export
-boxSquareMaxelToMaxelN : (dim : Nat) -> SquareMaxel dim -> MaxelN dim
-boxSquareMaxelToMaxelN = squareMaxelToMaxelN
 
 ------------------------------------------------------------------------
 -- 3. ALGEBRAIC OPERATIONS & FAST REPEATED SQUARING
@@ -214,18 +167,12 @@ mulSquareMaxel {dim} (MkSquareMaxel t1) (MkSquareMaxel t2) =
         t1
   in MkSquareMaxel resultTree
 
-public export
-mulBoxSquareMaxel : {dim : Nat} -> SquareMaxel dim -> SquareMaxel dim -> SquareMaxel dim
-mulBoxSquareMaxel = mulSquareMaxel
 
 ||| 2LTT Staged Sparse Matrix Multiplication for SquareMaxel:
 public export
 stagedComposeSquareMaxel : {dim : Nat} -> Lift (SquareMaxel dim) -> Lift (SquareMaxel dim) -> Code (SquareMaxel dim)
 stagedComposeSquareMaxel qm1 qm2 = quote (mulSquareMaxel (splice qm1) (splice qm2))
 
-public export
-stagedComposeBoxSquareMaxel : {dim : Nat} -> Lift (SquareMaxel dim) -> Lift (SquareMaxel dim) -> Code (SquareMaxel dim)
-stagedComposeBoxSquareMaxel = stagedComposeSquareMaxel
 
 ||| Scales a SquareMaxel by a BoxInt scalar.
 public export
@@ -236,9 +183,6 @@ scaleSquareMaxel {dim} s (MkSquareMaxel tree) =
     else let scaled = foldBoxTreeL (\acc, (p, w) => setBoxTree p (s * w) acc) BoxLeaf tree
          in MkSquareMaxel scaled
 
-public export
-scaleBoxSquareMaxel : {dim : Nat} -> BoxInt -> SquareMaxel dim -> SquareMaxel dim
-scaleBoxSquareMaxel = scaleSquareMaxel
 
 ||| Adds two SquareMaxels of matching dimension `dim`.
 public export
@@ -254,9 +198,6 @@ addSquareMaxel {dim} (MkSquareMaxel t1) (MkSquareMaxel t2) =
       sumTree = foldBoxTreeL step t1 t2
   in MkSquareMaxel sumTree
 
-public export
-addBoxSquareMaxel : {dim : Nat} -> SquareMaxel dim -> SquareMaxel dim -> SquareMaxel dim
-addBoxSquareMaxel = addSquareMaxel
 
 ||| Perturbs the (0, 0) entry of a SquareMaxel with an additive defect in O(1).
 public export
@@ -266,9 +207,6 @@ perturbSquareMaxel00 (MkSquareMaxel tree) defect =
       newTree = setBoxTree (mkPixel 0 0) (cur + defect) tree
   in MkSquareMaxel newTree
 
-public export
-perturbBoxSquareMaxel00 : {dim : Nat} -> SquareMaxel dim -> BoxInt -> SquareMaxel dim
-perturbBoxSquareMaxel00 = perturbSquareMaxel00
 
 ||| Direct 2x2 companion spread recurrence step for spread s: M(s) * S in O(1).
 public export
@@ -325,6 +263,3 @@ fastSquareMaxelPowerGoh : {dim : Nat} -> (exp : Nat) -> SquareMaxel dim -> Squar
 fastSquareMaxelPowerGoh {dim} exp m =
   fastSquareMaxelPower (gohFuelNat (dim * dim + exp)) exp m
 
-public export
-fastBoxSquareMaxelPower : {dim : Nat} -> (fuel : Nat) -> (exp : Nat) -> SquareMaxel dim -> SquareMaxel dim
-fastBoxSquareMaxelPower = fastSquareMaxelPower

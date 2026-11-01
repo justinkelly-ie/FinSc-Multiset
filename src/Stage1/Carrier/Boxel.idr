@@ -20,14 +20,7 @@ public export
 MkBoxelTree : BoxMultisetTree Voxel -> Boxel
 MkBoxelTree t = t
 
-||| Backward-compatibility constructor alias for list of voxel-weight pairs.
-public export
-MkBoxel : List (Voxel, BoxInt) -> Boxel
-MkBoxel = mkCellMultiset
 
-public export
-mkBoxel : List (Voxel, BoxInt) -> Boxel
-mkBoxel = mkCellMultiset
 
 ||| Canonical empty/zero Boxel.
 public export

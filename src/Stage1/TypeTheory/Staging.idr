@@ -159,13 +159,12 @@ prfStagedConsolidateInvariant _ = Refl
 ||| Linear 2LTT Staged Code Modality:
 ||| Encapsulates a linear runtime object term that must be consumed exactly once.
 public export
-record LinearLift (a : Type) where
-  constructor MkLinearLift
-  unwrapLinear : a
+data LinearLift : Type -> Type where
+  MkLinearLift : (1 val : a) -> LinearLift a
 
 ||| Linear quote: lifts an object term into a LinearLift container.
 public export
-quoteLinear : a -> LinearLift a
+quoteLinear : (1 x : a) -> LinearLift a
 quoteLinear x = MkLinearLift x
 
 ||| Linear splice: extracts the underlying linear object term with multiplicity 1.

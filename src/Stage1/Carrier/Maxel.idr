@@ -19,14 +19,7 @@ public export
 MkMaxelTree : BoxMultisetTree Pixel -> Maxel
 MkMaxelTree t = t
 
-||| Backward-compatibility constructor alias for list of pixel-weight pairs.
-public export
-MkMaxel : List (Pixel, BoxInt) -> Maxel
-MkMaxel = mkCellMultiset
 
-public export
-mkMaxel : List (Pixel, BoxInt) -> Maxel
-mkMaxel = mkCellMultiset
 
 ||| Extracts pixel-weight terms association list from a Maxel.
 public export
@@ -243,9 +236,8 @@ normL1Maxel m =
 public export
 waterMoleculeBonds : Maxel
 waterMoleculeBonds =
-  MkMaxel [ (mkPixel 1 2, intToBoxInt 1) -- O-H1 bond
-          , (mkPixel 1 3, intToBoxInt 1) -- O-H2 bond
-          ]
+  singletonCell (mkPixel 1 2) (intToBoxInt 1) <+>
+  singletonCell (mkPixel 1 3) (intToBoxInt 1)
 
 ------------------------------------------------------------------------
 -- 2. VERIFICATION AUDITS

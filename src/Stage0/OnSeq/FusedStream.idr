@@ -768,31 +768,42 @@ auditParallelStreamPartitionProof =
 -- 10. DEFORESTED DIVISOR STREAMS & CYCLOTOMIC TOTIENT ACCOUNTING
 ------------------------------------------------------------------------
 
+||| Structural modulo for natural numbers under fuel.
+public export
+natModFuel : Nat -> Nat -> Nat -> Nat
+natModFuel Z a b = 0
+natModFuel (S f) a b = if a < b then a else natModFuel f (minus a b) b
+
 ||| Fuel-bounded greatest common divisor for natural numbers.
 public export
 natGCDFuel : Nat -> Nat -> Nat -> Nat
 natGCDFuel Z _ b = b
 natGCDFuel (S f) a Z = a
-natGCDFuel (S f) a b = natGCDFuel f b (a `mod` b)
+natGCDFuel (S f) a (S b) = natGCDFuel f (S b) (natModFuel a a (S b))
 
 ||| Greatest common divisor for natural numbers.
 public export
 natGCD : Nat -> Nat -> Nat
 natGCD a b = natGCDFuel (a + b) a b
 
+||| Structural countdown accumulator for Euler's totient function.
+public export
+totientCount : Nat -> Nat -> Nat -> Nat
+totientCount Z _ acc = acc
+totientCount (S d) k acc =
+  totientCount d k (if natGCD k (S d) == 1 then S acc else acc)
+
 ||| Euler's totient function phi(n) tracking algebraic degree and multiset support cardinality.
+||| Evaluates definitionally at compile time in O(1) auxiliary memory without heap List allocation.
 public export
 totientNat : Nat -> Nat
 totientNat Z = Z
-totientNat (S Z) = S Z
-totientNat 2 = 1
-totientNat 3 = 2
-totientNat 4 = 2
-totientNat 5 = 4
-totientNat 6 = 2
-totientNat (S n) =
-  let k = S n
-  in length (filter (\d => natGCD k d == 1) [1..k])
+totientNat (S n) = totientCount (S n) (S n) 0
+
+||| Compile-time proof witness: phi(39) = 24 definitionally reduces in the core unifier.
+public export
+0 prfTotient39Definitional : totientNat 39 = 24
+prfTotient39Definitional = Refl
 
 ||| Deforested stream of all divisors d | n (from 1 up to n).
 ||| Zero intermediate heap List allocation via stream fusion Skip/Yield.

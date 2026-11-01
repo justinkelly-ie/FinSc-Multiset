@@ -49,20 +49,10 @@ kroneckerSquareMaxel {m} {n} (MkSquareMaxel t1) (MkSquareMaxel t2) =
         t1
   in compressSquareMaxel (MkSquareMaxel resultTree)
 
-||| Backward-compatibility alias.
-public export
-kroneckerBoxSquareMaxel : {m, n : Nat} -> SquareMaxel m -> SquareMaxel n -> SquareMaxel (m * n)
-kroneckerBoxSquareMaxel = kroneckerSquareMaxel
-
 ||| 2LTT Staged Kronecker Product for SquareMaxel:
 public export
 stagedKroneckerSquareMaxel : {m, n : Nat} -> Lift (SquareMaxel m) -> Lift (SquareMaxel n) -> Code (SquareMaxel (m * n))
 stagedKroneckerSquareMaxel qm1 qm2 = quote (kroneckerSquareMaxel (splice qm1) (splice qm2))
-
-||| Backward-compatibility alias.
-public export
-stagedKroneckerBoxSquareMaxel : {m, n : Nat} -> Lift (SquareMaxel m) -> Lift (SquareMaxel n) -> Code (SquareMaxel (m * n))
-stagedKroneckerBoxSquareMaxel = stagedKroneckerSquareMaxel
 
 ------------------------------------------------------------------------
 -- 2. DENSE KRONECKER TENSOR PRODUCTS (VexelN & MaxelN)

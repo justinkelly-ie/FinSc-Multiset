@@ -77,20 +77,7 @@ streamToCellMultiset strm =
     BoxLeaf
     strm
 
-||| Constructs a CellMultiset from a list of coordinate-weight pairs in O(N log N).
-||| @deprecated Use singletonCell + (<+>), streamToCellMultiset, or fromVectCells. Avoid heap List materialization.
-public export
-mkCellMultiset : {dim : Nat} -> List (CoordCell dim, BoxInt) -> CellMultiset dim
-mkCellMultiset xs =
-  foldl (\t, (c, w) =>
-          if boxIsZero w then t
-          else let cur = lookupBoxTree c t
-                   newW = cur + w
-               in if boxIsZero newW
-                    then setBoxTree c (intToBoxInt 0) t
-                    else setBoxTree c newW t)
-        BoxLeaf
-        xs
+
 
 ||| Lookups the weight of a coordinate cell in a CellMultiset in O(log N).
 public export

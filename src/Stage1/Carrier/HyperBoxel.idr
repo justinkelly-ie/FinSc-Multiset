@@ -21,14 +21,7 @@ public export
 MkHyperBoxelTree : BoxMultisetTree Tesseract -> HyperBoxel
 MkHyperBoxelTree t = t
 
-||| Backward-compatibility constructor alias for list of tesseract-weight pairs.
-public export
-MkHyperBoxel : List (Tesseract, BoxInt) -> HyperBoxel
-MkHyperBoxel = mkCellMultiset
 
-public export
-mkHyperBoxel : List (Tesseract, BoxInt) -> HyperBoxel
-mkHyperBoxel = mkCellMultiset
 
 ||| Canonical empty/zero HyperBoxel.
 public export

@@ -21,10 +21,7 @@ squareMaxelToTensor : {dim : Nat} -> SquareMaxel dim -> Multiset BoxInt (Nat, Na
 squareMaxelToTensor (MkSquareMaxel tree) =
   foldBoxTreeR (\p, w, acc => AddM (pixelRow p, pixelCol p) w acc) ZeroM tree
 
-||| Backward-compatibility alias.
-public export
-boxSquareMaxelToTensor : {dim : Nat} -> SquareMaxel dim -> Multiset BoxInt (Nat, Nat)
-boxSquareMaxelToTensor = squareMaxelToTensor
+
 
 ||| Reconstructs a sparse SquareMaxel from an observed MultisetTensor Pixel.
 public export
@@ -41,10 +38,7 @@ tensorToSquareMaxel tensor =
                   BoxLeaf
                   tensor)
 
-||| Backward-compatibility alias.
-public export
-tensorToBoxSquareMaxel : {dim : Nat} -> Multiset BoxInt Pixel -> SquareMaxel dim
-tensorToBoxSquareMaxel = tensorToSquareMaxel
+
 
 ||| Converts a SquareMaxel into a Multiset over typed Pixels.
 public export
@@ -101,10 +95,7 @@ kroneckerSquareMaxelAlg {m} {n} m1 m2 =
       observed = mapMultiset (observeKroneckerPixel n) tOp
   in tensorToSquareMaxel observed
 
-||| Backward-compatibility alias.
-public export
-kroneckerBoxSquareMaxelAlg : {m, n : Nat} -> SquareMaxel m -> SquareMaxel n -> SquareMaxel (m * n)
-kroneckerBoxSquareMaxelAlg = kroneckerSquareMaxelAlg
+
 
 ||| Verified Invariant: Direct sparse Kronecker product definitionally matches
 ||| the pushforward observation of the underlying monoidal tensor operator.
