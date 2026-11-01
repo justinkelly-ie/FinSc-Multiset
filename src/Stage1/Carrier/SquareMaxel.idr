@@ -232,6 +232,22 @@ public export
 stepPythagoreanCompanionSpread : SquareMaxel 2 -> SquareMaxel 2
 stepPythagoreanCompanionSpread = stepCompanionSpread (intToBoxInt 0)
 
+||| Direct 0-allocation balanced builder for 2x2 SquareMaxel:
+||| Constructs the 4-node AVL tree in a single pass without intermediate rebalances.
+public export
+mkSquareMaxel2x2Direct : BoxInt -> BoxInt -> BoxInt -> BoxInt -> SquareMaxel 2
+mkSquareMaxel2x2Direct c00 c01 c10 c11 =
+  let n00 = BoxNode 1 BoxLeaf (mkPixel 0 0) c00 BoxLeaf
+      n11 = BoxNode 1 BoxLeaf (mkPixel 1 1) c11 BoxLeaf
+      n10 = BoxNode 2 BoxLeaf (mkPixel 1 0) c10 n11
+      root = BoxNode 3 n00 (mkPixel 0 1) c01 n10
+  in MkSquareMaxel root
+
+||| Direct projection of component (0, 0) in O(1) time:
+public export
+projectSquareMaxel00 : SquareMaxel dim -> BoxInt
+projectSquareMaxel00 (MkSquareMaxel tree) = lookupBoxTree (mkPixel 0 0) tree
+
 ||| Dynamic 2x2 companion spread matrix parameterized by dynamic coordinates (x, y):
 ||| [[2 * Q_Red, -Q_Blue], [Q_Blue, 0]].
 public export
@@ -243,11 +259,7 @@ pythagoreanCompanionSquareMaxel x y =
       c01   = mulBox (intToBoxInt (-1)) qBlue
       c10   = qBlue
       c11   = intToBoxInt 0
-      t0    = setBoxTree (mkPixel 0 0) c00 BoxLeaf
-      t1    = setBoxTree (mkPixel 0 1) c01 t0
-      t2    = setBoxTree (mkPixel 1 0) c10 t1
-      t3    = setBoxTree (mkPixel 1 1) c11 t2
-  in MkSquareMaxel t3
+  in mkSquareMaxel2x2Direct c00 c01 c10 c11
 
 ||| Dynamic Pythagorean companion recurrence step: M(x, y) * S in O(1).
 public export
@@ -264,11 +276,7 @@ stepDynamicPythagoreanCompanionSpread x y (MkSquareMaxel tree) =
       newB = (twoQRed * b) - (qBlue * d)
       newC = qBlue * a
       newD = qBlue * b
-      t0 = setBoxTree (mkPixel 0 0) newA BoxLeaf
-      t1 = setBoxTree (mkPixel 0 1) newB t0
-      t2 = setBoxTree (mkPixel 1 0) newC t1
-      t3 = setBoxTree (mkPixel 1 1) newD t2
-  in MkSquareMaxel t3
+  in mkSquareMaxel2x2Direct newA newB newC newD
 
 ||| Dynamic Pythagorean companion recurrence under Substrate Thermodynamic Regulation:
 ||| Partitions the homothety factor Q_Blue into the cosmic expansion observable channel,
