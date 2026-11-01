@@ -59,6 +59,20 @@ public export
 greenMetricMaxel2D : Maxel
 greenMetricMaxel2D = parameterizedGreenMetricMaxel (intToBoxInt 1) (intToBoxInt 1)
 
+||| 2D Substrate (Causal Poset / Master Budget) Metric Maxel parameterized by (x, y):
+||| g_11 = x^2, g_12 = xy, g_21 = xy, g_22 = 0.
+public export
+parameterizedSubstrateMetricMaxel : BoxInt -> BoxInt -> Maxel
+parameterizedSubstrateMetricMaxel x y =
+  let xy = x * y
+  in singletonCell (mkPixel 1 1) (x * x) <+>
+     singletonCell (mkPixel 1 2) xy <+>
+     singletonCell (mkPixel 2 1) xy
+
+public export
+substrateMetricMaxel2D : Maxel
+substrateMetricMaxel2D = parameterizedSubstrateMetricMaxel (intToBoxInt 1) (intToBoxInt 1)
+
 ------------------------------------------------------------------------
 -- 3. PARAMETERIZED SQUARE MAXELS (SquareMaxel 2)
 ------------------------------------------------------------------------
@@ -77,6 +91,11 @@ public export
 parameterizedGreenSquareMaxel : BoxInt -> BoxInt -> SquareMaxel 2
 parameterizedGreenSquareMaxel x y =
   maxelToSquareMaxel 2 (parameterizedGreenMetricMaxel x y)
+
+public export
+parameterizedSubstrateSquareMaxel : BoxInt -> BoxInt -> SquareMaxel 2
+parameterizedSubstrateSquareMaxel x y =
+  maxelToSquareMaxel 2 (parameterizedSubstrateMetricMaxel x y)
 
 ------------------------------------------------------------------------
 -- 4. VERIFICATION AUDITS
@@ -136,3 +155,34 @@ auditMatrixPathCompositionProof =
       e21 = lookupPixel (mkPixel 2 1) gProd == intToBoxInt 0
       tot = totalMaxelWeight gProd == intToBoxInt 2
   in e11 && e22 && e12 && e21 && tot
+
+||| Invariant audit verifying the 4-Geometry Quad-Maxel Operator Theorem:
+||| 2 * g_Substrate(x, y) == g_Blue(x, y) + g_Red(x, y) + 2 * g_Green(x, y)
+public export
+auditParameterizedSubstrateOperatorIdentity : (x : BoxInt) -> (y : BoxInt) -> Bool
+auditParameterizedSubstrateOperatorIdentity x y =
+  let gSub = parameterizedSubstrateMetricMaxel x y
+      gB   = parameterizedBlueMetricMaxel x y
+      gR   = parameterizedRedMetricMaxel x y
+      gG   = parameterizedGreenMetricMaxel x y
+      twoGSub = scaleCellMultiset (intToBoxInt 2) gSub
+      twoGG   = scaleCellMultiset (intToBoxInt 2) gG
+      rhsSum  = addCellMultiset (addCellMultiset gB gR) twoGG
+      s11 = lookupPixel (mkPixel 1 1) twoGSub
+      r11 = lookupPixel (mkPixel 1 1) rhsSum
+      s12 = lookupPixel (mkPixel 1 2) twoGSub
+      r12 = lookupPixel (mkPixel 1 2) rhsSum
+      s21 = lookupPixel (mkPixel 2 1) twoGSub
+      r21 = lookupPixel (mkPixel 2 1) rhsSum
+      s22 = lookupPixel (mkPixel 2 2) twoGSub
+      r22 = lookupPixel (mkPixel 2 2) rhsSum
+  in boxEq s11 r11 && boxEq s12 r12 && boxEq s21 r21 && boxEq s22 r22
+
+||| Invariant audit certifying the Irreversible Causal Arrow of the Substrate Metric:
+||| g_22(x, y) == 0 definitionally for all (x, y). Temporal self-feedback is identically zero.
+public export
+auditSubstrateCausalArrowZeroFeedback : (x : BoxInt) -> (y : BoxInt) -> Bool
+auditSubstrateCausalArrowZeroFeedback x y =
+  let gSub = parameterizedSubstrateMetricMaxel x y
+      g22Val = lookupPixel (mkPixel 2 2) gSub
+  in boxEq g22Val (intToBoxInt 0)

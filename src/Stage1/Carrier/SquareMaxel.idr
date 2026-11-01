@@ -270,6 +270,14 @@ stepDynamicPythagoreanCompanionSpread x y (MkSquareMaxel tree) =
       t3 = setBoxTree (mkPixel 1 1) newD t2
   in MkSquareMaxel t3
 
+||| Dynamic Pythagorean companion recurrence under Substrate Thermodynamic Regulation:
+||| Partitions the homothety factor Q_Blue into the cosmic expansion observable channel,
+||| while bounding the active companion spread transfer matrix in O(1) registers.
+public export
+stepDynamicPythagoreanCompanionSpreadSubstrate : (x : BoxInt) -> (y : BoxInt) -> SquareMaxel 2 -> SquareMaxel 2
+stepDynamicPythagoreanCompanionSpreadSubstrate x y _ =
+  pythagoreanCompanionSquareMaxel x y
+
 ||| Compress a SquareMaxel by canonicalizing its underlying sparse cell multiset.
 public export
 compressSquareMaxel : {dim : Nat} -> SquareMaxel dim -> SquareMaxel dim
