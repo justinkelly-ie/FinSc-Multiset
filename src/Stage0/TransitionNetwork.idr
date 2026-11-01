@@ -8,6 +8,8 @@ import Stage0.StructuralFuel
 import Stage0.BoxNat
 import Data.Fuel
 import Data.List
+import Data.Vect
+import Language.Reflection
 
 %default total
 
@@ -81,6 +83,19 @@ fireCertifiedTokenTransition : Eq s =>
 fireCertifiedTokenTransition sp _ delta state =
   applyDelta state (MkDelta sp delta)
 
+||| General multi-token stoichiometric firing rule consuming k tokens and producing j tokens:
+public export
+fireMultiTokenTransition : {k, j : Nat} -> Eq s =>
+                           (consumed : Vect k (Token s)) ->
+                           (produced : Vect j (Token s)) ->
+                           TransitionState s -> Maybe (TransitionState s)
+fireMultiTokenTransition [] prods st =
+  Just (foldl (\acc, tok => addMultiset (tokenToBox tok) acc) st prods)
+fireMultiTokenTransition ((MkToken req) :: rest) prods st =
+  if multiplicity req st >= intToBoxInt 1
+    then fireMultiTokenTransition rest prods (applyDelta st (MkDelta req (intToBoxInt (-1))))
+    else Nothing
+
 ||| Deforested stream generator simulating transition network trajectory over consecutive steps:
 ||| Generates state trajectory without intermediate list allocations.
 public export
@@ -132,3 +147,16 @@ auditTransitionNetworkProof =
       c2 = multiplicity 2 finalSt
       tot = c1 + c2
   in c1 == intToBoxInt 5 && c2 == intToBoxInt 5 && tot == intToBoxInt 10
+
+||| Audits multi-token transition firing definitionally:
+||| Consumes 2x species 1 and produces 1x species 2.
+public export
+auditMultiTokenFiringProof : Bool
+auditMultiTokenFiringProof =
+  let initSt : TransitionState Nat = AddM 1 (intToBoxInt 3) (AddM 2 (intToBoxInt 0) ZeroM)
+      res = fireMultiTokenTransition [MkToken 1, MkToken 1] [MkToken 2] initSt
+  in case res of
+       Just finalSt =>
+         (multiplicity 1 finalSt == intToBoxInt 1) &&
+         (multiplicity 2 finalSt == intToBoxInt 1)
+       Nothing => False
