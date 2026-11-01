@@ -1,6 +1,7 @@
 module Stage1.Basis.CoordCell
 
 import Data.Nat
+import Data.Fin
 import Stage0.BoxInt
 import Stage0.BoxNat
 import Stage0.Token
@@ -215,6 +216,29 @@ public export
 pixelEq : Pixel -> Pixel -> Bool
 pixelEq = coordCellEq
 
+||| Directly fuses two 1D Unixels into a 2D Pixel without integer unwrapping.
+public export
+unixelPairToPixel : Unixel -> Unixel -> Pixel
+unixelPairToPixel (ConsCell t1 ZeroCell) (ConsCell t2 ZeroCell) = ConsCell t1 (ConsCell t2 ZeroCell)
+
+||| Directly splits a 2D Pixel into its constituent row and column Unixels.
+public export
+pixelSplitUnixels : Pixel -> (Unixel, Unixel)
+pixelSplitUnixels (ConsCell t1 (ConsCell t2 ZeroCell)) = (ConsCell t1 ZeroCell, ConsCell t2 ZeroCell)
+
+||| Categorical dagger / adjoint functor swapping row and column tokens in O(1).
+public export
+transposePixel : Pixel -> Pixel
+transposePixel (ConsCell tr (ConsCell tc ZeroCell)) = ConsCell tc (ConsCell tr ZeroCell)
+
+||| Discrete Exterior Calculus (DEC) Face Cell Projection:
+||| Drops the k-th dimension token to yield the boundary face cell of dimension dim.
+public export
+faceCell : {dim : Nat} -> Fin (S dim) -> CoordCell (S dim) -> CoordCell dim
+faceCell FZ (ConsCell _ rest) = rest
+faceCell {dim = Z} (FS k) _ impossible
+faceCell {dim = S n} (FS k) (ConsCell tok rest) = ConsCell tok (faceCell k rest)
+
 ------------------------------------------------------------------------
 -- POLARIZED MATRIX TOKENS & STOICHIOMETRIC MULTI-TOKEN ANNIHILATION
 ------------------------------------------------------------------------
@@ -261,6 +285,13 @@ dirTokensToPixel : Token DirPixelToken -> Token DirPixelToken -> Maybe Pixel
 dirTokensToPixel (MkToken (MkDirPixelToken r Out)) (MkToken (MkDirPixelToken c In)) =
   Just (mkPixel r c)
 dirTokensToPixel _ _ = Nothing
+
+||| Contraction of an In-token and an Out-token via conjugate index annihilation.
+public export
+contractDirTokens : Token DirPixelToken -> Token DirPixelToken -> Maybe ()
+contractDirTokens (MkToken (MkDirPixelToken i In)) (MkToken (MkDirPixelToken j Out)) =
+  if i == j then Just () else Nothing
+contractDirTokens _ _ = Nothing
 
 ||| Multiplies two Pixels via stoichiometric annihilation of internal conjugate tokens:
 ||| {Out(i), In(j)} + {Out(j), In(k)} -> {Out(i), In(k)} iff target == source.

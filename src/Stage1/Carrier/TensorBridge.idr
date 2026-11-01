@@ -2,6 +2,7 @@ module Stage1.Carrier.TensorBridge
 
 import Stage0.BoxInt
 import Stage0.Multiset
+import Stage0.Token
 import Stage1.MultisetTree
 import Stage1.MultisetTensor
 import Stage1.Basis.CoordCell
@@ -51,6 +52,18 @@ public export
 tensorNatToSquareMaxel : {dim : Nat} -> Multiset BoxInt (Nat, Nat) -> SquareMaxel dim
 tensorNatToSquareMaxel tensor =
   tensorToSquareMaxel (mapMultiset (\(r, c) => mkPixel r c) tensor)
+
+||| Converts a SquareMaxel into a Multiset over Token pairs without intermediate Nat conversion.
+public export
+squareMaxelToTokenTensor : {dim : Nat} -> SquareMaxel dim -> Multiset BoxInt (Token Nat, Token Nat)
+squareMaxelToTokenTensor (MkSquareMaxel tree) =
+  foldBoxTreeR (\p, w, acc => AddM (pixelTokens p) w acc) ZeroM tree
+
+||| Reconstructs a sparse SquareMaxel directly from a Token pair Multiset.
+public export
+tokenTensorToSquareMaxel : {dim : Nat} -> Multiset BoxInt (Token Nat, Token Nat) -> SquareMaxel dim
+tokenTensorToSquareMaxel tensor =
+  tensorToSquareMaxel (mapMultiset (\(rt, ct) => mkPixelTokens rt ct) tensor)
 
 ||| Verified Invariant: Converting a SquareMaxel to Multiset and back preserves the matrix.
 public export

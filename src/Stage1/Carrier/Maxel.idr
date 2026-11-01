@@ -77,7 +77,7 @@ identityMaxel =
 public export
 transposeMaxel : Maxel -> Maxel
 transposeMaxel m =
-  foldBoxTreeL (\acc, (p, w) => setBoxTree (mkPixel (pixelCol p) (pixelRow p)) w acc) BoxLeaf m
+  foldBoxTreeL (\acc, (p, w) => setBoxTree (transposePixel p) w acc) BoxLeaf m
 
 ||| Contracts a Maxel matrix on a Vexel vector (M * v).
 public export
@@ -141,7 +141,7 @@ outerProductVexel : Vexel -> Vexel -> Maxel
 outerProductVexel tk tb =
   foldBoxTreeL (\accTree, (k, kw) =>
     foldBoxTreeL (\innerAcc, (b, bw) =>
-      let p = mkPixel (unwrapUnixel k) (unwrapUnixel b)
+      let p = unixelPairToPixel k b
           wOut = kw * bw
           cur = lookupBoxTree p innerAcc
           newW = cur + wOut
@@ -165,27 +165,25 @@ public export
 wedgeVexel : Vexel -> Vexel -> Maxel
 wedgeVexel tu tv =
   foldBoxTreeL (\accU, (u, wu) =>
-    let i = unwrapUnixel u
-    in foldBoxTreeL (\accV, (v, wv) =>
-         let j = unwrapUnixel v
-         in if i == j
-              then accV
-              else
-                let w = wu * wv
-                    pPos = mkPixel i j
-                    pNeg = mkPixel j i
-                    curPos = lookupBoxTree pPos accV
-                    newPos = curPos + w
-                    tree1 = if boxIsZero newPos
-                              then setBoxTree pPos (intToBoxInt 0) accV
-                              else setBoxTree pPos newPos accV
-                    curNeg = lookupBoxTree pNeg tree1
-                    newNeg = curNeg - w
-                in if boxIsZero newNeg
-                     then setBoxTree pNeg (intToBoxInt 0) tree1
-                     else setBoxTree pNeg newNeg tree1)
-         accU
-         tv)
+    foldBoxTreeL (\accV, (v, wv) =>
+      if u == v
+        then accV
+        else
+          let w = wu * wv
+              pPos = unixelPairToPixel u v
+              pNeg = transposePixel pPos
+              curPos = lookupBoxTree pPos accV
+              newPos = curPos + w
+              tree1 = if boxIsZero newPos
+                        then setBoxTree pPos (intToBoxInt 0) accV
+                        else setBoxTree pPos newPos accV
+              curNeg = lookupBoxTree pNeg tree1
+              newNeg = curNeg - w
+          in if boxIsZero newNeg
+               then setBoxTree pNeg (intToBoxInt 0) tree1
+               else setBoxTree pNeg newNeg tree1)
+      accU
+      tv)
     BoxLeaf
     tu
 
