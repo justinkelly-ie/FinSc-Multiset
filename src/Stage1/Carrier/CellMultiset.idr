@@ -140,6 +140,11 @@ liftCoordCellToken f (BoxNode _ l c w r) =
               else scaleCellMultiset w (f (MkToken c))
   in addCellMultiset (addCellMultiset leftM thisM) rightM
 
+||| Canonical category-theoretic free monoid adjunction homomorphism for CellMultisets.
+public export
+liftCellMultisetHom : {dim, dim' : Nat} -> (Token (CoordCell dim) -> CellMultiset dim') -> CellMultiset dim -> CellMultiset dim'
+liftCellMultisetHom = liftCoordCellToken
+
 ||| Identity Proof: Lifting on empty CellMultiset definitionally preserves empty CellMultiset.
 public export
 0 prfLiftCoordCellZero : {dim, dim' : Nat} -> (f : Token (CoordCell dim) -> CellMultiset dim') -> liftCoordCellToken f (the (CellMultiset dim) BoxLeaf) = the (CellMultiset dim') BoxLeaf

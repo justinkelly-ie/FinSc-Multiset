@@ -65,6 +65,38 @@ applyDelta state (MkDelta sp ch) =
       if k == x then AddM x v rest
       else AddM k m (update x v rest)
 
+||| Strictly conservative stoichiometric delta application:
+||| Succeeds with Just (new state) iff the species population does not become negative;
+||| returns Nothing otherwise, guaranteeing exact non-negative token conservation.
+public export
+applyDeltaSafe : Eq s => TransitionState s -> StoichiometryDelta s -> Maybe (TransitionState s)
+applyDeltaSafe state (MkDelta sp ch) =
+  let cur = multiplicity sp state
+      newVal = cur + ch
+  in if newVal < intToBoxInt 0 then Nothing
+     else Just (update sp newVal state)
+  where
+    update : s -> BoxInt -> Multiset BoxInt s -> Multiset BoxInt s
+    update x v ZeroM = AddM x v ZeroM
+    update x v (AddM k m rest) =
+      if k == x then AddM x v rest
+      else AddM k m (update x v rest)
+
+||| Strictly conservative sequence of delta applications without intermediate list allocation.
+public export
+foldDeltasSafe : Eq s => List (StoichiometryDelta s) -> TransitionState s -> Maybe (TransitionState s)
+foldDeltasSafe [] st = Just st
+foldDeltasSafe (d :: ds) st =
+  case applyDeltaSafe st d of
+    Just st' => foldDeltasSafe ds st'
+    Nothing  => Nothing
+
+||| Fires a transition channel safely, succeeding iff all species deltas remain non-negative.
+public export
+fireChannelSafe : Eq s => TransitionChannel s -> TransitionState s -> Maybe (TransitionState s)
+fireChannelSafe (MkChannel _ dList _) state =
+  foldDeltasSafe dList state
+
 ||| Fires a transition channel, updating all participating species deltas in sequence.
 public export
 fireChannel : Eq s => TransitionChannel s -> TransitionState s -> TransitionState s
