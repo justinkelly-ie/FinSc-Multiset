@@ -113,37 +113,7 @@ streamToHyperBoxel = streamToCellMultiset
 ||| Slices a 4D HyperBoxel at a fixed temporal coordinate t = targetT into a 3D spatial Boxel.
 public export
 sliceHyperBoxelT : Nat -> HyperBoxel -> Boxel
-sliceHyperBoxelT targetT h =
-  foldBoxTreeL (\acc, (tess, w) =>
-    if tesseractT tess == targetT
-      then let v = faceCell (FS (FS (FS FZ))) tess
-               cur = lookupBoxTree v acc
-               newW = cur + w
-           in if boxIsZero newW
-                then setBoxTree v (intToBoxInt 0) acc
-                else setBoxTree v newW acc
-      else acc)
-    BoxLeaf
-    h
-
-||| Outer product of a temporal Vexel and a spatial Boxel: T (x) S -> 4D HyperBoxel.
-||| Evaluates directly in tree space with zero intermediate List allocations.
-public export
-outerProductVexelBoxel : Vexel -> Boxel -> HyperBoxel
-outerProductVexelBoxel tt spaces =
-  foldBoxTreeL (\accT, (u, wt) =>
-    foldBoxTreeL (\accS, (v, ws) =>
-      let cell = voxelUnixelToTesseract v u
-          w    = wt * ws
-      in if boxIsZero w then accS
-         else let cur = lookupBoxTree cell accS
-                  newW = cur + w
-              in if boxIsZero newW
-                   then setBoxTree cell (intToBoxInt 0) accS
-                   else setBoxTree cell newW accS)
-      accT
-      spaces
-  ) BoxLeaf tt
+sliceHyperBoxelT targetT h = sliceCellMultiset (FS (FS (FS FZ))) targetT h
 
 ||| Proves that slicing a 4D HyperBoxel at time t=2 extracts the exact 3D spatial Boxel.
 public export

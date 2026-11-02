@@ -160,3 +160,34 @@ auditMultiTokenFiringProof =
          (multiplicity 1 finalSt == intToBoxInt 1) &&
          (multiplicity 2 finalSt == intToBoxInt 1)
        Nothing => False
+
+------------------------------------------------------------------------
+-- 4. STOICHIOMETRIC HOMOMORPHISMS VIA FREE MONOID ADJUNCTION
+------------------------------------------------------------------------
+
+||| Lifts an elementary token reaction rule to a unique multiset homomorphism
+||| by the universal property of free commutative monoids (F ⊣ U).
+public export
+liftTokenReaction : (Token s -> TransitionState s) -> TransitionState s -> TransitionState s
+liftTokenReaction = liftToken
+
+||| Audit: Universal reaction homomorphism preserves total mass under balanced token rules.
+public export
+auditReactionMassConservationProof : Bool
+auditReactionMassConservationProof =
+  let -- Rule: A -> B + C (species 1 -> species 2 + species 3)
+      rule : Token Nat -> TransitionState Nat
+      rule (MkToken 1) = AddM 2 (intToBoxInt 1) (AddM 3 (intToBoxInt 1) ZeroM)
+      rule (MkToken x) = AddM x (intToBoxInt 1) ZeroM
+      init = the (TransitionState Nat) (AddM 1 (intToBoxInt 2) ZeroM)
+      res = liftTokenReaction rule init
+      massOf : Nat -> BoxInt
+      massOf 1 = intToBoxInt 2
+      massOf 2 = intToBoxInt 1
+      massOf 3 = intToBoxInt 1
+      massOf _ = intToBoxInt 0
+      initMass = foldMultiset (\s, w, acc => acc + (massOf s * w)) (intToBoxInt 0) init
+      resMass = foldMultiset (\s, w, acc => acc + (massOf s * w)) (intToBoxInt 0) res
+  in initMass == resMass && initMass == intToBoxInt 4
+
+

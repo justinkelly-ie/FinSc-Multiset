@@ -9,6 +9,7 @@ import Stage0.Token
 import Stage0.Singleton.Sing
 import Stage0.Singleton.DepSing
 import Stage1.Order.Preorder
+import Language.Reflection
 
 %default total
 
@@ -152,6 +153,61 @@ unixelSingFractionRoundTripProof (MkUnixelFraction _ _) = Refl
 public export
 unixelTokenFractionRoundTripProof : (q : UnixelFraction) -> tokenFractionToUnixelFraction (unixelFractionToTokenFraction q) = q
 unixelTokenFractionRoundTripProof (MkUnixelFraction _ _) = Refl
+
+------------------------------------------------------------------------
+-- 2b. CONSTRUCTIVE RATIONAL TOKEN ARITHMETIC & STERN-BROCOT MEDIANT
+------------------------------------------------------------------------
+
+||| Exact Stern-Brocot Mediant Addition on TokenFractions:
+||| (p1 / [q1]) ⊕ (p2 / [q2]) = (p1 + p2) / [q1 + q2].
+||| Preserves non-zero denominator invariants constructively without division.
+public export
+mediantTokenFraction : TokenFraction BoxInt -> TokenFraction BoxInt -> TokenFraction BoxInt
+mediantTokenFraction (OverUnixel (MkToken n1) d1) (OverUnixel (MkToken n2) d2) =
+  let denNat = unwrapUnixel d1 + unwrapUnixel d2
+      denUnixel = mkUnixel (if denNat == 0 then 1 else denNat)
+  in OverUnixel (MkToken (n1 + n2)) denUnixel
+
+||| Addition of TokenFractions: (n1/d1) + (n2/d2) = (n1*d2 + n2*d1) / (d1*d2).
+public export
+addTokenFraction : TokenFraction BoxInt -> TokenFraction BoxInt -> TokenFraction BoxInt
+addTokenFraction (OverUnixel (MkToken n1) d1) (OverUnixel (MkToken n2) d2) =
+  let q1 = intToBoxInt (cast (unwrapUnixel d1))
+      q2 = intToBoxInt (cast (unwrapUnixel d2))
+      num = (n1 * q2) + (n2 * q1)
+      den = unwrapUnixel d1 * unwrapUnixel d2
+  in OverUnixel (MkToken num) (mkUnixel (if den == 0 then 1 else den))
+
+||| Multiplication of TokenFractions: (n1/d1) * (n2/d2) = (n1*n2) / (d1*d2).
+public export
+mulTokenFraction : TokenFraction BoxInt -> TokenFraction BoxInt -> TokenFraction BoxInt
+mulTokenFraction (OverUnixel (MkToken n1) d1) (OverUnixel (MkToken n2) d2) =
+  let num = n1 * n2
+      den = unwrapUnixel d1 * unwrapUnixel d2
+  in OverUnixel (MkToken num) (mkUnixel (if den == 0 then 1 else den))
+
+||| Cross-multiplication equivalence between two TokenFractions: n1 * d2 == n2 * d1.
+public export
+equivTokenFraction : TokenFraction BoxInt -> TokenFraction BoxInt -> Bool
+equivTokenFraction (OverUnixel (MkToken n1) d1) (OverUnixel (MkToken n2) d2) =
+  let q1 = intToBoxInt (cast (unwrapUnixel d1))
+      q2 = intToBoxInt (cast (unwrapUnixel d2))
+  in (n1 * q2) == (n2 * q1)
+
+||| Audit: Exact Stern-Brocot mediant of 1/2 and 2/3 yields 3/5:
+public export
+auditTokenFractionMediantProof : Bool
+auditTokenFractionMediantProof =
+  let q1 = mkTokenFraction (MkToken (intToBoxInt 1)) 2
+      q2 = mkTokenFraction (MkToken (intToBoxInt 2)) 3
+      med = mediantTokenFraction q1 q2
+      OverUnixel (MkToken num) den = med
+  in num == intToBoxInt 3 && unwrapUnixel den == 5
+
+public export
+%macro
+auditTokenFractionMediant : Elab (Stage1.UnixelFraction.auditTokenFractionMediantProof = True)
+auditTokenFractionMediant = pure Refl
 
 ------------------------------------------------------------------------
 -- UPSTREAM MSETFRACTION CONVERSION LENSES & SCALAR RATIONAL MEASURE

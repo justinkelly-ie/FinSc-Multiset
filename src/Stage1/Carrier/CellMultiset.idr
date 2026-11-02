@@ -261,4 +261,101 @@ public export
 dotMaxel : Maxel -> Maxel -> BoxInt
 dotMaxel = dotCellMultiset {dim = 2}
 
+------------------------------------------------------------------------
+-- 3. UNIVERSAL GRADED TENSOR PRODUCT & DEC FIBER SLICING
+------------------------------------------------------------------------
+
+||| Universal Graded Exterior Tensor Product of CellMultisets:
+||| Evaluates (A ⊗ B)(c1 ++ c2) = A(c1) * B(c2) in O(N log(NM)) AVL tree operations
+||| with zero intermediate List allocation.
+public export
+tensorCellMultiset : {n, m : Nat} -> CellMultiset n -> CellMultiset m -> CellMultiset (n + m)
+tensorCellMultiset m1 m2 =
+  foldBoxTreeL (\acc1, (c1, w1) =>
+    foldBoxTreeL (\acc2, (c2, w2) =>
+      let c = appendCell c1 c2
+          w = w1 * w2
+      in if boxIsZero w then acc2
+         else let cur = lookupBoxTree c acc2
+                  newW = cur + w
+              in if boxIsZero newW
+                   then setBoxTree c (intToBoxInt 0) acc2
+                   else setBoxTree c newW acc2
+    ) acc1 m2
+  ) BoxLeaf m1
+
+||| 2D Outer Product: Vexel (1D) ⊗ Vexel (1D) -> Maxel (2D).
+public export
+outerProductVexels : Vexel -> Vexel -> Maxel
+outerProductVexels v1 v2 = tensorCellMultiset v1 v2
+
+||| 3D Outer Product: Vexel (1D) ⊗ Maxel (2D) -> Boxel (3D).
+public export
+outerProductVexelMaxel : Vexel -> Maxel -> Boxel
+outerProductVexelMaxel v m = tensorCellMultiset v m
+
+||| 4D Outer Product: Vexel (1D) ⊗ Boxel (3D) -> HyperBoxel (4D).
+public export
+outerProductVexelBoxel : Vexel -> Boxel -> HyperBoxel
+outerProductVexelBoxel v b = tensorCellMultiset b v
+
+||| 4D Outer Product: Maxel (2D) ⊗ Maxel (2D) -> HyperBoxel (4D).
+public export
+outerProductMaxelMaxel : Maxel -> Maxel -> HyperBoxel
+outerProductMaxelMaxel m1 m2 = tensorCellMultiset m1 m2
+
+||| Universal DEC Fiber Slicing:
+||| Extracts the (D-1)-dimensional slice at coordinate `val` along `axis`
+||| using canonical faceCell token projections in O(N log N) tree operations.
+public export
+sliceCellMultiset : {dim : Nat} -> (axis : Fin (S dim)) -> (val : Nat) -> CellMultiset (S dim) -> CellMultiset dim
+sliceCellMultiset axis val mset =
+  foldBoxTreeL (\acc, (c, w) =>
+    if coordCellCoord axis c == val
+      then let face = faceCell axis c
+               cur = lookupBoxTree face acc
+               newW = cur + w
+           in if boxIsZero newW
+                then setBoxTree face (intToBoxInt 0) acc
+                else setBoxTree face newW acc
+      else acc
+  ) BoxLeaf mset
+
+------------------------------------------------------------------------
+-- 4. COMPILE-TIME INVARIANT AUDITS (%macro)
+------------------------------------------------------------------------
+
+||| Audit: Universal tensor product [1] ⊗ [2, 3] = [1, 2, 3] with exact weight 3 * 5 = 15.
+public export
+auditUniversalTensorProductProof : Bool
+auditUniversalTensorProductProof =
+  let v1 = singletonCell (mkUnixel 1) (intToBoxInt 3)
+      v2 = singletonCell (mkCell2 2 3) (intToBoxInt 5)
+      t = tensorCellMultiset v1 v2
+      expected = lookupCellMultiset (mkVoxel 1 2 3) t
+      totalW = totalCellMultisetWeight t
+  in expected == intToBoxInt 15 && totalW == intToBoxInt 15
+
+public export
+%macro
+auditUniversalTensorProduct : Elab (Stage1.Carrier.CellMultiset.auditUniversalTensorProductProof = True)
+auditUniversalTensorProduct = pure Refl
+
+||| Audit: Universal fiber slicing of 3D voxel [1, 2, 3] along axis 0 at val 1 yields 2D pixel [2, 3].
+public export
+auditUniversalFiberSlicingProof : Bool
+auditUniversalFiberSlicingProof =
+  let b = singletonCell (mkVoxel 1 2 3) (intToBoxInt 7)
+      slice1 = sliceCellMultiset FZ 1 b
+      w1 = lookupCellMultiset (mkCell2 2 3) slice1
+      sliceEmpty = sliceCellMultiset FZ 99 b
+      wEmpty = totalCellMultisetWeight sliceEmpty
+  in w1 == intToBoxInt 7 && wEmpty == intToBoxInt 0
+
+public export
+%macro
+auditUniversalFiberSlicing : Elab (Stage1.Carrier.CellMultiset.auditUniversalFiberSlicingProof = True)
+auditUniversalFiberSlicing = pure Refl
+
+
 

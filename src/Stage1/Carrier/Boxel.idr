@@ -132,24 +132,6 @@ wedgeVexelMaxel tu tm =
           ) accU tm
      ) BoxLeaf tu
 
-||| 3D Tensor Outer Product: Vexel (1D ket) x Maxel (2D surface) -> Boxel (3D volume).
-||| Evaluates directly in tree space with zero intermediate List allocations.
-public export
-outerProductVexelMaxel : Vexel -> Maxel -> Boxel
-outerProductVexelMaxel tk tm =
-  foldBoxTreeL (\accK, (s, sw) =>
-    foldBoxTreeL (\accM, (p, pw) =>
-      let v = unixelPixelToVoxel s p
-          w = sw * pw
-      in if boxIsZero w then accM
-         else let cur = lookupBoxTree v accM
-                  newW = cur + w
-              in if boxIsZero newW
-                   then setBoxTree v (intToBoxInt 0) accM
-                   else setBoxTree v newW accM
-    ) accK tm
-  ) BoxLeaf tk
-
 ------------------------------------------------------------------------
 -- 3. PLANAR MAXEL SLICING
 ------------------------------------------------------------------------
@@ -157,50 +139,17 @@ outerProductVexelMaxel tk tm =
 ||| Extracts a 2D Maxel plane slice at a fixed Z-coordinate: Z_k(B) = { [x, y] with w | [x, y, k] in B }
 public export
 sliceBoxelZ : Nat -> Boxel -> Maxel
-sliceBoxelZ targetZ b =
-  foldBoxTreeL (\acc, (v, w) =>
-    if voxelZ v == targetZ
-      then let p = faceCell (FS (FS FZ)) v
-               cur = lookupBoxTree p acc
-               newW = cur + w
-           in if boxIsZero newW
-                then setBoxTree p (intToBoxInt 0) acc
-                else setBoxTree p newW acc
-      else acc)
-    BoxLeaf
-    b
+sliceBoxelZ targetZ b = sliceCellMultiset (FS (FS FZ)) targetZ b
 
 ||| Extracts a 2D Maxel plane slice at a fixed Y-coordinate: Y_k(B) = { [x, z] with w | [x, k, z] in B }
 public export
 sliceBoxelY : Nat -> Boxel -> Maxel
-sliceBoxelY targetY b =
-  foldBoxTreeL (\acc, (v, w) =>
-    if voxelY v == targetY
-      then let p = faceCell (FS FZ) v
-               cur = lookupBoxTree p acc
-               newW = cur + w
-           in if boxIsZero newW
-                then setBoxTree p (intToBoxInt 0) acc
-                else setBoxTree p newW acc
-      else acc)
-    BoxLeaf
-    b
+sliceBoxelY targetY b = sliceCellMultiset (FS FZ) targetY b
 
 ||| Extracts a 2D Maxel plane slice at a fixed X-coordinate: X_k(B) = { [y, z] with w | [k, y, z] in B }
 public export
 sliceBoxelX : Nat -> Boxel -> Maxel
-sliceBoxelX targetX b =
-  foldBoxTreeL (\acc, (v, w) =>
-    if voxelX v == targetX
-      then let p = faceCell FZ v
-               cur = lookupBoxTree p acc
-               newW = cur + w
-           in if boxIsZero newW
-                then setBoxTree p (intToBoxInt 0) acc
-                else setBoxTree p newW acc
-      else acc)
-    BoxLeaf
-    b
+sliceBoxelX targetX b = sliceCellMultiset FZ targetX b
 
 ------------------------------------------------------------------------
 -- 4. VERIFICATION AUDITS

@@ -149,6 +149,14 @@ public export
 mkCell4 : Nat -> Nat -> Nat -> Nat -> CoordCell Dim4
 mkCell4 x y z t = ConsCell (MkToken x) (ConsCell (MkToken y) (ConsCell (MkToken z) (ConsCell (MkToken t) ZeroCell)))
 
+||| Monoidal concatenation (tensor product) of two coordinate cells:
+||| (c1 ++ c2) of dimension (n + m).
+public export
+appendCell : {n, m : Nat} -> CoordCell n -> CoordCell m -> CoordCell (n + m)
+appendCell ZeroCell c2 = c2
+appendCell (ConsCell t rest) c2 = ConsCell t (appendCell rest c2)
+
+
 -- 1D Unixel
 public export
 Unixel : Type
