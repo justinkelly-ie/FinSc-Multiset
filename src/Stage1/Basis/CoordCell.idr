@@ -304,16 +304,14 @@ contractDirTokens (MkToken (MkDirPixelToken i In)) (MkToken (MkDirPixelToken j O
   if i == j then Just () else Nothing
 contractDirTokens _ _ = Nothing
 
-||| Multiplies two Pixels via stoichiometric annihilation of internal conjugate tokens:
-||| {Out(i), In(j)} + {Out(j), In(k)} -> {Out(i), In(k)} iff target == source.
+||| Multiplies two Pixels via stoichiometric annihilation of internal conjugate tokens (Rule 03 §6):
+||| [A, B] · [B, C] = [A, C] iff target token matches source token; Nothing otherwise.
 public export
 mulPixelMultiToken : Pixel -> Pixel -> Maybe Pixel
 mulPixelMultiToken p1 p2 =
-  let (out1, in1) = pixelToDirTokens p1
-      (out2, in2) = pixelToDirTokens p2
-  in if (fromToken in1).index == (fromToken out2).index
-       then dirTokensToPixel out1 in2
-       else Nothing
+  if pixelColToken p1 == pixelRowToken p2
+    then Just (mkPixelTokens (pixelRowToken p1) (pixelColToken p2))
+    else Nothing
 
 ||| Canonical discrete matrix basis multiplication:
 ||| [i, j] * [k, l] = [i, l] if j == k, otherwise Nothing.
@@ -321,23 +319,28 @@ mulPixelMultiToken p1 p2 =
 mulPixel : Pixel -> Pixel -> Maybe Pixel
 mulPixel = mulPixelMultiToken
 
+||| Synonym alias for token-based pixel multiplication.
+public export
+mulPixelTokens : Pixel -> Pixel -> Maybe Pixel
+mulPixelTokens = mulPixel
+
 ||| Multiplies a Pixel on the left by a Unixel: [i, j] * [j] = [i] (matrix-vector contraction).
+||| Evaluates as a zero-unwrapping stoichiometric token collision in O(1) registers (Rule 03 §6).
 %inline public export
 mulPixelUnixel : Pixel -> Unixel -> Maybe Unixel
 mulPixelUnixel p u =
-  let l = pixelRow p
-      m = pixelCol p
-      k = unwrapUnixel u
-  in if m == k then Just (mkUnixel l) else Nothing
+  if pixelColToken p == unixelToken u
+    then Just (mkUnixelToken (pixelRowToken p))
+    else Nothing
 
 ||| Multiplies a Unixel on the left by a Pixel: [i] * [i, j] = [j] (covector-matrix contraction).
+||| Evaluates as a zero-unwrapping stoichiometric token collision in O(1) registers (Rule 03 §6).
 %inline public export
 mulUnixelPixel : Unixel -> Pixel -> Maybe Unixel
 mulUnixelPixel u p =
-  let k = unwrapUnixel u
-      l = pixelRow p
-      m = pixelCol p
-  in if k == l then Just (mkUnixel m) else Nothing
+  if unixelToken u == pixelRowToken p
+    then Just (mkUnixelToken (pixelColToken p))
+    else Nothing
 
 -- 3D Voxel
 public export
