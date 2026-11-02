@@ -192,3 +192,32 @@ liftToken f (AddM x (MkBoxInt w) rest) =
 public export
 liftTokenZeroProof : (f : Token a -> Multiset BoxInt b) -> liftToken f ZeroM = ZeroM
 liftTokenZeroProof _ = Refl
+
+------------------------------------------------------------------------
+-- 7. SUBSTRATE CAUSAL ACTION TOKEN GENERATOR (Delta S = 1)
+------------------------------------------------------------------------
+
+||| An atomic causal action influx token advancing the substrate arrow (Delta S = 1).
+public export
+record SubstrateActionToken where
+  constructor MkActionToken
+  actionQuantum : BoxInt
+
+public export
+Eq SubstrateActionToken where
+  (MkActionToken q1) == (MkActionToken q2) = q1 == q2
+
+public export
+Show SubstrateActionToken where
+  show (MkActionToken q) = "ActionToken(q=" ++ show (unwrapBox q) ++ ")"
+
+||| Canonical unit causal action token carrying exactly 1 quantum of action.
+public export
+unitActionToken : SubstrateActionToken
+unitActionToken = MkActionToken (intToBoxInt 1)
+
+||| Injects an atomic action token into a multiset carrier for element `geom`.
+public export
+actionTokenToBox : Token SubstrateActionToken -> a -> Multiset BoxInt a
+actionTokenToBox (MkToken (MkActionToken q)) geom = AddM geom q ZeroM
+
