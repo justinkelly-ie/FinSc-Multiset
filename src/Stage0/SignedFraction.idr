@@ -27,12 +27,33 @@ public export
 PosNat : Type
 PosNat = Nat
 
+||| Compile-time witness that a natural number is strictly positive (> 0).
+public export
+IsPositiveNat : Nat -> Type
+IsPositiveNat Z     = Void
+IsPositiveNat (S _) = ()
+
+||| Dependent Sigma-type bundling a strictly positive natural number with its erased proof.
+public export
+CertifiedPosNat : Type
+CertifiedPosNat = (n : Nat ** IsPositiveNat n)
+
+||| Smart constructor producing a certified strictly positive natural number (clamping 0 to 1).
+public export
+mkCertifiedPosNat : (n : Nat) -> CertifiedPosNat
+mkCertifiedPosNat Z     = (S Z ** ())
+mkCertifiedPosNat (S k) = (S k ** ())
+
+||| Projects the underlying positive natural number from a CertifiedPosNat.
+public export
+fromCertifiedPosNat : CertifiedPosNat -> PosNat
+fromCertifiedPosNat (n ** _) = n
+
 ||| Smart constructor: wraps a Nat into a guaranteed-positive value.
 ||| Returns 1 if given 0.
 public export
 mkPosNat : Nat -> PosNat
-mkPosNat Z = S Z
-mkPosNat n = n
+mkPosNat n = fromCertifiedPosNat (mkCertifiedPosNat n)
 
 ||| The universal fractional container for the Finite Science Table.
 ||| Every row — from Boole circuits to chromogeometric spreads to

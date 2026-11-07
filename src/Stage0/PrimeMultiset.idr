@@ -215,10 +215,10 @@ gohPrimorial210 = MkGohPrimorial210 gohPrimeProduct2_3 gohPrimeProduct5_7 Refl R
 -- 1.2 GOH PRIME POWERS, ADDITIVE LATTICE & SPECTRUM CLASSIFICATION
 --------------------------------------------------------------------------------
 
-||| Certified power of a Goh prime: power base exp = val.
+||| Certified power of a Goh prime: power base k = res.
 public export
-data GohPrimePower : (base : Nat) -> (exp : Nat) -> (val : Nat) -> Type where
-  MkGohPrimePower : (0 pr : GohPrime base) -> (0 prf : power base exp = val) -> GohPrimePower base exp val
+data GohPrimePower : (base : Nat) -> (k : Nat) -> (res : Nat) -> Type where
+  MkGohPrimePower : {0 base, k, res : Nat} -> (0 pr : GohPrime base) -> (0 prf : power base k = res) -> GohPrimePower base k res
 
 -- Canonical prime power instances:
 public export

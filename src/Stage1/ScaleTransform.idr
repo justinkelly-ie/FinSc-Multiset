@@ -149,6 +149,20 @@ auditComposedGeometryTransformProof = Refl
 ||| Proof witness exporter for Stage1.ScaleTransform interface
 public export
 auditScaleTransformInterfaceProof : Bool
-auditScaleTransformInterfaceProof = True
+auditScaleTransformInterfaceProof =
+  let composed = composeDepScaleTransform {d1 = Stage1.TypeTheory.Smoothness.dimElliptic}
+                                          {d2 = Stage1.TypeTheory.Smoothness.dimHyperbolic}
+                                          {d3 = Stage1.TypeTheory.Smoothness.dimParabolic}
+                                          {b = BoxInt}
+                                          (intToBoxInt 270)
+      forward  = depScaleTransform {sourceDim = Stage1.TypeTheory.Smoothness.dimElliptic}
+                                   {targetDim = Stage1.TypeTheory.Smoothness.dimPrimorial}
+                                   (intToBoxInt 27)
+      inverted = invertDepScaleTransform {sourceDim = Stage1.TypeTheory.Smoothness.dimElliptic}
+                                         {targetDim = Stage1.TypeTheory.Smoothness.dimPrimorial}
+                                         forward
+  in boxEq composed (intToBoxInt 550) &&
+     boxEq forward (intToBoxInt 210) &&
+     boxEq inverted (intToBoxInt 27)
 
 

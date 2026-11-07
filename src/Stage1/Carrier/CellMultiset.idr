@@ -48,20 +48,52 @@ public export
 singToCellMultiset : {dim : Nat} -> Sing (CoordCell dim) -> CellMultiset dim
 singToCellMultiset (MkSing c) = singletonCell c (intToBoxInt 1)
 
+||| Lookups the weight of a coordinate cell in a CellMultiset in O(log N) via monomorphic CoordCell comparators.
+public export
+lookupCellMultiset : {dim : Nat} -> CoordCell dim -> CellMultiset dim -> BoxInt
+lookupCellMultiset c t = lookupBoxTreeBy coordCellLT coordCellEq c t
+
+||| Sets the exact weight of a coordinate cell in a CellMultiset in O(log N), removing zero-weight nodes.
+public export
+setCellMultiset : {dim : Nat} -> CoordCell dim -> BoxInt -> CellMultiset dim -> CellMultiset dim
+setCellMultiset c w t = setBoxTreeBy coordCellLT coordCellEq c w t
+
+||| Single-pass additive update of a coordinate cell weight in a CellMultiset in O(log N), removing zero-weight nodes.
+public export
+addCellTree : {dim : Nat} -> CoordCell dim -> BoxInt -> CellMultiset dim -> CellMultiset dim
+addCellTree c delta t = addBoxTreeBy coordCellLT coordCellEq c delta t
+
+||| Inserts a coordinate cell with Nat multiplicity into a MultisetTree (CoordCell dim) in O(log N) without Ord.
+public export
+insertCellTokenTree : {dim : Nat} -> CoordCell dim -> Nat -> MultisetTree (CoordCell dim) -> MultisetTree (CoordCell dim)
+insertCellTokenTree c cnt t = insertTokenTreeBy coordCellLT coordCellEq c cnt t
+
+||| Lookups the Nat multiplicity of a coordinate cell in a MultisetTree (CoordCell dim) in O(log N) without Ord.
+public export
+lookupCellTokenTree : {dim : Nat} -> CoordCell dim -> MultisetTree (CoordCell dim) -> Nat
+lookupCellTokenTree c t = lookupTokenTreeBy coordCellLT coordCellEq c t
+
+||| Merges two MultisetTree (CoordCell dim) trees without Ord.
+public export
+mergeCellTokenTrees : {dim : Nat} -> MultisetTree (CoordCell dim) -> MultisetTree (CoordCell dim) -> MultisetTree (CoordCell dim)
+mergeCellTokenTrees target Leaf = target
+mergeCellTokenTrees target (Node _ l x c r) =
+  let t1 = insertCellTokenTree x c target
+      t2 = mergeCellTokenTrees t1 l
+  in mergeCellTokenTrees t2 r
+
 ||| Constructs a CellMultiset from a fixed-length Vect of coordinate-weight pairs
 ||| with compile-time known length k and structural fuel bounds.
 public export
 fromVectCells : {dim, k : Nat} -> Vect k (CoordCell dim, BoxInt) -> CellMultiset dim
 fromVectCells xs =
-  foldl (\t, (c, w) =>
-          if boxIsZero w then t
-          else let cur = lookupBoxTree c t
-                   newW = cur + w
-               in if boxIsZero newW
-                    then setBoxTree c (intToBoxInt 0) t
-                    else setBoxTree c newW t)
-        BoxLeaf
-        xs
+  foldl (\t, (c, w) => addCellTree c w t) BoxLeaf xs
+
+||| Constructs a CellMultiset from a List of coordinate-weight pairs.
+public export
+fromListCellMultiset : {dim : Nat} -> List (CoordCell dim, BoxInt) -> CellMultiset dim
+fromListCellMultiset xs =
+  foldl (\t, (c, w) => addCellTree c w t) BoxLeaf xs
 
 ||| Deforested zero-allocation stream extractor for the active support of a CellMultiset.
 ||| Emits strictly non-zero basis cells in O(1) auxiliary registers (Rule 04 §8).
@@ -79,35 +111,13 @@ streamCellMultiset = streamBoxMultisetTree
 public export
 streamToCellMultiset : {dim : Nat} -> FusedStream (CoordCell dim, BoxInt) -> CellMultiset dim
 streamToCellMultiset strm =
-  foldStream (\t, (c, w) =>
-    if boxIsZero w then t
-    else let cur = lookupBoxTree c t
-             newW = cur + w
-         in if boxIsZero newW
-              then setBoxTree c (intToBoxInt 0) t
-              else setBoxTree c newW t)
-    BoxLeaf
-    strm
+  foldStream (\t, (c, w) => addCellTree c w t) BoxLeaf strm
 
-
-
-||| Lookups the weight of a coordinate cell in a CellMultiset in O(log N).
-public export
-lookupCellMultiset : {dim : Nat} -> CoordCell dim -> CellMultiset dim -> BoxInt
-lookupCellMultiset = lookupBoxTree
-
-||| Adds two cell multisets by merging coordinate weights.
+||| Adds two cell multisets by merging coordinate weights in a single pass per node.
 public export
 addCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
 addCellMultiset t1 t2 =
-  foldBoxTreeL (\tree, (c, w) =>
-    let cur = lookupBoxTree c tree
-        newW = cur + w
-    in if boxIsZero newW
-         then setBoxTree c (intToBoxInt 0) tree
-         else setBoxTree c newW tree)
-    t1
-    t2
+  foldBoxTreeL (\tree, (c, w) => addCellTree c w tree) t1 t2
 
 ||| Scales a cell multiset by a BoxInt scalar.
 public export
@@ -122,11 +132,17 @@ totalCellMultisetWeight : {dim : Nat} -> CellMultiset dim -> BoxInt
 totalCellMultisetWeight t =
   foldBoxTreeL (\acc, (_, w) => acc + w) (intToBoxInt 0) t
 
+||| Evaluates the L1 norm of a CellMultiset (sum of absolute weights) across arbitrary dimension `dim`.
+public export
+normL1CellMultiset : {dim : Nat} -> CellMultiset dim -> BoxInt
+normL1CellMultiset t =
+  foldBoxTreeL (\acc, (_, w) => acc + absBox w) (intToBoxInt 0) t
+
 ||| Universal spatial translation of a cell multiset by a displacement coordinate cell.
 public export
-translateCell : CoordCell dim -> CellMultiset dim -> CellMultiset dim
+translateCell : {dim : Nat} -> CoordCell dim -> CellMultiset dim -> CellMultiset dim
 translateCell delta mset =
-  foldBoxTreeL (\acc, (c, w) => setBoxTree (addCoordCell c delta) w acc) BoxLeaf mset
+  foldBoxTreeL (\acc, (c, w) => setCellMultiset (addCoordCell c delta) w acc) BoxLeaf mset
 
 ||| Universal Free Adjunction Spatial Pushforward (F ⊣ U):
 ||| Lifts a transformation on coordinate basis tokens to a unique homomorphism over entire CellMultisets.
@@ -182,13 +198,14 @@ tree t = t
 
 public export
 subCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
-subCellMultiset t1 t2 = addCellMultiset t1 (scaleCellMultiset (intToBoxInt (-1)) t2)
+subCellMultiset t1 t2 =
+  foldBoxTreeL (\tree, (c, w) => addCellTree c (negate w) tree) t1 t2
 
 ||| Rebuilds a canonical CellMultiset by filtering non-zero weights and rebalancing.
 public export
 canonicalizeCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim
 canonicalizeCellMultiset t =
-  foldBoxTreeL (\acc, (c, w) => if boxIsNonZero w then setBoxTree c w acc else acc) BoxLeaf t
+  foldBoxTreeL (\acc, (c, w) => if boxIsNonZero w then setCellMultiset c w acc else acc) BoxLeaf t
 
 public export
 canonicalizeCell : {dim : Nat} -> CellMultiset dim -> CellMultiset dim
@@ -246,6 +263,13 @@ dotCellMultiset t1 t2 =
     (intToBoxInt 0)
     t1
 
+public export
+{dim : Nat} -> MultisetAlgebra (CellMultiset dim) where
+  zeroM  = emptyCellMultiset
+  addM   = addCellMultiset
+  scaleM = scaleCellMultiset
+  dotM   = dotCellMultiset
+
 ||| Evaluates the inner product between two CellMultisets directly via FusedStream (Rule 04 §8).
 public export
 dotCellMultisetStream : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> BoxInt
@@ -278,14 +302,7 @@ tensorCellMultiset : {n, m : Nat} -> CellMultiset n -> CellMultiset m -> CellMul
 tensorCellMultiset m1 m2 =
   foldBoxTreeL (\acc1, (c1, w1) =>
     foldBoxTreeL (\acc2, (c2, w2) =>
-      let c = appendCell c1 c2
-          w = w1 * w2
-      in if boxIsZero w then acc2
-         else let cur = lookupBoxTree c acc2
-                  newW = cur + w
-              in if boxIsZero newW
-                   then setBoxTree c (intToBoxInt 0) acc2
-                   else setBoxTree c newW acc2
+      addCellTree (appendCell c1 c2) (w1 * w2) acc2
     ) acc1 m2
   ) BoxLeaf m1
 
@@ -317,12 +334,7 @@ sliceCellMultiset : {dim : Nat} -> (axis : Fin (S dim)) -> (val : Nat) -> CellMu
 sliceCellMultiset axis val mset =
   foldBoxTreeL (\acc, (c, w) =>
     if coordCellCoord axis c == val
-      then let face = faceCell axis c
-               cur = lookupBoxTree face acc
-               newW = cur + w
-           in if boxIsZero newW
-                then setBoxTree face (intToBoxInt 0) acc
-                else setBoxTree face newW acc
+      then addCellTree (faceCell axis c) w acc
       else acc
   ) BoxLeaf mset
 

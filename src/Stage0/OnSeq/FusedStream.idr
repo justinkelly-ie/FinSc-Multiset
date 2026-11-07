@@ -1,7 +1,6 @@
 module Stage0.OnSeq.FusedStream
 
 import Data.List
-import Data.SortedMap
 import Data.Nat
 import Data.Fuel
 import Stage0.BoxInt
@@ -45,8 +44,9 @@ data LinearStatePair : Type -> Type -> Type where
 
 ||| Evaluates a stateful linear step transducer with structural Nat fuel,
 ||| guaranteeing that the linear state is consumed and returned exactly once without leakage.
+%spec fn, step
 public export
-foldLinearStreamNat : (fuel : Nat) -> (b -> a -> b) -> b -> (1 st : s) -> ((1 curr : s) -> StepLinear s a) -> LinearPair b s
+foldLinearStreamNat : (fuel : Nat) -> (fn : b -> a -> b) -> b -> (1 st : s) -> (step : (1 curr : s) -> StepLinear s a) -> LinearPair b s
 foldLinearStreamNat Z _ acc st _ = MkLPair acc st
 foldLinearStreamNat (S f) fn acc st step = case step st of
   DoneL st' => MkLPair acc st'
@@ -88,30 +88,24 @@ unfoldStream : (s -> Step s a) -> s -> FusedStream a
 unfoldStream next seed = MkStream next seed
 
 ||| Evaluates a stream generator directly into an accumulator without intermediate allocations (Hylomorphism).
+%spec next, f
 public export
-fusedHylomorphism : Fuel -> (s -> Step s a) -> (a -> b -> b) -> b -> s -> b
+fusedHylomorphism : Fuel -> (next : s -> Step s a) -> (f : a -> b -> b) -> b -> s -> b
 fusedHylomorphism Dry _ _ acc _ = acc
-fusedHylomorphism (More f') next f acc seed = loop f' seed acc
-  where
-    loop : Fuel -> s -> b -> b
-    loop Dry _ currentAcc = currentAcc
-    loop (More f'') st currentAcc = case next st of
-      Done => currentAcc
-      Skip st' => loop f'' st' currentAcc
-      Yield x st' => loop f'' st' (f x currentAcc)
+fusedHylomorphism (More f') next f acc st = case next st of
+  Done => acc
+  Skip st' => fusedHylomorphism f' next f acc st'
+  Yield x st' => fusedHylomorphism f' next f (f x acc) st'
 
 ||| Total Nat fuel-bounded stream generator evaluation directly into an accumulator without intermediate allocations (Hylomorphism).
+%spec next, fStep
 public export
-fusedHylomorphismNat : (fuel : Nat) -> (s -> Step s a) -> (a -> b -> b) -> b -> s -> b
+fusedHylomorphismNat : (fuel : Nat) -> (next : s -> Step s a) -> (fStep : a -> b -> b) -> b -> s -> b
 fusedHylomorphismNat Z _ _ acc _ = acc
-fusedHylomorphismNat (S f) next fStep acc seed = loop f seed acc
-  where
-    loop : Nat -> s -> b -> b
-    loop Z _ currentAcc = currentAcc
-    loop (S f') st currentAcc = case next st of
-      Done => currentAcc
-      Skip st' => loop f' st' currentAcc
-      Yield x st' => loop f' st' (fStep x currentAcc)
+fusedHylomorphismNat (S f) next fStep acc st = case next st of
+  Done => acc
+  Skip st' => fusedHylomorphismNat f next fStep acc st'
+  Yield x st' => fusedHylomorphismNat f next fStep (fStep x acc) st'
 
 ||| Total Fuel-driven stream evaluation producing a List container.
 public export
@@ -168,7 +162,6 @@ eqStreamNat fuel (MkStream {s = s1} step1 seed1) (MkStream {s = s2} step2 seed2)
 
 ||| Model-indexed GohFuel stream equality comparison.
 public export
-%inline
 eqStreamFuelModel : (Eq a) => GohFuel cap -> FusedStream a -> FusedStream a -> Bool
 eqStreamFuelModel fuel = eqStreamNat (gohSteps fuel)
 
@@ -221,7 +214,7 @@ filterStream : (a -> Bool) -> FusedStream a -> FusedStream a
 filterStream p (MkStream next seed) = MkStream (filterStep p next) seed
 
 ||| Alias for deforested stream sifting operator.
-%inline public export
+public export
 siftFusedStream : (a -> Bool) -> FusedStream a -> FusedStream a
 siftFusedStream = filterStream
 
@@ -241,7 +234,7 @@ filterMapStream : (a -> Maybe b) -> FusedStream a -> FusedStream b
 filterMapStream f (MkStream next seed) = MkStream (filterMapStep f next) seed
 
 ||| Deforested stream zipWith operator.
-%inline public export
+public export
 zipWithStream : (a -> b -> c) -> FusedStream a -> FusedStream b -> FusedStream c
 zipWithStream {a, b, c} f (MkStream {s=sA} nextA seedA) (MkStream {s=sB} nextB seedB) =
   MkStream nextStep (seedA, seedB, Nothing)
@@ -256,29 +249,37 @@ zipWithStream {a, b, c} f (MkStream {s=sA} nextA seedA) (MkStream {s=sB} nextB s
       Skip sb' => Skip (sa, sb', Just x)
       Yield y sb' => Yield (f x y) (sa, sb', Nothing)
 
-||| Total Nat fuel-bounded stream left fold accumulator.
+||| Specialized top-level loop for Nat fuel-bounded stream left fold.
+%spec next, fn
 public export
-foldStreamNat : (fuel : Nat) -> (b -> a -> b) -> b -> FusedStream a -> b
-foldStreamNat fuel fn acc0 (MkStream {s} next seed) = loop fuel seed acc0
-  where
-    loop : Nat -> s -> b -> b
-    loop Z _ currentAcc = currentAcc
-    loop (S f') st currentAcc = case next st of
-      Done => currentAcc
-      Skip st' => loop f' st' currentAcc
-      Yield x st' => loop f' st' (fn currentAcc x)
+foldStreamLoopNat : (fuel : Nat) -> (next : s -> Step s a) -> (fn : b -> a -> b) -> s -> b -> b
+foldStreamLoopNat Z _ _ _ currentAcc = currentAcc
+foldStreamLoopNat (S f') next fn st currentAcc = case next st of
+  Done => currentAcc
+  Skip st' => foldStreamLoopNat f' next fn st' currentAcc
+  Yield x st' => foldStreamLoopNat f' next fn st' (fn currentAcc x)
+
+||| Total Nat fuel-bounded stream left fold accumulator.
+%spec fn
+public export
+foldStreamNat : (fuel : Nat) -> (fn : b -> a -> b) -> b -> FusedStream a -> b
+foldStreamNat fuel fn acc0 (MkStream next seed) = foldStreamLoopNat fuel next fn seed acc0
+
+||| Specialized top-level loop for Data.Fuel stream left fold.
+%spec next, fn
+public export
+foldStreamLoopFuel : Fuel -> (next : s -> Step s a) -> (fn : b -> a -> b) -> s -> b -> b
+foldStreamLoopFuel Dry _ _ _ currentAcc = currentAcc
+foldStreamLoopFuel (More f') next fn st currentAcc = case next st of
+  Done => currentAcc
+  Skip st' => foldStreamLoopFuel f' next fn st' currentAcc
+  Yield x st' => foldStreamLoopFuel f' next fn st' (fn currentAcc x)
 
 ||| Total Data.Fuel stream left fold accumulator.
+%spec fn
 public export
-foldStreamFuel : Fuel -> (b -> a -> b) -> b -> FusedStream a -> b
-foldStreamFuel fuel fn acc0 (MkStream {s} next seed) = loop fuel seed acc0
-  where
-    loop : Fuel -> s -> b -> b
-    loop Dry _ currentAcc = currentAcc
-    loop (More f') st currentAcc = case next st of
-      Done => currentAcc
-      Skip st' => loop f' st' currentAcc
-      Yield x st' => loop f' st' (fn currentAcc x)
+foldStreamFuel : Fuel -> (fn : b -> a -> b) -> b -> FusedStream a -> b
+foldStreamFuel fuel fn acc0 (MkStream next seed) = foldStreamLoopFuel fuel next fn seed acc0
 
 ||| Deforested stream left fold accumulator bounded by model-derived Master Substrate Primorial Ground State capacity (Rule 03).
 ||| For custom fuel envelopes, use foldStreamFuelModel, foldStreamGoh, or foldStreamNat directly.
@@ -330,7 +331,7 @@ Foldable FusedStream where
   foldl f z st = foldStream f z st
 
 ||| Deforested stream take operator.
-%inline public export
+public export
 fusedTake : Nat -> FusedStream a -> FusedStream a
 fusedTake {a} n (MkStream {s} next seed) = MkStream nextStep (n, seed)
   where
@@ -358,7 +359,7 @@ fusedTakeGoh fuel (MkStream {s} next seed) =
       Yield x st' => Yield x (k, steps, st')
 
 ||| Deforested stream drop operator.
-%inline public export
+public export
 fusedDrop : Nat -> FusedStream a -> FusedStream a
 fusedDrop {a} n (MkStream {s} next seed) = MkStream nextStep (n, seed)
   where
@@ -415,7 +416,7 @@ streamTensorProduct strA strB =
 
 
 ||| Appends two deforested streams together without intermediate heap allocation.
-%inline public export
+public export
 appendStream : FusedStream a -> FusedStream a -> FusedStream a
 appendStream {a} (MkStream {s=s1} next1 seed1) (MkStream {s=s2} next2 seed2) =
   MkStream nextStep (Left seed1)
@@ -439,7 +440,7 @@ Monoid (FusedStream a) where
   neutral = MkStream (\_ => Done) ()
 
 ||| Deforested stream merge operator for sorted streams.
-%inline public export
+public export
 fusedMergeSorted : Ord a => FusedStream a -> FusedStream a -> FusedStream a
 fusedMergeSorted {a} (MkStream {s=sL} nextL seedL) (MkStream {s=sR} nextR seedR) =
   MkStream nextStep (seedL, seedR, Nothing, Nothing)
@@ -479,7 +480,7 @@ data StreamTransducer : Type -> Type -> Type where
   MkTransducer : (step : s -> a -> Step s b) -> (seed : s) -> StreamTransducer a b
 
 ||| Applies a deforested stream transducer to a FusedStream without intermediate allocations.
-%inline public export
+public export
 transduceStream : StreamTransducer a b -> FusedStream a -> FusedStream b
 transduceStream {a, b} (MkTransducer {s=sT} stepT seedT) (MkStream {s=sS} stepS seedS) =
   MkStream nextStep (seedS, seedT)
@@ -528,8 +529,10 @@ streamTokens m =
        (ZeroM, _) => Done
        (AddM x (MkBoxInt w) rest, 0) =>
          let count = boxToNat (absBox (MkBoxInt w))
-         in if count == 0 then Skip (rest, 0)
-            else Yield (MkToken x) (AddM x (MkBoxInt w) rest, pred count)
+         in case count of
+              Z   => Skip (rest, 0)
+              S Z => Yield (MkToken x) (rest, 0)
+              S k => Yield (MkToken x) (AddM x (MkBoxInt w) rest, k)
        (AddM x w rest, S k) =>
          Yield (MkToken x) (if k == 0 then (rest, 0) else (AddM x w rest, k))
     )
@@ -566,7 +569,7 @@ data InfMaxelStream : Type where
 ||| Fused Geometric Pixel Matrix Multiplication.
 ||| Evaluates Wildberger composition rule [a, b] * [c, d] = [a, d] iff b == c.
 ||| Non-matching branches emit Skip s' to deforest O(n^2) dead loops to zero heap allocation.
-%inline public export
+public export
 multiplyGeometricPixels : FusedStream GeometricPixel -> FusedStream GeometricPixel -> FusedStream GeometricPixel
 multiplyGeometricPixels (MkStream {s=sL} nextL seedL) (MkStream {s=sR} nextR seedR) = 
   MkStream nextStep (seedL, seedR, Nothing)
@@ -595,15 +598,16 @@ public export %inline %deprecate
 multiplyMaxels : FusedStream GeometricPixel -> FusedStream GeometricPixel -> FusedStream GeometricPixel
 multiplyMaxels = multiplyGeometricPixels
 
-||| Folds a deforested stream into a consolidated SortedMap layout with explicit Fuel.
+||| Folds a deforested stream of GeometricPixels into a consolidated Multiset with explicit Fuel.
 public export
-unstreamToMap : Fuel -> FusedStream GeometricPixel -> SortedMap GeometricPixel Nat
-unstreamToMap f strm = foldStreamFuel f updateMap (empty {v=Nat}) strm
-  where
-    updateMap : SortedMap GeometricPixel Nat -> GeometricPixel -> SortedMap GeometricPixel Nat
-    updateMap acc px = case lookup px acc of
-      Nothing  => insert px 1 acc
-      Just val => insert px (val + 1) acc
+unstreamToMultiset : Fuel -> FusedStream GeometricPixel -> Multiset BoxInt GeometricPixel
+unstreamToMultiset f strm =
+  foldStreamFuel f (\acc, px => insertItemBox px (intToBoxInt 1) acc) ZeroM strm
+
+||| Compatibility alias for `unstreamToMultiset`.
+public export
+unstreamToMap : Fuel -> FusedStream GeometricPixel -> Multiset BoxInt GeometricPixel
+unstreamToMap = unstreamToMultiset
 
 ------------------------------------------------------------------------
 -- 4. CONSTRUCTIVIST TERNARY MATRIX BOOTSTRAP {-1, 0, 1}^3
@@ -620,18 +624,6 @@ Eq Ternary where
   Pos  == Pos  = True
   _    == _    = False
 
-public export
-Ord Ternary where
-  compare Neg  Neg  = EQ
-  compare Neg  Zero = LT
-  compare Neg  Pos  = LT
-  compare Zero Neg  = GT
-  compare Zero Zero = EQ
-  compare Zero Pos  = LT
-  compare Pos  Neg  = GT
-  compare Pos  Zero = GT
-  compare Pos  Pos  = EQ
-
 ||| Foundational 2x2 Matrix Maxel carrying ternary elements.
 public export
 record TernaryMatrix where
@@ -647,21 +639,6 @@ public export
 Eq TernaryMatrix where
   (MkMatrix s1 t1 tl1 tr1 bl1 br1) == (MkMatrix s2 t2 tl2 tr2 bl2 br2) =
     s1 == s2 && t1 == t2 && tl1 == tl2 && tr1 == tr2 && bl1 == bl2 && br1 == br2
-
-public export
-Ord TernaryMatrix where
-  compare m1 m2 =
-    case compare (source m1) (source m2) of
-      EQ => case compare (target m1) (target m2) of
-        EQ => case compare (topLeft m1) (topLeft m2) of
-          EQ => case compare (topRight m1) (topRight m2) of
-            EQ => case compare (bottomLeft m1) (bottomLeft m2) of
-              EQ => compare (bottomRight m1) (bottomRight m2)
-              other => other
-            other => other
-          other => other
-        other => other
-      other => other
 
 public export
 ternarySpace : List Ternary

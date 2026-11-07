@@ -148,7 +148,7 @@ vectToMaxelRowHelper _ _ [] acc = acc
 vectToMaxelRowHelper r c (w :: ws) acc =
   if boxIsZero w
     then vectToMaxelRowHelper r (S c) ws acc
-    else vectToMaxelRowHelper r (S c) ws (setBoxTree (mkPixel r c) w acc)
+    else vectToMaxelRowHelper r (S c) ws (setCellMultiset (mkPixel r c) w acc)
 
 matToMaxelHelper : Nat -> Nat -> Vect k (Vect n BoxInt) -> Maxel -> Maxel
 matToMaxelHelper _ _ [] acc = acc

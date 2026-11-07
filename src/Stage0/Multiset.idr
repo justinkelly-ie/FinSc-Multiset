@@ -24,7 +24,7 @@ data Multiset1 : (c : Type) -> (a : Type) -> Type where
   AddM1 : a -> c -> Multiset1 c a -> Multiset1 c a
 
 public export
-insertItem : (Eq a, Num c, Eq c) => a -> c -> Multiset c a -> Multiset c a
+insertItem : {auto eq : Eq a} -> {auto num : Num c} -> {auto eqC : Eq c} -> a -> c -> Multiset c a -> Multiset c a
 insertItem k v ZeroM = if v == 0 then ZeroM else AddM k v ZeroM
 insertItem k v (AddM k' v' rest) =
   if k == k' then
@@ -33,7 +33,7 @@ insertItem k v (AddM k' v' rest) =
   else AddM k' v' (insertItem k v rest)
 
 public export
-insertItemBox : Eq a => a -> BoxInt -> Multiset BoxInt a -> Multiset BoxInt a
+insertItemBox : {auto eq : Eq a} -> a -> BoxInt -> Multiset BoxInt a -> Multiset BoxInt a
 insertItemBox k (MkBoxInt v) ZeroM =
   case v of
     0 => ZeroM
@@ -71,8 +71,8 @@ laddMultiset xs ys =
   in prependListToMultiset listX ys
 
 public export
-mapMultiset : (a -> b) -> Multiset c a -> Multiset c b
-mapMultiset f ZeroM = ZeroM
+mapMultiset : (f : a -> b) -> Multiset c a -> Multiset c b
+mapMultiset _ ZeroM = ZeroM
 mapMultiset f (AddM x c xs) = AddM (f x) c (mapMultiset f xs)
 
 public export
@@ -94,7 +94,7 @@ Foldable (Multiset c) where
 
 ||| Folds a function over all (item, weight) elements of a Multiset in single pass without list materialization.
 public export
-foldMultiset : (a -> c -> acc -> acc) -> acc -> Multiset c a -> acc
+foldMultiset : (f : a -> c -> acc -> acc) -> acc -> Multiset c a -> acc
 foldMultiset _ z ZeroM = z
 foldMultiset f z (AddM x c xs) = f x c (foldMultiset f z xs)
 
@@ -191,14 +191,14 @@ multisetSum (AddM _ w rest) = addBox w (multisetSum rest)
 ||| Data-structure entry point: looks up total element count in a `Multiset c a`.
 ||| 2LTT Staging Operation: Splicing (~t) - Queries object element token count from a concrete multiset vector.
 public export
-lookupCount : (Eq a, Num c) => a -> Multiset c a -> c
+lookupCount : {auto eq : Eq a} -> {auto num : Num c} -> a -> Multiset c a -> c
 lookupCount target ZeroM = 0
 lookupCount target (AddM k v rest) =
   if target == k then v + lookupCount target rest else lookupCount target rest
 
 ||| Monomorphic BoxInt lookup in a Multiset BoxInt a, avoiding typeclass dictionary stalls.
 public export
-lookupCountBox : Eq a => a -> Multiset BoxInt a -> BoxInt
+lookupCountBox : {auto eq : Eq a} -> a -> Multiset BoxInt a -> BoxInt
 lookupCountBox target ZeroM = intToBoxInt 0
 lookupCountBox target (AddM k v rest) =
   if target == k then addBox v (lookupCountBox target rest) else lookupCountBox target rest
@@ -292,10 +292,6 @@ record Box a where
   items : List (a, BoxInt)
 
 public export
-Eq a => Eq (Box a) where
-  (MkBox xs) == (MkBox ys) = xs == ys
-
-public export
 Show a => Show (Box a) where
   show (MkBox xs) = "Box(" ++ show xs ++ ")"
 
@@ -326,40 +322,40 @@ public export
 boxToMultiset : Eq a => Box a -> Multiset BoxInt a
 boxToMultiset (MkBox items) = fromListBox items
 
-||| Lookups the multiplicity of an element in a multiset.
+||| Lookups the total multiplicity of an element in a Box multiset (summing any unconsolidated duplicate keys).
 public export
 lookupBox : Eq a => a -> Box a -> BoxInt
 lookupBox _ (MkBox []) = intToBoxInt 0
 lookupBox target (MkBox ((x, w) :: xs)) =
-  if x == target then w else lookupBox target (MkBox xs)
+  if x == target then addBox w (lookupBox target (MkBox xs)) else lookupBox target (MkBox xs)
 
-||| Consolidates multiset entries by summing duplicate keys and removing zero multiplicities.
-public export
-consolidateBox : Eq a => Box a -> Box a
-consolidateBox (MkBox items) = MkBox (go items [])
-  where
-    go : List (a, BoxInt) -> List (a, BoxInt) -> List (a, BoxInt)
-    go [] acc = acc
-    go ((x, w) :: rest) acc =
-      case lookupBox x (MkBox acc) of
-        (MkBoxInt 0) => if boxIsZero w then go rest acc else go rest ((x, w) :: acc)
-        currentW =>
-          let newW = currentW + w
-              filteredAcc = filter (\(k, _) => k /= x) acc
-          in if boxIsZero newW
-               then go rest filteredAcc
-               else go rest ((x, newW) :: filteredAcc)
-
-||| Inserts or updates the multiplicity of an element.
+||| Inserts or updates the multiplicity of an element in a single structural pass without filter reallocations.
 public export
 insertBox : Eq a => a -> BoxInt -> Box a -> Box a
-insertBox x w (MkBox xs) =
-  let current = lookupBox x (MkBox xs)
-      newWeight = current + w
-      filtered = filter (\(k, _) => k /= x) xs
-  in if boxIsZero newWeight
-       then MkBox filtered
-       else MkBox ((x, newWeight) :: filtered)
+insertBox target w (MkBox xs) =
+  if boxIsZero w then MkBox xs else MkBox (go target w xs)
+  where
+    go : a -> BoxInt -> List (a, BoxInt) -> List (a, BoxInt)
+    go k dw [] = [(k, dw)]
+    go k dw ((k', w') :: rest) =
+      if k == k'
+        then let newW = addBox w' dw
+             in if boxIsZero newW then rest else (k, newW) :: rest
+        else (k', w') :: go k dw rest
+
+||| Consolidates multiset entries by summing duplicate keys and removing zero multiplicities via structural recursion.
+public export
+consolidateBox : Eq a => Box a -> Box a
+consolidateBox (MkBox []) = emptyBox
+consolidateBox (MkBox ((x, w) :: xs)) = insertBox x w (consolidateBox (MkBox xs))
+
+||| Negates all weights in a Box a multiset.
+public export
+negateBox : Box a -> Box a
+negateBox (MkBox []) = emptyBox
+negateBox (MkBox ((x, w) :: xs)) =
+  let MkBox rest = negateBox (MkBox xs)
+  in MkBox ((x, negBox w) :: rest)
 
 ||| Multiset Union (pouring containers together): adds multiplicities.
 public export
@@ -367,6 +363,17 @@ unionBox : Eq a => Box a -> Box a -> Box a
 unionBox (MkBox []) ys = ys
 unionBox (MkBox ((x, w) :: xs)) ys =
   insertBox x w (unionBox (MkBox xs) ys)
+
+||| Extensional Multiset Equality on Box a: invariant under permutation and zero-weight cancellation.
+public export
+Eq a => Eq (Box a) where
+  x == y =
+    let MkBox diff = consolidateBox (unionBox x (negateBox y))
+    in isNil diff
+    where
+      isNil : {0 b : Type} -> List (b, BoxInt) -> Bool
+      isNil [] = True
+      isNil _  = False
 
 public export
 Eq a => Semigroup (Box a) where
@@ -440,3 +447,204 @@ boxSymmetricDifference (MkBox xs) (MkBox ys) =
             diff = if w1 >= w2 then w1 - w2 else w2 - w1
         in boxToNat diff) allKeys
   in sum diffs
+
+||| Scales a Box a multiset by a BoxInt scalar, pruning zero weights.
+public export
+scaleBox : BoxInt -> Box a -> Box a
+scaleBox s (MkBox xs) =
+  if boxIsZero s then emptyBox
+  else MkBox (mapMaybe (\(x, w) =>
+         let sw = mulBox s w
+         in if boxIsZero sw then Nothing else Just (x, sw)) xs)
+
+||| Inner product of two Box a multisets: sum_x w_A(x) * w_B(x).
+public export
+dotBox : Eq a => Box a -> Box a -> BoxInt
+dotBox a b =
+  let MkBox xs = consolidateBox a
+  in foldl (\acc, (k, w1) => addBox acc (mulBox w1 (lookupBox k b))) (intToBoxInt 0) xs
+
+||| Tensor (Cartesian) product of two Box multisets: (A ⊗ B)(x, y) = A(x) * B(y).
+public export
+tensorBox : Box a -> Box b -> Box (a, b)
+tensorBox (MkBox xs) (MkBox ys) =
+  MkBox (concatMap (\(x, wx) =>
+          mapMaybe (\(y, wy) =>
+            let prod = mulBox wx wy
+            in if boxIsZero prod then Nothing else Just ((x, y), prod)) ys) xs)
+
+||| Functorial map over Box a elements (pushforward without eager consolidation).
+public export
+mapBox : (a -> b) -> Box a -> Box b
+mapBox f (MkBox xs) = MkBox (map (\(x, w) => (f x, w)) xs)
+
+public export
+Functor Box where
+  map = mapBox
+
+public export
+Foldable Box where
+  foldr f z (MkBox xs) = foldr (\(x, _), acc => f x acc) z xs
+
+public export
+Eq a => MultisetAlgebra (Box a) where
+  zeroM  = emptyBox
+  addM   = unionBox
+  scaleM = scaleBox
+  dotM   = dotBox
+
+------------------------------------------------------------------------
+-- 3. UNIFIED MULTISET COMBINATION, LATTICE & REACTION ALGEBRA
+------------------------------------------------------------------------
+
+||| Consolidating Multiset Union on Multiset BoxInt a: sums duplicate keys and prunes zeros.
+public export
+unionMultisetBox : Eq a => Multiset BoxInt a -> Multiset BoxInt a -> Multiset BoxInt a
+unionMultisetBox ZeroM ys = annihilateMultiset ys
+unionMultisetBox (AddM k v rest) ys = insertItemBox k v (unionMultisetBox rest ys)
+
+||| Monomorphic BoxInt scaling on Multiset BoxInt a, pruning zero weights.
+public export
+scaleMultisetBox : BoxInt -> Multiset BoxInt a -> Multiset BoxInt a
+scaleMultisetBox _ ZeroM = ZeroM
+scaleMultisetBox s (AddM k v rest) =
+  if boxIsZero s then ZeroM
+  else let sv = mulBox s v
+       in if boxIsZero sv then scaleMultisetBox s rest
+          else AddM k sv (scaleMultisetBox s rest)
+
+||| Inner product of two Multiset BoxInt a carriers: <M1, M2> = sum_x M1(x) * M2(x).
+public export
+dotMultisetBox : Eq a => Multiset BoxInt a -> Multiset BoxInt a -> BoxInt
+dotMultisetBox m1 m2 =
+  let c1 = annihilateMultiset m1
+  in foldMultiset (\k, w1, acc => addBox acc (mulBox w1 (lookupCountBox k m2))) (intToBoxInt 0) c1
+
+public export
+Eq a => MultisetAlgebra (Multiset BoxInt a) where
+  zeroM  = ZeroM
+  addM   = unionMultisetBox
+  scaleM = scaleMultisetBox
+  dotM   = dotMultisetBox
+
+||| Tensor (Cartesian) product of two Multiset BoxInt carriers: (M1 ⊗ M2)(x, y) = M1(x) * M2(y).
+public export
+tensorMultisetBox : Multiset BoxInt a -> Multiset BoxInt b -> Multiset BoxInt (a, b)
+tensorMultisetBox ZeroM _ = ZeroM
+tensorMultisetBox (AddM x wx xs) ys =
+  let row = foldMultiset (\y, wy, acc =>
+              let prod = mulBox wx wy
+              in if boxIsZero prod then acc else AddM (x, y) prod acc) ZeroM ys
+  in addMultiset row (tensorMultisetBox xs ys)
+
+||| Filters a Multiset c a by a predicate on its elements.
+public export
+filterMultiset : (p : a -> Bool) -> Multiset c a -> Multiset c a
+filterMultiset _ ZeroM = ZeroM
+filterMultiset p (AddM k v rest) =
+  if p k then AddM k v (filterMultiset p rest) else filterMultiset p rest
+
+||| Multiset Lattice Intersection (Infimum): (M1 ∩ M2)(x) = min(M1(x), M2(x)) for positive weights.
+public export
+intersectMultisetBox : Eq a => Multiset BoxInt a -> Multiset BoxInt a -> Multiset BoxInt a
+intersectMultisetBox m1 m2 =
+  let c1 = annihilateMultiset m1
+  in foldMultiset (\k, w1, acc =>
+       let w2 = lookupCountBox k m2
+           minW = if w1 <= w2 then w1 else w2
+       in if minW > intToBoxInt 0 then insertItemBox k minW acc else acc) ZeroM c1
+
+||| Multiset Lattice Join (Supremum Union): (M1 ∨ M2)(x) = max(M1(x), M2(x)) for positive weights.
+public export
+supremumUnionMultisetBox : Eq a => Multiset BoxInt a -> Multiset BoxInt a -> Multiset BoxInt a
+supremumUnionMultisetBox m1 m2 =
+  let allKeys = nub (map fst (multisetToList m1) ++ map fst (multisetToList m2))
+  in foldr (\k, acc =>
+       let w1 = lookupCountBox k m1
+           w2 = lookupCountBox k m2
+           maxW = if w1 >= w2 then w1 else w2
+       in if maxW > intToBoxInt 0 then insertItemBox k maxW acc else acc) ZeroM allKeys
+
+||| Bounded Multiset Difference (Monus): (M1 \ M2)(x) = max(0, M1(x) - M2(x)).
+public export
+boundedDiffMultisetBox : Eq a => Multiset BoxInt a -> Multiset BoxInt a -> Multiset BoxInt a
+boundedDiffMultisetBox m1 m2 =
+  let c1 = annihilateMultiset m1
+  in foldMultiset (\k, w1, acc =>
+       let w2 = lookupCountBox k m2
+           remW = Stage0.BoxInt.subBox w1 w2
+       in if remW > intToBoxInt 0 then insertItemBox k remW acc else acc) ZeroM c1
+
+||| Multiset Symmetric Difference: (M1 Δ M2)(x) = |M1(x) - M2(x)|.
+public export
+symmetricDiffMultisetBox : Eq a => Multiset BoxInt a -> Multiset BoxInt a -> Multiset BoxInt a
+symmetricDiffMultisetBox m1 m2 =
+  let allKeys = nub (map fst (multisetToList m1) ++ map fst (multisetToList m2))
+  in foldr (\k, acc =>
+       let w1 = lookupCountBox k m1
+           w2 = lookupCountBox k m2
+           diff = absBox (Stage0.BoxInt.subBox w1 w2)
+       in if boxIsNonZero diff then insertItemBox k diff acc else acc) ZeroM allKeys
+
+||| Computes the stoichiometric reaction quotient: maximum number of times `reactants`
+||| is contained in `state` (min_{x in Supp(R)} floor(state(x) / R(x))).
+public export
+reactionQuotientBox : Eq a => (reactants : Multiset BoxInt a) -> Multiset BoxInt a -> BoxInt
+reactionQuotientBox reactants state =
+  let cReact = annihilateMultiset reactants
+  in case cReact of
+       ZeroM => intToBoxInt 0
+       AddM k0 w0 rest =>
+         let q0 = if w0 <= intToBoxInt 0 then intToBoxInt 0
+                  else divBox (lookupCountBox k0 state) w0
+             initQ = if q0 < intToBoxInt 0 then intToBoxInt 0 else q0
+         in foldMultiset (\k, w, acc =>
+              if w <= intToBoxInt 0 then acc
+              else let q = divBox (lookupCountBox k state) w
+                       qClamped = if q < intToBoxInt 0 then intToBoxInt 0 else q
+                   in if qClamped < acc then qClamped else acc) initQ rest
+
+||| Executes up to `maxReactions` stoichiometric reactions (reactants -> products) on `state`
+||| using pure multiset combination operations: state' = (state \ (k * reactants)) + (k * products).
+||| Returns (updatedState, actualReactionsExecuted).
+public export
+reactMultisetBox :
+  Eq a =>
+  (maxReactions : BoxInt) ->
+  (reactants : Multiset BoxInt a) ->
+  (products : Multiset BoxInt a) ->
+  Multiset BoxInt a ->
+  (Multiset BoxInt a, BoxInt)
+reactMultisetBox maxReactions reactants products state =
+  let avail = reactionQuotientBox reactants state
+      k = if maxReactions < avail then maxReactions else avail
+  in if k <= intToBoxInt 0
+       then (state, intToBoxInt 0)
+       else let consumed = scaleMultisetBox k reactants
+                produced = scaleMultisetBox k products
+                remState = boundedDiffMultisetBox state consumed
+                nextState = unionMultisetBox remState produced
+            in (nextState, k)
+
+||| Cross-tier stoichiometric transmutation (reactants in M_A -> products in M_B):
+||| Consumes `k * reactants` from `sourceState` and adds `k * products` to `targetState`.
+||| Returns (nextSourceState, nextTargetState, actualReactionsExecuted).
+public export
+transmuteMultisetBox :
+  (Eq a, Eq b) =>
+  (maxReactions : BoxInt) ->
+  (reactants : Multiset BoxInt a) ->
+  (products : Multiset BoxInt b) ->
+  Multiset BoxInt a ->
+  Multiset BoxInt b ->
+  (Multiset BoxInt a, Multiset BoxInt b, BoxInt)
+transmuteMultisetBox maxReactions reactants products sourceState targetState =
+  let avail = reactionQuotientBox reactants sourceState
+      k = if maxReactions < avail then maxReactions else avail
+  in if k <= intToBoxInt 0
+       then (sourceState, targetState, intToBoxInt 0)
+       else let consumed = scaleMultisetBox k reactants
+                produced = scaleMultisetBox k products
+                nextSource = boundedDiffMultisetBox sourceState consumed
+                nextTarget = unionMultisetBox targetState produced
+            in (nextSource, nextTarget, k)

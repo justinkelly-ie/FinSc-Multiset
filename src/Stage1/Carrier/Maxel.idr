@@ -2,6 +2,8 @@ module Stage1.Carrier.Maxel
 
 import Data.Nat
 import Stage0.BoxInt
+import Stage0.Multiset
+import Stage0.IntPolynumber
 import Stage0.OnSeq.FusedStream
 import Stage1.MultisetTree
 import Stage1.Basis.CoordCell
@@ -13,13 +15,6 @@ import public Stage1.Carrier.Vexel
 ------------------------------------------------------------------------
 -- 1. PURE 2D DISCRETE MATRIX CARRIER (Maxel)
 ------------------------------------------------------------------------
-
-||| Backward-compatibility constructor alias for tree-backed Maxels.
-public export
-MkMaxelTree : BoxMultisetTree Pixel -> Maxel
-MkMaxelTree t = t
-
-
 
 ||| Extracts pixel-weight terms association list from a Maxel.
 public export
@@ -52,14 +47,8 @@ mulMaxel t1 t2 =
   foldBoxTreeL (\treeAcc, (p1, w1) =>
     foldBoxTreeL (\acc, (p2, w2) =>
       case mulPixel p1 p2 of
-        Just pOut =>
-          let wOut = w1 * w2
-              cur = lookupBoxTree pOut acc
-              newW = cur + wOut
-          in if boxIsZero newW
-               then setBoxTree pOut (intToBoxInt 0) acc
-               else setBoxTree pOut newW acc
-        Nothing => acc)
+        Just pOut => addCellTree pOut (w1 * w2) acc
+        Nothing   => acc)
       treeAcc
       t2)
     BoxLeaf
@@ -77,7 +66,7 @@ identityMaxel =
 public export
 transposeMaxel : Maxel -> Maxel
 transposeMaxel m =
-  foldBoxTreeL (\acc, (p, w) => setBoxTree (transposePixel p) w acc) BoxLeaf m
+  foldBoxTreeL (\acc, (p, w) => setCellMultiset (transposePixel p) w acc) BoxLeaf m
 
 ||| Contracts a Maxel matrix on a Vexel vector (M * v).
 public export
@@ -86,14 +75,8 @@ actMaxelVexel tm tv =
   foldBoxTreeL (\treeAcc, (pix, pw) =>
     foldBoxTreeL (\acc, (sing, sw) =>
       case mulPixelUnixel pix sing of
-        Just sOut =>
-          let wOut = pw * sw
-              cur = lookupBoxTree sOut acc
-              newW = cur + wOut
-          in if boxIsZero newW
-               then setBoxTree sOut (intToBoxInt 0) acc
-               else setBoxTree sOut newW acc
-        Nothing => acc)
+        Just sOut => addCellTree sOut (pw * sw) acc
+        Nothing   => acc)
       treeAcc
       tv)
     BoxLeaf
@@ -104,36 +87,24 @@ public export
 extractRowVexel : Nat -> Maxel -> Vexel
 extractRowVexel i tm =
   let singI = mkUnixel i
-      resultTree = foldBoxTreeL (\acc, (pix, w) => 
-                     case mulUnixelPixel singI pix of
-                       Just sOut =>
-                         let cur = lookupBoxTree sOut acc
-                             newW = cur + w
-                         in if boxIsZero newW
-                              then setBoxTree sOut (intToBoxInt 0) acc
-                              else setBoxTree sOut newW acc
-                       Nothing   => acc)
-                     BoxLeaf
-                     tm
-  in resultTree
+  in foldBoxTreeL (\acc, (pix, w) =>
+       case mulUnixelPixel singI pix of
+         Just sOut => addCellTree sOut w acc
+         Nothing   => acc)
+       BoxLeaf
+       tm
 
 ||| Extracts the j-th Column of a Maxel as a 1D Vexel: C_j(M) = M * [j]
 public export
 extractColVexel : Nat -> Maxel -> Vexel
 extractColVexel j tm =
   let singJ = mkUnixel j
-      resultTree = foldBoxTreeL (\acc, (pix, w) => 
-                     case mulPixelUnixel pix singJ of
-                       Just sOut =>
-                         let cur = lookupBoxTree sOut acc
-                             newW = cur + w
-                         in if boxIsZero newW
-                              then setBoxTree sOut (intToBoxInt 0) acc
-                              else setBoxTree sOut newW acc
-                       Nothing   => acc)
-                     BoxLeaf
-                     tm
-  in resultTree
+  in foldBoxTreeL (\acc, (pix, w) =>
+       case mulPixelUnixel pix singJ of
+         Just sOut => addCellTree sOut w acc
+         Nothing   => acc)
+       BoxLeaf
+       tm
 
 ||| Multiplies a column Vexel (ket) by a row Vexel (bra) to generate a Maxel:
 public export
@@ -141,13 +112,7 @@ outerProductVexel : Vexel -> Vexel -> Maxel
 outerProductVexel tk tb =
   foldBoxTreeL (\accTree, (k, kw) =>
     foldBoxTreeL (\innerAcc, (b, bw) =>
-      let p = unixelPairToPixel k b
-          wOut = kw * bw
-          cur = lookupBoxTree p innerAcc
-          newW = cur + wOut
-      in if boxIsZero newW
-           then setBoxTree p (intToBoxInt 0) innerAcc
-           else setBoxTree p newW innerAcc)
+      addCellTree (unixelPairToPixel k b) (kw * bw) innerAcc)
       accTree
       tb)
     BoxLeaf
@@ -166,22 +131,13 @@ wedgeVexel : Vexel -> Vexel -> Maxel
 wedgeVexel tu tv =
   foldBoxTreeL (\accU, (u, wu) =>
     foldBoxTreeL (\accV, (v, wv) =>
-      if u == v
+      if coordCellEq u v
         then accV
         else
           let w = wu * wv
               pPos = unixelPairToPixel u v
               pNeg = transposePixel pPos
-              curPos = lookupBoxTree pPos accV
-              newPos = curPos + w
-              tree1 = if boxIsZero newPos
-                        then setBoxTree pPos (intToBoxInt 0) accV
-                        else setBoxTree pPos newPos accV
-              curNeg = lookupBoxTree pNeg tree1
-              newNeg = curNeg - w
-          in if boxIsZero newNeg
-               then setBoxTree pNeg (intToBoxInt 0) tree1
-               else setBoxTree pNeg newNeg tree1)
+          in addCellTree pNeg (negate w) (addCellTree pPos w accV))
       accU
       tv)
     BoxLeaf
@@ -227,15 +183,31 @@ subMaxel = subCellMultiset {dim = 2}
 ||| Evaluates the L1 norm of a Maxel (sum of absolute weights).
 public export
 normL1Maxel : Maxel -> BoxInt
-normL1Maxel m =
-  foldBoxTreeL (\acc, (_, w) => acc + absBox w) (intToBoxInt 0) (the (BoxMultisetTree (CoordCell 2)) m)
+normL1Maxel = normL1CellMultiset {dim = 2}
 
-||| A Molecular Bond Maxel represents covalent bond connectivity between atoms i and j.
+||| Canonical two-edge directed bipartite adjacency Maxel: [1, 2] + [1, 3].
 public export
-waterMoleculeBonds : Maxel
-waterMoleculeBonds =
+bipartiteTwoEdgeMaxel : Maxel
+bipartiteTwoEdgeMaxel =
   singletonCell (mkPixel 1 2) (intToBoxInt 1) <+>
   singletonCell (mkPixel 1 3) (intToBoxInt 1)
+
+||| Backward-compatibility alias for bipartiteTwoEdgeMaxel.
+public export
+waterMoleculeBonds : Maxel
+waterMoleculeBonds = bipartiteTwoEdgeMaxel
+
+||| Converts a Stage 0 RLE bivariate IntPolynumber into an O(log N) AVL Maxel tree.
+public export
+intPolyToMaxel : IntPolynumber -> Maxel
+intPolyToMaxel p =
+  foldMultiset (\(degA, degB), w, acc => addCellTree (mkPixel degA degB) w acc) BoxLeaf p
+
+||| Converts an O(log N) AVL Maxel tree into a Stage 0 RLE bivariate IntPolynumber.
+public export
+maxelToIntPoly : Maxel -> IntPolynumber
+maxelToIntPoly m =
+  foldBoxTreeR (\px, w, acc => if boxIsNonZero w then AddM (pixelRow px, pixelCol px) w acc else acc) ZeroM m
 
 ------------------------------------------------------------------------
 -- 2. VERIFICATION AUDITS

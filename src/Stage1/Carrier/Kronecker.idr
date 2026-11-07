@@ -35,19 +35,12 @@ kroneckerSquareMaxel {m} {n} (MkSquareMaxel t1) (MkSquareMaxel t2) =
               r2 = pixelRow p2
               c2 = pixelCol p2
               pOut = observeKroneckerPixel n ((r1, r2), (c1, c2))
-              wOut = w1 * w2
-          in if unwrapBox wOut == 0
-               then innerAcc
-               else let cur = lookupBoxTree pOut innerAcc
-                        newW = cur + wOut
-                    in if unwrapBox newW == 0
-                         then setBoxTree pOut (intToBoxInt 0) innerAcc
-                         else setBoxTree pOut newW innerAcc)
+          in addCellTree pOut (w1 * w2) innerAcc)
           accTree
           t2)
         BoxLeaf
         t1
-  in compressSquareMaxel (MkSquareMaxel resultTree)
+  in MkSquareMaxel resultTree
 
 ||| 2LTT Staged Kronecker Product for SquareMaxel:
 public export

@@ -38,6 +38,21 @@ public export
 freezeLDep : {0 contents : List (a, c)} -> (1 m : LMultiset c a contents) -> List (a, c)
 freezeLDep m = freezeLDepAcc [] m
 
+||| Helper that linearly unboxes an LMultiset into an unrestricted Ur (Multiset c a) while preserving order.
+public export
+lfreezeToUrMultiset : {0 contents : List (a, c)} -> (1 m : LMultiset c a contents) -> Ur (Multiset c a)
+lfreezeToUrMultiset LEmptyM = MkUr ZeroM
+lfreezeToUrMultiset (LAddM item count prev) =
+  let MkUr rest = lfreezeToUrMultiset prev
+  in MkUr (AddM item count rest)
+
+||| Freezes a linear LMultiset directly into a runtime Multiset c a without an intermediate List.
+public export
+lfreezeToMultiset : {0 contents : List (a, c)} -> (1 m : LMultiset c a contents) -> Multiset c a
+lfreezeToMultiset m =
+  let MkUr res = lfreezeToUrMultiset m
+  in res
+
 ||| LUnboxResult: An unrestricted wrapper that preserves the type-level multiset contents.
 public export
 data LUnboxResult : (c : Type) -> (a : Type) -> List (a, c) -> Type where
@@ -86,3 +101,13 @@ lmap : {0 contents : List (a, c)} ->
        LMultiset c b (lmapContents f contents)
 lmap f LEmptyM = LEmptyM
 lmap f (LAddM item count prev) = LAddM (f item) count (lmap f prev)
+
+||| Linearly combines two LMultisets, preserving exact type-level contents (xs ++ ys)
+||| without duplicating or dropping any linear token resource.
+public export
+lappend : {0 xs, ys : List (a, c)} ->
+          (1 m1 : LMultiset c a xs) ->
+          (1 m2 : LMultiset c a ys) ->
+          LMultiset c a (xs ++ ys)
+lappend LEmptyM m2 = m2
+lappend (LAddM item count prev) m2 = LAddM item count (lappend prev m2)

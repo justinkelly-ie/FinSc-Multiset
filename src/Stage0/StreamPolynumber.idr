@@ -141,12 +141,29 @@ boxIntPower : BoxInt -> Nat -> BoxInt
 boxIntPower _ Z = MkBoxInt 1
 boxIntPower x (S k) = mulBox x (boxIntPower x k)
 
+||| Fast O(log d) binary exponentiation of a BoxInt scalar with structural fuel (Rule 04 §2).
+public export
+fastBoxIntPowerFuel : (fuel : Nat) -> BoxInt -> Nat -> BoxInt
+fastBoxIntPowerFuel Z _ _ = MkBoxInt 1
+fastBoxIntPowerFuel (S _) _ Z = MkBoxInt 1
+fastBoxIntPowerFuel (S _) x (S Z) = x
+fastBoxIntPowerFuel (S f) x d =
+  let (half, isOdd) = natHalfAndOdd d
+      halfPow = fastBoxIntPowerFuel f x half
+      sqPow   = mulBox halfPow halfPow
+  in if isOdd then mulBox x sqPow else sqPow
+
+||| Fast O(log d) binary exponentiation of a BoxInt scalar bounded by model-derived Goh fuel.
+public export
+fastBoxIntPower : BoxInt -> Nat -> BoxInt
+fastBoxIntPower x d = fastBoxIntPowerFuel (gohSteps (gohFuelForCapacity d)) x d
+
 ||| Direct deforested evaluation of a StreamPolynumber at a target coordinate x in BoxInt.
 ||| Evaluates P(x) = sum c_k x^k with O(1) auxiliary registers.
 public export
 evalStreamPolyNat : (fuel : Nat) -> BoxInt -> StreamPolynumber -> BoxInt
 evalStreamPolyNat fuel x strm =
-  foldStreamNat fuel (\acc, (d, c) => addBox acc (mulBox c (boxIntPower x d))) (MkBoxInt 0) strm
+  foldStreamNat fuel (\acc, (d, c) => addBox acc (mulBox c (fastBoxIntPower x d))) (MkBoxInt 0) strm
 
 ||| Evaluates a StreamPolynumber bounded by Master Substrate Primorial 210 Goh capacity.
 public export

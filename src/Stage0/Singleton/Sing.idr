@@ -25,10 +25,6 @@ Eq a => Eq (Sing a) where
   (MkSing x) == (MkSing y) = x == y
 
 public export
-[singOrd] Ord a => Ord (Sing a) where
-  compare (MkSing x) (MkSing y) = compare x y
-
-public export
 [singShow] Show a => Show (Sing a) where
   show (MkSing x) = "{" ++ show x ++ "}"
 

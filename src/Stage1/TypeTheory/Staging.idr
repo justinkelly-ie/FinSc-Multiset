@@ -8,6 +8,7 @@ module Stage1.TypeTheory.Staging
 import public Stage1.TypeTheory.TwoLevel
 import Stage0.BoxInt
 import Stage0.BoxNat
+import Stage0.Token
 import Stage0.Multiset
 import Stage0.OnSeq.FusedStream
 import public Stage1.Basis.CoordCell
@@ -292,133 +293,40 @@ stagedFastMatPower (S f) mat exp =
 -- 7. 2LTT STAGED COORDINATE CELL & CARRIER OPERATIONS
 ------------------------------------------------------------------------
 
-||| 2LTT Staged Unrolled Coordinate Addition for arbitrary static dimensions.
-||| Emits branchless, flat Level 1 primitive additions without AVL tree traversal for D in {1, 2, 3, 4}.
+||| 2LTT Staged Coordinate Addition for arbitrary dimension `dim : Nat`.
+||| Operates directly on the inductive Token sequence `CoordCell dim`.
 public export
 stagedUnrollAdd : (dim : Nat) -> Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift (CoordCell dim)
-stagedUnrollAdd (S Z) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in mkCell1 (coordCellCoord FZ c1 + coordCellCoord FZ c2))
-stagedUnrollAdd (S (S Z)) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in mkCell2 (coordCellCoord FZ c1 + coordCellCoord FZ c2)
-                    (coordCellCoord (FS FZ) c1 + coordCellCoord (FS FZ) c2))
-stagedUnrollAdd (S (S (S Z))) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in mkCell3 (coordCellCoord FZ c1 + coordCellCoord FZ c2)
-                    (coordCellCoord (FS FZ) c1 + coordCellCoord (FS FZ) c2)
-                    (coordCellCoord (FS (FS FZ)) c1 + coordCellCoord (FS (FS FZ)) c2))
-stagedUnrollAdd (S (S (S (S Z)))) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in mkCell4 (coordCellCoord FZ c1 + coordCellCoord FZ c2)
-                    (coordCellCoord (FS FZ) c1 + coordCellCoord (FS FZ) c2)
-                    (coordCellCoord (FS (FS FZ)) c1 + coordCellCoord (FS (FS FZ)) c2)
-                    (coordCellCoord (FS (FS (FS FZ))) c1 + coordCellCoord (FS (FS (FS FZ))) c2))
 stagedUnrollAdd _ qc1 qc2 =
   quote (addCoordCell (splice qc1) (splice qc2))
 
-||| 2LTT Staged Unrolled Coordinate Hadamard Multiplication.
+||| 2LTT Staged Coordinate Hadamard Multiplication for arbitrary dimension `dim : Nat`.
 public export
 stagedUnrollMul : (dim : Nat) -> Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift (CoordCell dim)
-stagedUnrollMul (S Z) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in mkCell1 (coordCellCoord FZ c1 * coordCellCoord FZ c2))
-stagedUnrollMul (S (S Z)) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in mkCell2 (coordCellCoord FZ c1 * coordCellCoord FZ c2)
-                    (coordCellCoord (FS FZ) c1 * coordCellCoord (FS FZ) c2))
-stagedUnrollMul (S (S (S Z))) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in mkCell3 (coordCellCoord FZ c1 * coordCellCoord FZ c2)
-                    (coordCellCoord (FS FZ) c1 * coordCellCoord (FS FZ) c2)
-                    (coordCellCoord (FS (FS FZ)) c1 * coordCellCoord (FS (FS FZ)) c2))
-stagedUnrollMul (S (S (S (S Z)))) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in mkCell4 (coordCellCoord FZ c1 * coordCellCoord FZ c2)
-                    (coordCellCoord (FS FZ) c1 * coordCellCoord (FS FZ) c2)
-                    (coordCellCoord (FS (FS FZ)) c1 * coordCellCoord (FS (FS FZ)) c2)
-                    (coordCellCoord (FS (FS (FS FZ))) c1 * coordCellCoord (FS (FS (FS FZ))) c2))
 stagedUnrollMul _ qc1 qc2 =
   quote (mulCoordCell (splice qc1) (splice qc2))
 
-||| 2LTT Staged Unrolled Coordinate Scalar Multiplication.
+||| 2LTT Staged Coordinate Scalar Multiplication for arbitrary dimension `dim : Nat`.
 public export
 stagedUnrollScale : (dim : Nat) -> Nat -> Lift (CoordCell dim) -> Lift (CoordCell dim)
-stagedUnrollScale (S Z) k qc =
-  quote (let c = splice qc in mkCell1 (k * coordCellCoord FZ c))
-stagedUnrollScale (S (S Z)) k qc =
-  quote (let c = splice qc in mkCell2 (k * coordCellCoord FZ c) (k * coordCellCoord (FS FZ) c))
-stagedUnrollScale (S (S (S Z))) k qc =
-  quote (let c = splice qc in mkCell3 (k * coordCellCoord FZ c) (k * coordCellCoord (FS FZ) c) (k * coordCellCoord (FS (FS FZ)) c))
-stagedUnrollScale (S (S (S (S Z)))) k qc =
-  quote (let c = splice qc in mkCell4 (k * coordCellCoord FZ c) (k * coordCellCoord (FS FZ) c) (k * coordCellCoord (FS (FS FZ)) c) (k * coordCellCoord (FS (FS (FS FZ))) c))
 stagedUnrollScale _ k qc =
   quote (scaleCoordCell k (splice qc))
 
-||| 2LTT Staged Unrolled Coordinate Subtraction.
+||| 2LTT Staged Coordinate Subtraction for arbitrary dimension `dim : Nat`.
 public export
 stagedUnrollMinus : (dim : Nat) -> Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift (CoordCell dim)
-stagedUnrollMinus (S Z) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in mkCell1 (minus (coordCellCoord FZ c1) (coordCellCoord FZ c2)))
-stagedUnrollMinus (S (S Z)) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in mkCell2 (minus (coordCellCoord FZ c1) (coordCellCoord FZ c2))
-                    (minus (coordCellCoord (FS FZ) c1) (coordCellCoord (FS FZ) c2)))
-stagedUnrollMinus (S (S (S Z))) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in mkCell3 (minus (coordCellCoord FZ c1) (coordCellCoord FZ c2))
-                    (minus (coordCellCoord (FS FZ) c1) (coordCellCoord (FS FZ) c2))
-                    (minus (coordCellCoord (FS (FS FZ)) c1) (coordCellCoord (FS (FS FZ)) c2)))
-stagedUnrollMinus (S (S (S (S Z)))) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in mkCell4 (minus (coordCellCoord FZ c1) (coordCellCoord FZ c2))
-                    (minus (coordCellCoord (FS FZ) c1) (coordCellCoord (FS FZ) c2))
-                    (minus (coordCellCoord (FS (FS FZ)) c1) (coordCellCoord (FS (FS FZ)) c2))
-                    (minus (coordCellCoord (FS (FS (FS FZ))) c1) (coordCellCoord (FS (FS (FS FZ))) c2)))
 stagedUnrollMinus _ qc1 qc2 =
   quote (minusCoordCell (splice qc1) (splice qc2))
 
-||| 2LTT Staged Unrolled Inner / Dot Product (c1 · c2).
+||| 2LTT Staged Inner / Dot Product (c1 · c2) for arbitrary dimension `dim : Nat`.
 public export
 stagedUnrollDot : (dim : Nat) -> Lift (CoordCell dim) -> Lift (CoordCell dim) -> Lift Nat
-stagedUnrollDot (S Z) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in coordCellCoord FZ c1 * coordCellCoord FZ c2)
-stagedUnrollDot (S (S Z)) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in (coordCellCoord FZ c1 * coordCellCoord FZ c2) +
-            (coordCellCoord (FS FZ) c1 * coordCellCoord (FS FZ) c2))
-stagedUnrollDot (S (S (S Z))) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in (coordCellCoord FZ c1 * coordCellCoord FZ c2) +
-            (coordCellCoord (FS FZ) c1 * coordCellCoord (FS FZ) c2) +
-            (coordCellCoord (FS (FS FZ)) c1 * coordCellCoord (FS (FS FZ)) c2))
-stagedUnrollDot (S (S (S (S Z)))) qc1 qc2 =
-  quote (let c1 = splice qc1; c2 = splice qc2
-         in (coordCellCoord FZ c1 * coordCellCoord FZ c2) +
-            (coordCellCoord (FS FZ) c1 * coordCellCoord (FS FZ) c2) +
-            (coordCellCoord (FS (FS FZ)) c1 * coordCellCoord (FS (FS FZ)) c2) +
-            (coordCellCoord (FS (FS (FS FZ))) c1 * coordCellCoord (FS (FS (FS FZ))) c2))
 stagedUnrollDot _ qc1 qc2 =
   quote (dotCoordCell (splice qc1) (splice qc2))
 
-||| 2LTT Staged Unrolled Wildberger Quadrance Q(c) = c · c.
+||| 2LTT Staged Wildberger Quadrance Q(c) = c · c for arbitrary dimension `dim : Nat`.
 public export
 stagedUnrollQuadrance : (dim : Nat) -> Lift (CoordCell dim) -> Lift Nat
-stagedUnrollQuadrance (S Z) qc =
-  quote (let c = splice qc; x0 = coordCellCoord FZ c in x0 * x0)
-stagedUnrollQuadrance (S (S Z)) qc =
-  quote (let c = splice qc; x0 = coordCellCoord FZ c; x1 = coordCellCoord (FS FZ) c
-         in (x0 * x0) + (x1 * x1))
-stagedUnrollQuadrance (S (S (S Z))) qc =
-  quote (let c = splice qc; x0 = coordCellCoord FZ c; x1 = coordCellCoord (FS FZ) c; x2 = coordCellCoord (FS (FS FZ)) c
-         in (x0 * x0) + (x1 * x1) + (x2 * x2))
-stagedUnrollQuadrance (S (S (S (S Z)))) qc =
-  quote (let c = splice qc
-             x0 = coordCellCoord FZ c; x1 = coordCellCoord (FS FZ) c
-             x2 = coordCellCoord (FS (FS FZ)) c; x3 = coordCellCoord (FS (FS (FS FZ))) c
-         in (x0 * x0) + (x1 * x1) + (x2 * x2) + (x3 * x3))
 stagedUnrollQuadrance _ qc =
   quote (quadranceCoordCell (splice qc))
 
@@ -470,35 +378,70 @@ stagedQuadranceCoordCell {dim} = stagedUnrollQuadrance dim
 -- 9. 2LTT DEFINITIONAL EVALUATION INVERSE THEOREMS
 ------------------------------------------------------------------------
 
+||| Universal dimension-polymorphic 2LTT inverse theorems for all `dim : Nat`.
+public export
+0 prfStagedUnrollAdd : {dim : Nat} -> (c1, c2 : CoordCell dim) ->
+  splice (stagedUnrollAdd dim (quote c1) (quote c2)) = addCoordCell c1 c2
+prfStagedUnrollAdd _ _ = Refl
+
+public export
+0 prfStagedUnrollMul : {dim : Nat} -> (c1, c2 : CoordCell dim) ->
+  splice (stagedUnrollMul dim (quote c1) (quote c2)) = mulCoordCell c1 c2
+prfStagedUnrollMul _ _ = Refl
+
+public export
+0 prfStagedUnrollScale : {dim : Nat} -> (k : Nat) -> (c : CoordCell dim) ->
+  splice (stagedUnrollScale dim k (quote c)) = scaleCoordCell k c
+prfStagedUnrollScale _ _ = Refl
+
+public export
+0 prfStagedUnrollMinus : {dim : Nat} -> (c1, c2 : CoordCell dim) ->
+  splice (stagedUnrollMinus dim (quote c1) (quote c2)) = minusCoordCell c1 c2
+prfStagedUnrollMinus _ _ = Refl
+
+public export
+0 prfStagedUnrollDot : {dim : Nat} -> (c1, c2 : CoordCell dim) ->
+  splice (stagedUnrollDot dim (quote c1) (quote c2)) = dotCoordCell c1 c2
+prfStagedUnrollDot _ _ = Refl
+
+public export
+0 prfStagedUnrollQuadrance : {dim : Nat} -> (c : CoordCell dim) ->
+  splice (stagedUnrollQuadrance dim (quote c)) = quadranceCoordCell c
+prfStagedUnrollQuadrance _ = Refl
+
+-- Dimension-specialized corollaries (1D..4D):
 public export
 0 prfStagedUnrollAdd1D : (c1, c2 : CoordCell 1) ->
   splice (stagedUnrollAdd 1 (quote c1) (quote c2)) = mkCell1 (coordCellCoord FZ c1 + coordCellCoord FZ c2)
-prfStagedUnrollAdd1D _ _ = Refl
+prfStagedUnrollAdd1D (ConsCell (MkToken _) ZeroCell) (ConsCell (MkToken _) ZeroCell) = Refl
 
 public export
 0 prfStagedUnrollAdd2D : (c1, c2 : CoordCell 2) ->
   splice (stagedUnrollAdd 2 (quote c1) (quote c2)) = mkCell2 (coordCellCoord FZ c1 + coordCellCoord FZ c2) (coordCellCoord (FS FZ) c1 + coordCellCoord (FS FZ) c2)
-prfStagedUnrollAdd2D _ _ = Refl
+prfStagedUnrollAdd2D (ConsCell (MkToken _) (ConsCell (MkToken _) ZeroCell)) (ConsCell (MkToken _) (ConsCell (MkToken _) ZeroCell)) = Refl
 
 public export
 0 prfStagedUnrollAdd3D : (c1, c2 : CoordCell 3) ->
   splice (stagedUnrollAdd 3 (quote c1) (quote c2)) = mkCell3 (coordCellCoord FZ c1 + coordCellCoord FZ c2) (coordCellCoord (FS FZ) c1 + coordCellCoord (FS FZ) c2) (coordCellCoord (FS (FS FZ)) c1 + coordCellCoord (FS (FS FZ)) c2)
-prfStagedUnrollAdd3D _ _ = Refl
+prfStagedUnrollAdd3D (ConsCell (MkToken _) (ConsCell (MkToken _) (ConsCell (MkToken _) ZeroCell)))
+                     (ConsCell (MkToken _) (ConsCell (MkToken _) (ConsCell (MkToken _) ZeroCell))) = Refl
 
 public export
 0 prfStagedUnrollAdd4D : (c1, c2 : CoordCell 4) ->
   splice (stagedUnrollAdd 4 (quote c1) (quote c2)) = mkCell4 (coordCellCoord FZ c1 + coordCellCoord FZ c2) (coordCellCoord (FS FZ) c1 + coordCellCoord (FS FZ) c2) (coordCellCoord (FS (FS FZ)) c1 + coordCellCoord (FS (FS FZ)) c2) (coordCellCoord (FS (FS (FS FZ))) c1 + coordCellCoord (FS (FS (FS FZ))) c2)
-prfStagedUnrollAdd4D _ _ = Refl
+prfStagedUnrollAdd4D (ConsCell (MkToken _) (ConsCell (MkToken _) (ConsCell (MkToken _) (ConsCell (MkToken _) ZeroCell))))
+                     (ConsCell (MkToken _) (ConsCell (MkToken _) (ConsCell (MkToken _) (ConsCell (MkToken _) ZeroCell)))) = Refl
 
 public export
 0 prfStagedUnrollDot2D : (c1, c2 : CoordCell 2) ->
   splice (stagedUnrollDot 2 (quote c1) (quote c2)) = (coordCellCoord FZ c1 * coordCellCoord FZ c2) + (coordCellCoord (FS FZ) c1 * coordCellCoord (FS FZ) c2)
-prfStagedUnrollDot2D _ _ = Refl
+prfStagedUnrollDot2D (ConsCell (MkToken _) (ConsCell (MkToken _) ZeroCell))
+                     (ConsCell (MkToken _) (ConsCell (MkToken _) ZeroCell)) = Refl
 
 public export
 0 prfStagedUnrollQuad2D : (c : CoordCell 2) ->
   splice (stagedUnrollQuadrance 2 (quote c)) = (coordCellCoord FZ c * coordCellCoord FZ c) + (coordCellCoord (FS FZ) c * coordCellCoord (FS FZ) c)
-prfStagedUnrollQuad2D _ = Refl
+prfStagedUnrollQuad2D (ConsCell (MkToken _) (ConsCell (MkToken _) ZeroCell)) = Refl
 
 ------------------------------------------------------------------------
 -- 10. 2LTT STAGED DIVISOR & COMPANION SPREAD MATRIX PIPELINES

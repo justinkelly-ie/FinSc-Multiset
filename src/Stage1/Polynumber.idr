@@ -2,6 +2,7 @@ module Stage1.Polynumber
 
 import Stage0.BoxInt
 import Stage0.BoxNat
+import Stage0.Multiset
 import Stage0.StructuralFuel
 import Stage0.StreamPolynumber
 import Stage0.OnSeq.FusedStream as FS
@@ -377,6 +378,16 @@ public export
 sparseToPolynumber : List (Nat, BoxInt) -> Polynumber
 sparseToPolynumber terms =
   foldl (\acc, (deg, c) => addPolynumber acc (monomialPolynumber c deg)) zeroPolynumber terms
+
+||| Converts a dense Polynumber into a canonical sparse Multiset BoxInt Nat (mapping degree -> coefficient).
+public export
+polyToMultiset : Polynumber -> Multiset BoxInt Nat
+polyToMultiset p = foldr (\(deg, c), acc => AddM deg c acc) ZeroM (polynumberToSparse p)
+
+||| Reconstructs a normalized dense Polynumber from a sparse Multiset BoxInt Nat.
+public export
+multisetToPoly : Multiset BoxInt Nat -> Polynumber
+multisetToPoly m = foldMultiset (\deg, c, acc => addPolynumber acc (monomialPolynumber c deg)) zeroPolynumber m
 
 ||| The Level 2 Caret Operation (^) on Monomial Terms:
 ||| (c1 * α^d1) ^ (c2 * α^d2) = (c1 * c2) * α^(d1 * d2).

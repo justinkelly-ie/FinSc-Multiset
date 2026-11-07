@@ -23,13 +23,6 @@ data MultisetTree a =
     Leaf
   | Node Nat (MultisetTree a) a Nat (MultisetTree a)
 
-public export
-Eq a => Eq (MultisetTree a) where
-  Leaf == Leaf = True
-  (Node _ l1 x1 c1 r1) == (Node _ l2 x2 c2 r2) =
-    x1 == x2 && c1 == c2 && l1 == l2 && r1 == r2
-  _ == _ = False
-
 ||| Returns node height in O(1) time:
 public export
 %inline
@@ -85,7 +78,7 @@ balanceNode l x c r =
 
 ||| Structurally recursive in-order tree left fold accumulator.
 public export
-foldTreeL : (b -> (a, Nat) -> b) -> b -> MultisetTree a -> b
+foldTreeL : (f : b -> (a, Nat) -> b) -> b -> MultisetTree a -> b
 foldTreeL _ acc Leaf = acc
 foldTreeL f acc (Node _ l x c r) =
   let accL = foldTreeL f acc l
@@ -94,7 +87,7 @@ foldTreeL f acc (Node _ l x c r) =
 
 ||| Structurally recursive in-order tree right fold accumulator.
 public export
-foldTreeR : (a -> Nat -> b -> b) -> b -> MultisetTree a -> b
+foldTreeR : (f : a -> Nat -> b -> b) -> b -> MultisetTree a -> b
 foldTreeR _ z Leaf = z
 foldTreeR f z (Node _ l x c r) =
   foldTreeR f (f x c (foldTreeR f z r)) l
@@ -102,7 +95,13 @@ foldTreeR f z (Node _ l x c r) =
 ||| Flattens a MultisetTree into a list of (element, multiplicity) pairs in linear O(N) time without (++) concatenations.
 public export
 treeToList : MultisetTree a -> List (a, Nat)
-treeToList tree = foldTreeR (\x, c, acc => (x, c) :: acc) [] tree
+treeToList tree = foldTreeR (\x, c, acc => if c > 0 then (x, c) :: acc else acc) [] tree
+
+||| Extensional multiset equality on MultisetTree: compares in-order active (element, multiplicity) pairs
+||| so trees with identical elements inserted in different orders compare equal without Ord dispatch.
+public export
+Eq a => Eq (MultisetTree a) where
+  t1 == t2 = treeToList t1 == treeToList t2
 
 ||| Returns the total number of distinct elements in the tree:
 public export
@@ -114,27 +113,34 @@ public export
 treeTokenSum : MultisetTree a -> Nat
 treeTokenSum tree = foldTreeL (\acc, (_, c) => acc + c) Z tree
 
+||| Comparator-parameterized token insertion into a MultisetTree without Ord dictionary dispatch:
+public export
+insertTokenTreeBy : (lt : a -> a -> Bool) -> (eq : a -> a -> Bool) -> a -> Nat -> MultisetTree a -> MultisetTree a
+insertTokenTreeBy _ _ val count Leaf = mkNode Leaf val count Leaf
+insertTokenTreeBy lt eq val count (Node _ l x c r) =
+  if eq val x then mkNode l x (c + count) r
+  else if lt val x
+    then balanceNode (insertTokenTreeBy lt eq val count l) x c r
+    else balanceNode l x c (insertTokenTreeBy lt eq val count r)
+
+||| Comparator-parameterized token lookup in a MultisetTree in O(log N) steps:
+public export
+lookupTokenTreeBy : (lt : a -> a -> Bool) -> (eq : a -> a -> Bool) -> a -> MultisetTree a -> Nat
+lookupTokenTreeBy _ _ _ Leaf = Z
+lookupTokenTreeBy lt eq val (Node _ l x c r) =
+  if eq val x then c
+  else if lt val x then lookupTokenTreeBy lt eq val l
+  else lookupTokenTreeBy lt eq val r
+
 ||| Inserts a token with multiplicity count into the multiset tree with AVL rebalancing:
 public export
-insertTokenTree : Ord a => a -> Nat -> MultisetTree a -> MultisetTree a
-insertTokenTree val count Leaf = mkNode Leaf val count Leaf
-insertTokenTree val count (Node _ l x c r) =
-  if val < x
-    then balanceNode (insertTokenTree val count l) x c r
-    else if val > x
-      then balanceNode l x c (insertTokenTree val count r)
-      else mkNode l x (c + count) r
+insertTokenTree : {auto ord : Ord a} -> a -> Nat -> MultisetTree a -> MultisetTree a
+insertTokenTree = insertTokenTreeBy (<) (==)
 
 ||| Lookups the multiplicity count of a token in O(log N) steps:
 public export
-lookupTokenTree : Ord a => a -> MultisetTree a -> Nat
-lookupTokenTree _ Leaf = Z
-lookupTokenTree val (Node _ l x c r) =
-  if val < x
-    then lookupTokenTree val l
-    else if val > x
-      then lookupTokenTree val r
-      else c
+lookupTokenTree : {auto ord : Ord a} -> a -> MultisetTree a -> Nat
+lookupTokenTree = lookupTokenTreeBy (<) (==)
 
 ||| Inserts exactly one atomic token into the multiset tree with AVL rebalancing.
 ||| Guarantees unit increment at the type level without magic integer constants.
@@ -305,6 +311,16 @@ public export
 treeUniverseTotalTokens : TreeUniverseState -> Nat
 treeUniverseTotalTokens (MkTreeUniverseState _ vm de dm) =
   treeTokenSum vm + treeTokenSum de + treeTokenSum dm
+
+||| Generic Layer 0A 3-sector tree state alias for TreeUniverseState.
+public export
+TreeSectorState : Type
+TreeSectorState = TreeUniverseState
+
+||| Generic Layer 0A total token projection for TreeSectorState.
+public export
+treeSectorTotalTokens : TreeSectorState -> Nat
+treeSectorTotalTokens = treeUniverseTotalTokens
 
 ||| Linear QTT state transition for TreeUniverseState with strict token conservation:
 public export
@@ -633,32 +649,79 @@ balanceBoxNode l x c r =
                          else rotateLeftBox l x c (rotateRightBox rl rx rc rr)
               else mkBoxNode l x c r
 
+||| Extracts the minimum (leftmost) key-weight pair and returns the rebalanced remaining subtree.
+public export
+deleteMinBoxNode : BoxMultisetTree a -> Maybe (a, BoxInt, BoxMultisetTree a)
+deleteMinBoxNode BoxLeaf = Nothing
+deleteMinBoxNode (BoxNode _ BoxLeaf x c r) = Just (x, c, r)
+deleteMinBoxNode (BoxNode _ l x c r) =
+  case deleteMinBoxNode l of
+    Nothing => Just (x, c, r)
+    Just (minK, minW, l') => Just (minK, minW, balanceBoxNode l' x c r)
+
+||| Removes the root of a BoxNode and rebalances its left and right subtrees.
+public export
+deleteRootBoxNode : BoxMultisetTree a -> a -> BoxMultisetTree a -> BoxMultisetTree a
+deleteRootBoxNode BoxLeaf _ r = r
+deleteRootBoxNode l _ BoxLeaf = l
+deleteRootBoxNode l _ r =
+  case deleteMinBoxNode r of
+    Nothing => l
+    Just (minK, minW, r') => balanceBoxNode l minK minW r'
+
+||| Monomorphic comparator-driven lookup in O(log N) time without Ord dictionary dispatch.
+public export
+lookupBoxTreeBy : (lt : a -> a -> Bool) -> (eq : a -> a -> Bool) -> a -> BoxMultisetTree a -> BoxInt
+lookupBoxTreeBy _ _ _ BoxLeaf = intToBoxInt 0
+lookupBoxTreeBy lt eq val (BoxNode _ l x c r) =
+  if eq val x then c
+  else if lt val x then lookupBoxTreeBy lt eq val l
+  else lookupBoxTreeBy lt eq val r
+
+||| Monomorphic comparator-driven set in O(log N) time, pruning zero-weight nodes on cancellation.
+public export
+setBoxTreeBy : (lt : a -> a -> Bool) -> (eq : a -> a -> Bool) -> a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
+setBoxTreeBy _ _ val w BoxLeaf =
+  if boxIsZero w then BoxLeaf else mkBoxNode BoxLeaf val w BoxLeaf
+setBoxTreeBy lt eq val w (BoxNode _ l x c r) =
+  if eq val x
+    then if boxIsZero w then deleteRootBoxNode l x r else mkBoxNode l x w r
+    else if lt val x
+      then balanceBoxNode (setBoxTreeBy lt eq val w l) x c r
+      else balanceBoxNode l x c (setBoxTreeBy lt eq val w r)
+
+||| Monomorphic comparator-driven additive update in a single O(log N) pass, pruning zero-weight nodes.
+public export
+addBoxTreeBy : (lt : a -> a -> Bool) -> (eq : a -> a -> Bool) -> a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
+addBoxTreeBy _ _ val dw BoxLeaf =
+  if boxIsZero dw then BoxLeaf else mkBoxNode BoxLeaf val dw BoxLeaf
+addBoxTreeBy lt eq val dw node@(BoxNode _ l x c r) =
+  if boxIsZero dw then node
+  else if eq val x
+    then let newW = addBox c dw
+         in if boxIsZero newW then deleteRootBoxNode l x r else mkBoxNode l x newW r
+    else if lt val x
+      then balanceBoxNode (addBoxTreeBy lt eq val dw l) x c r
+      else balanceBoxNode l x c (addBoxTreeBy lt eq val dw r)
+
 ||| Lookups the signed BoxInt value of a key in O(log N) time:
 public export
 lookupBoxTree : Ord a => a -> BoxMultisetTree a -> BoxInt
-lookupBoxTree _ BoxLeaf = intToBoxInt 0
-lookupBoxTree val (BoxNode _ l x c r) =
-  if val < x
-    then lookupBoxTree val l
-    else if val > x
-      then lookupBoxTree val r
-      else c
+lookupBoxTree = lookupBoxTreeBy (<) (==)
 
-||| Sets the signed BoxInt value of a key in O(log N) time.
+||| Sets the signed BoxInt value of a key in O(log N) time, removing the node when weight is zero.
 public export
 setBoxTree : Ord a => a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
-setBoxTree val w BoxLeaf =
-  if boxIsZero w then BoxLeaf else mkBoxNode BoxLeaf val w BoxLeaf
-setBoxTree val w (BoxNode _ l x c r) =
-  if val < x
-    then balanceBoxNode (setBoxTree val w l) x c r
-    else if val > x
-      then balanceBoxNode l x c (setBoxTree val w r)
-      else mkBoxNode l x w r
+setBoxTree = setBoxTreeBy (<) (==)
+
+||| Adds a signed BoxInt delta to a key's weight in a single O(log N) pass, pruning zero-weight nodes.
+public export
+addBoxTree : Ord a => a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
+addBoxTree = addBoxTreeBy (<) (==)
 
 ||| Structurally recursive in-order tree left fold accumulator for BoxMultisetTree.
 public export
-foldBoxTreeL : (b -> (a, BoxInt) -> b) -> b -> BoxMultisetTree a -> b
+foldBoxTreeL : (f : b -> (a, BoxInt) -> b) -> b -> BoxMultisetTree a -> b
 foldBoxTreeL _ acc BoxLeaf = acc
 foldBoxTreeL f acc (BoxNode _ l x c r) =
   let accL = foldBoxTreeL f acc l
@@ -667,7 +730,7 @@ foldBoxTreeL f acc (BoxNode _ l x c r) =
 
 ||| Structurally recursive in-order tree right fold accumulator for BoxMultisetTree.
 public export
-foldBoxTreeR : (a -> BoxInt -> b -> b) -> b -> BoxMultisetTree a -> b
+foldBoxTreeR : (f : a -> BoxInt -> b -> b) -> b -> BoxMultisetTree a -> b
 foldBoxTreeR _ z BoxLeaf = z
 foldBoxTreeR f z (BoxNode _ l x c r) =
   foldBoxTreeR f (f x c (foldBoxTreeR f z r)) l

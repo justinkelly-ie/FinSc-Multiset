@@ -1,8 +1,10 @@
 module Stage0.IntPolynumber
 
 import Data.List
+import Data.Nat
 import Data.Linear
 import Stage0.Interfaces
+import Stage0.StructuralFuel
 import public Stage0.BoxInt
 import public Stage0.Multiset
 
@@ -15,32 +17,32 @@ IntPolynumber : Type
 IntPolynumber = Multiset BoxInt (Nat, Nat)
 
 ||| The zero IntPolynumber.
-export
+public export
 emptyIntPoly : IntPolynumber
 emptyIntPoly = ZeroM
 
-export
+public export
 posTerm : Nat -> Nat -> BoxInt -> IntPolynumber
-posTerm alpha beta coeff = 
-  AddM (alpha, beta) coeff ZeroM
+posTerm alpha beta coeff =
+  if boxIsZero coeff then ZeroM else AddM (alpha, beta) coeff ZeroM
 
-||| Add two IntPolynumbers, automatically annihilating opposites in O(N).
-export
+||| Add two IntPolynumbers, automatically annihilating opposites and merging duplicate degrees.
+public export
 addIntPoly : IntPolynumber -> IntPolynumber -> IntPolynumber
-addIntPoly p1 p2 = addMultiset p1 p2
+addIntPoly = unionMultisetBox
 
 ||| Subtract p2 from p1, automatically annihilating opposites.
-export
+public export
 subIntPoly : IntPolynumber -> IntPolynumber -> IntPolynumber
-subIntPoly p1 p2 = subMultiset p1 p2
+subIntPoly p1 p2 = unionMultisetBox p1 (negateMultiset p2)
 
 ||| Explicitly annihilates the IntPolynumber, compressing it by merging terms.
-export
+public export
 annihilateIntPoly : IntPolynumber -> IntPolynumber
 annihilateIntPoly p = annihilateMultiset p
 
 ||| Multiply two IntPolynumbers in O(N*M).
-export
+public export
 mulIntPoly : IntPolynumber -> IntPolynumber -> IntPolynumber
 mulIntPoly xs ys =
   annihilateMultiset (mulOuter xs ys)
@@ -51,9 +53,36 @@ mulIntPoly xs ys =
     mulInner : (Nat, Nat) -> BoxInt -> IntPolynumber -> IntPolynumber
     mulInner _ _ ZeroM = ZeroM
     mulInner bx cx (AddM by cy rest) =
-      AddM (mulBasis bx by) (cx * cy) (mulInner bx cx rest)
+      let prod = mulBox cx cy
+      in if boxIsZero prod then mulInner bx cx rest
+         else AddM (mulBasis bx by) prod (mulInner bx cx rest)
 
     mulOuter : IntPolynumber -> IntPolynumber -> IntPolynumber
     mulOuter ZeroM _ = ZeroM
     mulOuter (AddM bx cx rest) ys2 = 
       addMultiset (mulInner bx cx ys2) (mulOuter rest ys2)
+
+||| Scales an IntPolynumber by a BoxInt scalar, pruning zero weights.
+public export
+scaleIntPoly : BoxInt -> IntPolynumber -> IntPolynumber
+scaleIntPoly = scaleMultisetBox
+
+||| Evaluates a bivariate IntPolynumber P(alpha, beta) at BoxInt coordinates (a, b)
+||| using O(log d) binary exponentiation.
+public export
+evalIntPoly : IntPolynumber -> BoxInt -> BoxInt -> BoxInt
+evalIntPoly p a b =
+  foldMultiset (\(degA, degB), c, acc =>
+    let powFuel : Nat -> BoxInt -> Nat -> BoxInt
+        powFuel Z _ _ = MkBoxInt 1
+        powFuel _ _ Z = MkBoxInt 1
+        powFuel (S fuel) base exp =
+          let half = divNatNZ exp 2 ItIsSucc
+              rem2 = modNatNZ exp 2 ItIsSucc
+              hPow = powFuel fuel (mulBox base base) half
+          in if rem2 == 0 then hPow else mulBox base hPow
+        powA = powFuel (gohSteps (gohFuelForCapacity degA)) a degA
+        powB = powFuel (gohSteps (gohFuelForCapacity degB)) b degB
+    in addBox acc (mulBox c (mulBox powA powB)))
+    (MkBoxInt 0)
+    p

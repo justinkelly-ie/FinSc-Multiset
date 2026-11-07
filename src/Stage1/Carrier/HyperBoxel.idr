@@ -17,27 +17,10 @@ import public Stage1.Carrier.Boxel
 -- 1. PURE 4D SPATIOTEMPORAL TENSOR CARRIER (HyperBoxel)
 ------------------------------------------------------------------------
 
-||| Backward-compatibility constructor alias for tree-backed HyperBoxels.
-public export
-MkHyperBoxelTree : BoxMultisetTree Tesseract -> HyperBoxel
-MkHyperBoxelTree t = t
-
-
-
 ||| Canonical empty/zero HyperBoxel.
 public export
 emptyHyperBoxel : HyperBoxel
 emptyHyperBoxel = BoxLeaf
-
-||| Canonicalize a HyperBoxel (prunes zero weights and rebalances).
-public export
-canonicalizeHyperBoxel : HyperBoxel -> HyperBoxel
-canonicalizeHyperBoxel = canonicalizeCellMultiset
-
-||| Compresses a HyperBoxel by pruning zero weights and rebalancing.
-public export
-compressHyperBoxel : HyperBoxel -> HyperBoxel
-compressHyperBoxel = canonicalizeCellMultiset
 
 ||| Extracts tesseract-weight terms association list from a 4D HyperBoxel.
 public export
@@ -83,8 +66,7 @@ subHyperBoxel = subCellMultiset {dim = 4}
 ||| Evaluates the L1 norm of a HyperBoxel (sum of absolute weights).
 public export
 normL1HyperBoxel : HyperBoxel -> BoxInt
-normL1HyperBoxel h =
-  foldBoxTreeL (\acc, (_, w) => acc + absBox w) (intToBoxInt 0) (the (BoxMultisetTree (CoordCell 4)) h)
+normL1HyperBoxel = normL1CellMultiset {dim = 4}
 
 ||| Computes total weight across all tesseracts in a HyperBoxel.
 public export

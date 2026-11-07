@@ -44,10 +44,6 @@ Eq a => Eq (Token a) where
   (MkToken x) == (MkToken y) = x == y
 
 public export
-Ord a => Ord (Token a) where
-  compare (MkToken x) (MkToken y) = compare x y
-
-public export
 Show a => Show (Token a) where
   show (MkToken x) = "Token(" ++ show x ++ ")"
 

@@ -11,12 +11,16 @@ public export
 data Geometry = Elliptic | Hyperbolic | Parabolic | Substrate
 
 public export
+geomEq : Geometry -> Geometry -> Bool
+geomEq Elliptic   Elliptic   = True
+geomEq Hyperbolic Hyperbolic = True
+geomEq Parabolic  Parabolic  = True
+geomEq Substrate  Substrate  = True
+geomEq _          _          = False
+
+public export
 Eq Geometry where
-  Elliptic   == Elliptic   = True
-  Hyperbolic == Hyperbolic = True
-  Parabolic  == Parabolic  = True
-  Substrate  == Substrate  = True
-  _          == _          = False
+  (==) = geomEq
 
 public export
 Show Geometry where
@@ -38,16 +42,13 @@ record GeometricPixel where
   geometry : Geometry
 
 public export
-Eq GeometricPixel where
-  (MkGeometricPixel s1 t1 g1) == (MkGeometricPixel s2 t2 g2) =
-    s1 == s2 && t1 == t2 && g1 == g2
+geomPixelEq : GeometricPixel -> GeometricPixel -> Bool
+geomPixelEq (MkGeometricPixel s1 t1 g1) (MkGeometricPixel s2 t2 g2) =
+  s1 == s2 && t1 == t2 && geomEq g1 g2
 
 public export
-Ord GeometricPixel where
-  compare (MkGeometricPixel s1 t1 _) (MkGeometricPixel s2 t2 _) =
-    case compare s1 s2 of
-      EQ => compare t1 t2
-      other => other
+Eq GeometricPixel where
+  (==) = geomPixelEq
 
 public export
 Show GeometricPixel where
@@ -62,14 +63,13 @@ record GeometricUnixel where
   geometry : Geometry
 
 public export
-Eq GeometricUnixel where
-  (MkGeometricUnixel i1 g1) == (MkGeometricUnixel i2 g2) =
-    i1 == i2 && g1 == g2
+geomUnixelEq : GeometricUnixel -> GeometricUnixel -> Bool
+geomUnixelEq (MkGeometricUnixel i1 g1) (MkGeometricUnixel i2 g2) =
+  i1 == i2 && geomEq g1 g2
 
 public export
-Ord GeometricUnixel where
-  compare (MkGeometricUnixel i1 _) (MkGeometricUnixel i2 _) =
-    compare i1 i2
+Eq GeometricUnixel where
+  (==) = geomUnixelEq
 
 public export
 Show GeometricUnixel where

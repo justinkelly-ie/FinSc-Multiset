@@ -106,7 +106,7 @@ Show Bit2 where
   show b = if isB2One b then "1" else "0"
 
 -----------------------------------------------------------------------
--- ORD / EQ
+-- EQ
 -----------------------------------------------------------------------
 
 public export
@@ -114,13 +114,6 @@ Eq Bit2 where
   (Bit2Zero _) == (Bit2Zero _) = True
   (Bit2One  _) == (Bit2One  _) = True
   _            == _             = False
-
-public export
-Ord Bit2 where
-  compare (Bit2Zero _) (Bit2Zero _) = EQ
-  compare (Bit2Zero _) (Bit2One  _) = LT
-  compare (Bit2One  _) (Bit2Zero _) = GT
-  compare (Bit2One  _) (Bit2One  _) = EQ
 
 -----------------------------------------------------------------------
 -- B₂ ARITHMETIC (mod 2)

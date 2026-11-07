@@ -6,7 +6,6 @@ import Stage0.OnSeq.FusedStream
 import Stage1.Order.Preorder
 import Data.Fuel
 import Data.List
-import Data.SortedMap
 
 %default total
 
@@ -46,9 +45,9 @@ transposeTensor ZeroM = ZeroM
 transposeTensor (AddM (x, y) w rest) = AddM (y, x) w (transposeTensor rest)
 
 ||| Stream Hylomorphic Tensor Contraction (Matrix Multiplication A · B):
-||| Multiplies two multiset tensors A : (a, b) and B : (b, c) -> (a, c).
-||| Deprecated: Use `multisetTensorMultOrd` for O((|A| + |B|) log |B|) performance when Ord b is available.
-public export %deprecate
+||| Multiplies two multiset tensors A : (a, b) and B : (b, c) -> (a, c)
+||| using pure Eq-based key grouping without Ord dictionary dispatch.
+public export
 multisetTensorMult : Eq b => MultisetTensor a b -> MultisetTensor b c -> MultisetTensor a c
 multisetTensorMult tensorA tensorB =
   let indexB = groupByKey tensorB
@@ -82,32 +81,10 @@ multisetTensorMult tensorA tensorB =
           newAcc = emitCols i w1 cols acc
       in contractLoop restA idxB newAcc
 
-||| Logarithmic Tensor Contraction (Matrix Multiplication A · B) for Ordered Keys:
-||| Multiplies two multiset tensors A : (a, b) and B : (b, c) -> (a, c)
-||| by pre-indexing tensorB into a balanced search map in O(|B| log |B|) time,
-||| reducing contraction lookup to O(log |B|) per element of tensorA.
+||| Compatibility alias for `multisetTensorMult` (eliminates Data.SortedMap and Ord b constraint).
 public export
-multisetTensorMultOrd : Ord b => MultisetTensor a b -> MultisetTensor b c -> MultisetTensor a c
-multisetTensorMultOrd tensorA tensorB =
-  let indexB = foldMultiset insertCol empty tensorB
-  in foldMultiset (contractRow indexB) ZeroM tensorA
-  where
-    insertCol : (b, c) -> BoxInt -> SortedMap b (List (c, BoxInt)) -> SortedMap b (List (c, BoxInt))
-    insertCol (k, j) w mapAcc =
-      case lookup k mapAcc of
-        Nothing   => insert k [(j, w)] mapAcc
-        Just cols => insert k ((j, w) :: cols) mapAcc
-
-    emitCols : a -> BoxInt -> List (c, BoxInt) -> MultisetTensor a c -> MultisetTensor a c
-    emitCols _ _ [] acc = acc
-    emitCols itemI weight1 ((targetJ, weight2) :: cols) acc =
-      AddM (itemI, targetJ) (weight1 * weight2) (emitCols itemI weight1 cols acc)
-
-    contractRow : SortedMap b (List (c, BoxInt)) -> (a, b) -> BoxInt -> MultisetTensor a c -> MultisetTensor a c
-    contractRow idxB (itemI, targetK) weight1 acc =
-      case lookup targetK idxB of
-        Nothing   => acc
-        Just cols => emitCols itemI weight1 cols acc
+multisetTensorMultOrd : Eq b => MultisetTensor a b -> MultisetTensor b c -> MultisetTensor a c
+multisetTensorMultOrd = multisetTensorMult
 
 ||| Audits that multisetTensorMultOrd matches multisetTensorMult on canonical matrices.
 public export

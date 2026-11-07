@@ -51,11 +51,6 @@ public export
 canonicalizeVexel : Vexel -> Vexel
 canonicalizeVexel = canonicalizeCellMultiset
 
-||| Compresses a Vexel by pruning zero weights and rebalancing.
-public export
-compressVexel : Vexel -> Vexel
-compressVexel = canonicalizeCellMultiset
-
 ||| Evaluates the standard Euclidean inner product between two Vexels:
 ||| <u, v> = sum u_i * v_i
 public export
@@ -85,14 +80,17 @@ subVexel = subCellMultiset {dim = 1}
 ||| Evaluates the L1 norm of a Vexel (sum of absolute weights).
 public export
 normL1Vexel : Vexel -> BoxInt
-normL1Vexel v =
-  foldBoxTreeL (\acc, (_, w) => acc + absBox w) (intToBoxInt 0) (the (BoxMultisetTree (CoordCell 1)) v)
+normL1Vexel = normL1CellMultiset {dim = 1}
 
-||| A Quark Vexel represents the 3 color charges (Red=[1], Green=[2], Blue=[3]) of a Baryon singlet,
-||| constructed via type-safe token injections without raw integer constants.
+||| Canonical 3-element unit triad Vexel: [1] + [2] + [3].
 public export
-nucleonQuarkVexel : Vexel
-nucleonQuarkVexel =
+unitTriadVexel : Vexel
+unitTriadVexel =
   tokenToVexel (toToken (mkCell1 1)) <+>
   tokenToVexel (toToken (mkCell1 2)) <+>
   tokenToVexel (toToken (mkCell1 3))
+
+||| Backward-compatibility alias for unitTriadVexel.
+public export
+nucleonQuarkVexel : Vexel
+nucleonQuarkVexel = unitTriadVexel

@@ -7,34 +7,41 @@ module Stage1.Order.Preorder
 --------------------------------------------------------------------------------
 
 ||| Exact structural less-than-or-equal comparison for Nat reducing at compile time.
-%inline public export
+public export
 natLTE : Nat -> Nat -> Bool
 natLTE Z _ = True
 natLTE (S _) Z = False
 natLTE (S k) (S j) = natLTE k j
 
+||| Exact structural strict less-than comparison for Nat reducing at compile time.
+public export
+natLT : Nat -> Nat -> Bool
+natLT _ Z = False
+natLT Z (S _) = True
+natLT (S k) (S j) = natLT k j
+
 ||| Monomorphic equality comparison for Nat reducing at compile time without typeclass dispatch.
-%inline public export
+public export
 natEq : Nat -> Nat -> Bool
 natEq Z Z = True
 natEq (S k) (S j) = natEq k j
 natEq _ _ = False
 
 ||| Monomorphic addition for Nat reducing at compile time without typeclass dispatch.
-%inline public export
+public export
 natAdd : Nat -> Nat -> Nat
 natAdd Z y = y
 natAdd (S k) y = S (natAdd k y)
 
 ||| Monomorphic subtraction for Nat reducing at compile time without typeclass dispatch.
-%inline public export
+public export
 natSub : Nat -> Nat -> Nat
 natSub Z _ = Z
 natSub a Z = a
 natSub (S k) (S j) = natSub k j
 
 ||| Fast natural number exponentiation reducing at compile time without typeclass dispatch.
-%inline public export
+public export
 fastNatPower : Nat -> Nat -> Nat
 fastNatPower base Z = 1
 fastNatPower base (S k) = base * fastNatPower base k

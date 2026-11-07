@@ -12,6 +12,9 @@ import public Stage0.IntPolynumber
 import public Stage0.StreamPolynumber
 import public Stage0.LinearBuffer
 import public Stage0.Interfaces
+import public Stage0.StructuralFuel
+import public Stage0.TransitionNetwork
+import public Stage0.Basis.GeometricPixel
 import public Stage0.Token
 import public Stage0.Singleton.Bit
 import public Stage0.Singleton.Bit2

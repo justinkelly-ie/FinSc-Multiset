@@ -2,7 +2,8 @@ module Stage1.OnSeq.Staging
 
 import public Stage1.OnSeq
 import public Stage0.OnSeq.FusedStream
-import Data.SortedMap
+import Stage0.BoxInt
+import Stage0.Multiset
 
 %default total
 
@@ -26,15 +27,12 @@ spliceOnSeqToStream : LiftOnSeq a -> (idx : Nat) -> (len : Nat) -> FusedStream a
 spliceOnSeqToStream seq idx len = stream (elements (getClip seq idx len))
 
 ||| 2LTT Monoid Splicing (~seq ↦ Monoid): Splices a Stage 1 static OnSeq directly down
-||| into a Stage 0 consolidated Multiset Monoid map payload.
+||| into a Stage 0 consolidated Multiset Monoid payload without Ord dictionary constraints.
 public export
-spliceOnSeqToMonoid : Ord a => LiftOnSeq a -> (idx : Nat) -> (len : Nat) -> SortedMap a Nat
-spliceOnSeqToMonoid {a} seq idx len =
+spliceOnSeqToMonoid : Eq a => LiftOnSeq a -> (idx : Nat) -> (len : Nat) -> Multiset BoxInt a
+spliceOnSeqToMonoid seq idx len =
   let strm = spliceOnSeqToStream seq idx len
-  in foldStreamNat len (\acc, x => case lookup x acc of
-                                     Nothing => insert x 1 acc
-                                     Just v  => insert x (v + 1) acc)
-                       (empty {v=Nat}) strm
+  in foldStreamNat len (\acc, x => insertItemBox x (intToBoxInt 1) acc) ZeroM strm
 
 ------------------------------------------------------------------------
 -- 2. EXPLICIT DEFINITIONAL INVERSE LAWS

@@ -29,15 +29,7 @@ public export
 tensorToSquareMaxel : {dim : Nat} -> Multiset BoxInt Pixel -> SquareMaxel dim
 tensorToSquareMaxel tensor =
   MkSquareMaxel
-    (foldMultiset (\p, w, tree =>
-                    if boxIsZero w then tree
-                    else let cur = lookupBoxTree p tree
-                             newW = cur + w
-                         in if boxIsZero newW
-                              then setBoxTree p (intToBoxInt 0) tree
-                              else setBoxTree p newW tree)
-                  BoxLeaf
-                  tensor)
+    (foldMultiset (\p, w, tree => addCellTree p w tree) BoxLeaf tensor)
 
 
 
@@ -83,16 +75,7 @@ maxelToTensor tree =
 public export
 tensorToMaxel : MultisetTensor Nat Nat -> Maxel
 tensorToMaxel tensor =
-  foldMultiset (\(r, c), w, tree =>
-                 if boxIsZero w then tree
-                 else let p = mkPixel r c
-                          cur = lookupBoxTree p tree
-                          newW = cur + w
-                      in if boxIsZero newW
-                           then setBoxTree p (intToBoxInt 0) tree
-                           else setBoxTree p newW tree)
-                BoxLeaf
-                tensor
+  foldMultiset (\(r, c), w, tree => addCellTree (mkPixel r c) w tree) BoxLeaf tensor
 
 ------------------------------------------------------------------------
 -- ALGEBRAIC KRONECKER TENSOR PRODUCT & VERIFICATION

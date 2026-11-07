@@ -1,6 +1,7 @@
 module Stage0.DepMultiset
 
 import Stage0.Multiset
+import Stage0.LMultiset
 
 %default total
 
@@ -44,11 +45,10 @@ depFoldr : {0 contents : Multiset c a} ->
 depFoldr f acc DepEmptyM = acc
 depFoldr f acc (DepAddM item count prev) = f item count (depFoldr f acc prev)
 
-||| Computes the mapped type index multiset for depMap.
+||| Computes the mapped type index multiset for depMap (canonical alias for mapMultiset).
 public export
 depMapContents : (a -> b) -> Multiset c a -> Multiset c b
-depMapContents f ZeroM = ZeroM
-depMapContents f (AddM item count xs) = AddM (f item) count (depMapContents f xs)
+depMapContents = mapMultiset
 
 ||| A standard map transforming the values of the multiset in-place.
 public export
@@ -58,6 +58,22 @@ depMap : {0 contents : Multiset c a} ->
          DepMultiset c b (depMapContents f contents)
 depMap f DepEmptyM = DepEmptyM
 depMap f (DepAddM item count prev) = DepAddM (f item) count (depMap f prev)
+
+||| Combines two dependent multisets while tracking addMultiset contents at the type level.
+public export
+depAppend : {0 xs, ys : Multiset c a} ->
+            DepMultiset c a xs ->
+            DepMultiset c a ys ->
+            DepMultiset c a (addMultiset xs ys)
+depAppend DepEmptyM m2 = m2
+depAppend (DepAddM item count prev) m2 = DepAddM item count (depAppend prev m2)
+
+||| Converts a dependently typed DepMultiset into a strictly linear LMultiset
+||| indexed by the exact multisetToList contents.
+public export
+depToLMultiset : {0 contents : Multiset c a} -> DepMultiset c a contents -> LMultiset c a (multisetToList contents)
+depToLMultiset DepEmptyM = LEmptyM
+depToLMultiset (DepAddM item count prev) = LAddM item count (depToLMultiset prev)
 
 
 ||| A dependently typed strictly positive, non-empty multiset.

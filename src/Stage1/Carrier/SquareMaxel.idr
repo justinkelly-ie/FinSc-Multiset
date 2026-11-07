@@ -9,6 +9,7 @@ import Stage0.StructuralFuel
 import Language.Reflection
 import Stage1.TypeTheory.Staging
 import Stage1.MultisetTree
+import Stage1.Order.Preorder
 import Stage1.Basis.CoordCell
 import Stage1.Carrier.CellMultiset
 import Stage1.Carrier.StagedLinear
@@ -44,9 +45,24 @@ identitySquareMaxel dim =
   where
     buildId : Nat -> BoxMultisetTree Pixel -> BoxMultisetTree Pixel
     buildId Z acc = acc
-    buildId (S k) acc = buildId k (setBoxTree (mkPixel k k) (intToBoxInt 1) acc)
+    buildId (S k) acc = buildId k (setCellMultiset (mkPixel k k) (intToBoxInt 1) acc)
 
+||| Checks whether a Pixel lies strictly within the `dim x dim` coordinate bounds `[0, dim) x [0, dim)`.
+public export
+inSquareBounds : (dim : Nat) -> Pixel -> Bool
+inSquareBounds dim p = natLT (pixelRow p) dim && natLT (pixelCol p) dim
 
+||| Verifies that all active entries in a SquareMaxel lie within `[0, dim) x [0, dim)`.
+public export
+isBoundedSquareMaxel : {dim : Nat} -> SquareMaxel dim -> Bool
+isBoundedSquareMaxel {dim} (MkSquareMaxel tree) =
+  foldBoxTreeL (\ok, (p, w) => ok && (boxIsZero w || inSquareBounds dim p)) True tree
+
+||| Embeds a sparse 2D Maxel into a dimension-indexed SquareMaxel, filtering out-of-bounds pixels.
+public export
+mkBoundedSquareMaxel : (dim : Nat) -> Maxel -> SquareMaxel dim
+mkBoundedSquareMaxel dim m =
+  MkSquareMaxel (foldBoxTreeL (\acc, (p, w) => if inSquareBounds dim p then setCellMultiset p w acc else acc) BoxLeaf m)
 
 ||| Embeds a sparse 2D Maxel into a dimension-indexed SquareMaxel.
 public export
@@ -103,7 +119,7 @@ public export
 insertRowBoxPixels : {dim : Nat} -> Fin dim -> BoxMultisetTree Pixel -> (Fin dim, BoxInt) -> BoxMultisetTree Pixel
 insertRowBoxPixels rFin treeAcc (cFin, w) =
   if unwrapBox w == 0 then treeAcc
-  else setBoxTree (mkPixel (finToNat rFin) (finToNat cFin)) w treeAcc
+  else setCellMultiset (mkPixel (finToNat rFin) (finToNat cFin)) w treeAcc
 
 ||| Helper inserting all non-zero matrix elements of a row into a BoxMultisetTree Pixel.
 public export
@@ -153,14 +169,8 @@ mulSquareMaxel {dim} (MkSquareMaxel t1) (MkSquareMaxel t2) =
   let resultTree = foldBoxTreeL (\accTree, (p1, w1) =>
         foldBoxTreeL (\innerAcc, (p2, w2) =>
           case mulPixel p1 p2 of
-            Just pOut =>
-              let wOut = w1 * w2
-                  cur = lookupBoxTree pOut innerAcc
-                  newW = cur + wOut
-              in if boxIsZero newW
-                   then setBoxTree pOut (intToBoxInt 0) innerAcc
-                   else setBoxTree pOut newW innerAcc
-            Nothing => innerAcc)
+            Just pOut => addCellTree pOut (w1 * w2) innerAcc
+            Nothing   => innerAcc)
           accTree
           t2)
         BoxLeaf
@@ -178,53 +188,40 @@ stagedComposeSquareMaxel qm1 qm2 = quote (mulSquareMaxel (splice qm1) (splice qm
 public export
 scaleSquareMaxel : {dim : Nat} -> BoxInt -> SquareMaxel dim -> SquareMaxel dim
 scaleSquareMaxel {dim} s (MkSquareMaxel tree) =
-  if boxIsZero s
-    then MkSquareMaxel BoxLeaf
-    else let scaled = foldBoxTreeL (\acc, (p, w) => setBoxTree p (s * w) acc) BoxLeaf tree
-         in MkSquareMaxel scaled
+  MkSquareMaxel (scaleCellMultiset s tree)
 
 
 ||| Adds two SquareMaxels of matching dimension `dim`.
 public export
 addSquareMaxel : {dim : Nat} -> SquareMaxel dim -> SquareMaxel dim -> SquareMaxel dim
 addSquareMaxel {dim} (MkSquareMaxel t1) (MkSquareMaxel t2) =
-  let step : BoxMultisetTree Pixel -> (Pixel, BoxInt) -> BoxMultisetTree Pixel
-      step acc (p, w) =
-        let cur = lookupBoxTree p acc
-            newW = cur + w
-        in if boxIsZero newW
-             then setBoxTree p (intToBoxInt 0) acc
-             else setBoxTree p newW acc
-      sumTree = foldBoxTreeL step t1 t2
-  in MkSquareMaxel sumTree
+  MkSquareMaxel (addCellMultiset t1 t2)
 
 
 ||| Perturbs the (0, 0) entry of a SquareMaxel with an additive defect in O(1).
 public export
 perturbSquareMaxel00 : {dim : Nat} -> SquareMaxel dim -> BoxInt -> SquareMaxel dim
 perturbSquareMaxel00 (MkSquareMaxel tree) defect =
-  let cur = lookupBoxTree (mkPixel 0 0) tree
-      newTree = setBoxTree (mkPixel 0 0) (cur + defect) tree
-  in MkSquareMaxel newTree
+  MkSquareMaxel (addCellTree (mkPixel 0 0) defect tree)
 
 
 ||| Direct 2x2 companion spread recurrence step for spread s: M(s) * S in O(1).
 public export
 stepCompanionSpread : (s : BoxInt) -> SquareMaxel 2 -> SquareMaxel 2
 stepCompanionSpread s (MkSquareMaxel tree) =
-  let a = lookupBoxTree (mkPixel 0 0) tree
-      b = lookupBoxTree (mkPixel 0 1) tree
-      c = lookupBoxTree (mkPixel 1 0) tree
-      d = lookupBoxTree (mkPixel 1 1) tree
+  let a = lookupCellMultiset (mkPixel 0 0) tree
+      b = lookupCellMultiset (mkPixel 0 1) tree
+      c = lookupCellMultiset (mkPixel 1 0) tree
+      d = lookupCellMultiset (mkPixel 1 1) tree
       diag = intToBoxInt 2 - (intToBoxInt 4 * s)
       newA = diag * a - c
       newB = diag * b - d
       newC = a
       newD = b
-      t0 = setBoxTree (mkPixel 0 0) newA BoxLeaf
-      t1 = setBoxTree (mkPixel 0 1) newB t0
-      t2 = setBoxTree (mkPixel 1 0) newC t1
-      t3 = setBoxTree (mkPixel 1 1) newD t2
+      t0 = setCellMultiset (mkPixel 0 0) newA BoxLeaf
+      t1 = setCellMultiset (mkPixel 0 1) newB t0
+      t2 = setCellMultiset (mkPixel 1 0) newC t1
+      t3 = setCellMultiset (mkPixel 1 1) newD t2
   in MkSquareMaxel t3
 
 ||| Canonical Pythagorean companion recurrence step (s = 0): M * S in O(1).
@@ -246,7 +243,7 @@ mkSquareMaxel2x2Direct c00 c01 c10 c11 =
 ||| Direct projection of component (0, 0) in O(1) time:
 public export
 projectSquareMaxel00 : SquareMaxel dim -> BoxInt
-projectSquareMaxel00 (MkSquareMaxel tree) = lookupBoxTree (mkPixel 0 0) tree
+projectSquareMaxel00 (MkSquareMaxel tree) = lookupCellMultiset (mkPixel 0 0) tree
 
 ||| Dynamic 2x2 companion spread matrix parameterized by dynamic coordinates (x, y):
 ||| [[2 * Q_Red, -Q_Blue], [Q_Blue, 0]].
@@ -265,10 +262,10 @@ pythagoreanCompanionSquareMaxel x y =
 public export
 stepDynamicPythagoreanCompanionSpread : (x : BoxInt) -> (y : BoxInt) -> SquareMaxel 2 -> SquareMaxel 2
 stepDynamicPythagoreanCompanionSpread x y (MkSquareMaxel tree) =
-  let a = lookupBoxTree (mkPixel 0 0) tree
-      b = lookupBoxTree (mkPixel 0 1) tree
-      c = lookupBoxTree (mkPixel 1 0) tree
-      d = lookupBoxTree (mkPixel 1 1) tree
+  let a = lookupCellMultiset (mkPixel 0 0) tree
+      b = lookupCellMultiset (mkPixel 0 1) tree
+      c = lookupCellMultiset (mkPixel 1 0) tree
+      d = lookupCellMultiset (mkPixel 1 1) tree
       qBlue = (x * x) + (y * y)
       qRed  = (x * x) - (y * y)
       twoQRed = intToBoxInt 2 * qRed

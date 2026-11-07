@@ -170,20 +170,6 @@ magicColSum idx (MkMagicMaxel g) = foldl (+) 0 (map (index idx) g)
 ||| Validates that an n x n MagicMaxel is doubly stochastic with common line budget Sigma.
 public export
 isMagicMaxel : {n : Nat} -> MagicMaxel n -> Nat -> Bool
-isMagicMaxel {n=4} (MkMagicMaxel [[a1,a2,a3,a4],[b1,b2,b3,b4],[c1,c2,c3,c4],[d1,d2,d3,d4]]) sigma =
-  natEq (a1+a2+a3+a4) sigma &&
-  natEq (b1+b2+b3+b4) sigma &&
-  natEq (c1+c2+c3+c4) sigma &&
-  natEq (d1+d2+d3+d4) sigma &&
-  natEq (a1+b1+c1+d1) sigma &&
-  natEq (a2+b2+c2+d2) sigma &&
-  natEq (a3+b3+c3+d3) sigma &&
-  natEq (a4+b4+c4+d4) sigma
-isMagicMaxel {n=2} (MkMagicMaxel [[a1,a2],[b1,b2]]) sigma =
-  natEq (a1+a2) sigma &&
-  natEq (b1+b2) sigma &&
-  natEq (a1+b1) sigma &&
-  natEq (a2+b2) sigma
 isMagicMaxel {n} (MkMagicMaxel g) sigma =
   let rowSums = map (foldl (+) 0) g
       colSums = foldl (zipWith (+)) (replicate n 0) g

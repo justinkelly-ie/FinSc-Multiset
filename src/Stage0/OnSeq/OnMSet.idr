@@ -21,7 +21,7 @@ record Clip a where
   startIdx : Nat
   elements : List a
 
-export
+public export
 (Show a) => Show (Clip a) where
   show (MkClip idx elems) = "Clip@" ++ show idx ++ show elems ++ "..."
 

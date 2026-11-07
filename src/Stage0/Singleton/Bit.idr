@@ -42,15 +42,6 @@ Show Bit where
   show b = if isOne b then "1" else "0"
 
 public export
-Ord Bit where
-  compare x y =
-    case (isOne x, isOne y) of
-      (False, False) => EQ
-      (False, True)  => LT
-      (True,  False) => GT
-      (True,  True)  => EQ
-
-public export
 addBit : Bit -> Bit -> Bit
 addBit (MkSing ZeroM) y             = y
 addBit x             (MkSing ZeroM) = x

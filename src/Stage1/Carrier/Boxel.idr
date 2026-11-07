@@ -16,13 +16,6 @@ import public Stage1.Carrier.Maxel
 -- 1. PURE 3D DISCRETE VOLUME CARRIER (Boxel)
 ------------------------------------------------------------------------
 
-||| Backward-compatibility constructor alias for tree-backed Boxels.
-public export
-MkBoxelTree : BoxMultisetTree Voxel -> Boxel
-MkBoxelTree t = t
-
-
-
 ||| Canonical empty/zero Boxel.
 public export
 emptyBoxel : Boxel
@@ -32,11 +25,6 @@ emptyBoxel = BoxLeaf
 public export
 canonicalizeBoxel : Boxel -> Boxel
 canonicalizeBoxel = canonicalizeCellMultiset
-
-||| Compresses a Boxel by pruning zero weights and rebalancing.
-public export
-compressBoxel : Boxel -> Boxel
-compressBoxel = canonicalizeCellMultiset
 
 ||| Extracts voxel-weight terms association list from a 3D Boxel.
 public export
@@ -82,8 +70,7 @@ subBoxel = subCellMultiset {dim = 3}
 ||| Evaluates the L1 norm of a Boxel (sum of absolute weights).
 public export
 normL1Boxel : Boxel -> BoxInt
-normL1Boxel b =
-  foldBoxTreeL (\acc, (_, w) => acc + absBox w) (intToBoxInt 0) (the (BoxMultisetTree (CoordCell 3)) b)
+normL1Boxel = normL1CellMultiset {dim = 3}
 
 ||| Computes total weight across all voxels in a Boxel.
 public export
@@ -113,24 +100,19 @@ streamToBoxel = streamToCellMultiset
 public export
 wedgeVexelMaxel : Vexel -> Maxel -> Boxel
 wedgeVexelMaxel tu tm =
-  let addTerm : Voxel -> BoxInt -> Boxel -> Boxel
-      addTerm v tw acc =
-        let cur = lookupBoxTree v acc
-            nw  = cur + tw
-        in if boxIsZero nw then setBoxTree v (intToBoxInt 0) acc else setBoxTree v nw acc
-  in foldBoxTreeL (\accU, (u, wu) =>
-       let i = unwrapUnixel u
-       in foldBoxTreeL (\accM, (p, wm) =>
-            let j = pixelRow p
-                k = pixelCol p
-            in if i == j || j == k || i == k
-                 then accM
-                 else let w = wu * wm
-                      in addTerm (mkVoxel j k i) w
-                           (addTerm (mkVoxel j i k) (-w)
-                             (addTerm (mkVoxel i j k) w accM))
-          ) accU tm
-     ) BoxLeaf tu
+  foldBoxTreeL (\accU, (u, wu) =>
+    let i = unwrapUnixel u
+    in foldBoxTreeL (\accM, (p, wm) =>
+         let j = pixelRow p
+             k = pixelCol p
+         in if i == j || j == k || i == k
+              then accM
+              else let w = wu * wm
+                   in addCellTree (mkVoxel j k i) w
+                        (addCellTree (mkVoxel j i k) (-w)
+                          (addCellTree (mkVoxel i j k) w accM))
+       ) accU tm
+  ) BoxLeaf tu
 
 ------------------------------------------------------------------------
 -- 3. PLANAR MAXEL SLICING
