@@ -321,12 +321,15 @@ contractDirTokens _ _ = Nothing
 
 ||| Multiplies two Pixels via stoichiometric annihilation of internal conjugate tokens (Rule 03 §6):
 ||| [A, B] · [B, C] = [A, C] iff target token matches source token; Nothing otherwise.
+||| Uses monomorphic Peano natEq for definitional macro reduction (Rule 01 §3).
 public export
 mulPixelMultiToken : Pixel -> Pixel -> Maybe Pixel
-mulPixelMultiToken p1 p2 =
-  if pixelColToken p1 == pixelRowToken p2
-    then Just (mkPixelTokens (pixelRowToken p1) (pixelColToken p2))
+mulPixelMultiToken (ConsCell tr1 (ConsCell (MkToken c1) ZeroCell))
+                   (ConsCell (MkToken r2) (ConsCell tc2 ZeroCell)) =
+  if natEq c1 r2
+    then Just (ConsCell tr1 (ConsCell tc2 ZeroCell))
     else Nothing
+mulPixelMultiToken _ _ = Nothing
 
 ||| Canonical discrete matrix basis multiplication:
 ||| [i, j] * [k, l] = [i, l] if j == k, otherwise Nothing.
@@ -343,19 +346,23 @@ mulPixelTokens = mulPixel
 ||| Evaluates as a zero-unwrapping stoichiometric token collision in O(1) registers (Rule 03 §6).
 %inline public export
 mulPixelUnixel : Pixel -> Unixel -> Maybe Unixel
-mulPixelUnixel p u =
-  if pixelColToken p == unixelToken u
-    then Just (mkUnixelToken (pixelRowToken p))
+mulPixelUnixel (ConsCell tr (ConsCell (MkToken c) ZeroCell))
+               (ConsCell (MkToken u) ZeroCell) =
+  if natEq c u
+    then Just (ConsCell tr ZeroCell)
     else Nothing
+mulPixelUnixel _ _ = Nothing
 
 ||| Multiplies a Unixel on the left by a Pixel: [i] * [i, j] = [j] (covector-matrix contraction).
 ||| Evaluates as a zero-unwrapping stoichiometric token collision in O(1) registers (Rule 03 §6).
 %inline public export
 mulUnixelPixel : Unixel -> Pixel -> Maybe Unixel
-mulUnixelPixel u p =
-  if unixelToken u == pixelRowToken p
-    then Just (mkUnixelToken (pixelColToken p))
+mulUnixelPixel (ConsCell (MkToken u) ZeroCell)
+               (ConsCell (MkToken r) (ConsCell tc ZeroCell)) =
+  if natEq u r
+    then Just (ConsCell tc ZeroCell)
     else Nothing
+mulUnixelPixel _ _ = Nothing
 
 -- 3D Voxel
 public export

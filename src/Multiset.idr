@@ -25,6 +25,7 @@ import public Stage0.OnSeq.OnMSet
 
 import public Stage1.Basis.Coordinate
 import public Stage1.Carrier.CellMultiset
+import public Stage1.Carrier.MaxelNonCommutativity
 import public Stage1.Carrier.BalanceArray
 import public Stage1.UnixelFraction
 
