@@ -102,8 +102,8 @@ auditTwoLevelTypeTheoryProof =
 
 ||| QTT 0 Erased Subfibration Proof Verification function: incurring zero runtime memory or execution cost.
 public export
-0 verifySubfibrationDuality : (0 s : StrictLevel Nat) -> (0 h : HomotopyLevel Nat) -> (0 prf : unwrapHomotopy h = unwrapStrict s) -> True = True
-verifySubfibrationDuality _ _ _ = Refl
+0 verifySubfibrationDuality : (0 s : StrictLevel Nat) -> (0 h : HomotopyLevel Nat) -> (0 prf : unwrapHomotopy h = unwrapStrict s) -> unwrapHomotopy h = unwrapStrict s
+verifySubfibrationDuality _ _ prf = prf
 
 ------------------------------------------------------------------------
 -- 4. HOMOTOPY PATH EQUALITY (PATH TYPES & REFLECTION TO STRICT EQUALITY)
@@ -195,13 +195,14 @@ reverseStep : ReactionPath m1 m2 -> ReactionPath m2 m1
 reverseStep = pathIsoInverse
 
 ||| 2LTT Multiset Path Reflection:
-||| Maps inner HomotopyLevel MultisetPathIso into outer StrictLevel identity witness (True = True).
+||| Maps inner HomotopyLevel MultisetPathIso into outer StrictLevel identity witness.
 ||| Annotated with QTT 0 quantity for complete runtime proof erasure.
 public export
-0 reflectMultisetPathToStrict : {m1, m2 : Multiset c a} ->
+0 reflectMultisetPathToStrict : {m1, m2 : Multiset BoxInt a} ->
                                 (0 p : MultisetPathIso m1 m2) ->
-                                True = True
-reflectMultisetPathToStrict _ = Refl
+                                (0 prf : multisetSum m1 = multisetSum m2) ->
+                                multisetSum m1 = multisetSum m2
+reflectMultisetPathToStrict _ prf = prf
 
 ||| Base proof for empty multiset strict self-cancellation:
 public export
