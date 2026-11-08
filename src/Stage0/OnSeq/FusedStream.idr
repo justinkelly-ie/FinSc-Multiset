@@ -497,7 +497,11 @@ transduceStream {a, b} (MkTransducer {s=sT} stepT seedT) (MkStream {s=sS} stepS 
 ||| Converts a Multiset container into a deforested FusedStream.
 public export
 multisetToStream : Multiset c a -> FusedStream (a, c)
-multisetToStream mset = MkStream listStep (multisetToList mset)
+multisetToStream mset = MkStream nextStep mset
+  where
+    nextStep : Multiset c a -> Step (Multiset c a) (a, c)
+    nextStep ZeroM = Done
+    nextStep (AddM x w rest) = Yield (x, w) rest
 
 ||| Fueled total stream fold accumulator.
 public export
