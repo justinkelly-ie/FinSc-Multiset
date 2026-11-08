@@ -314,3 +314,20 @@ fastSquareMaxelPowerGoh : {dim : Nat} -> (exp : Nat) -> SquareMaxel dim -> Squar
 fastSquareMaxelPowerGoh {dim} exp m =
   fastSquareMaxelPower (gohFuelNat (dim * dim + exp)) exp m
 
+||| Audit: Fast Logarithmic SquareMaxel Exponentiation with Support Consolidation.
+||| Tests that M^4 for M = [[1, 1], [0, 1]] evaluated via fast repeated squaring
+||| yields [[1, 4], [0, 1]].
+public export
+auditFastSquareMaxelPowerProof : Bool
+auditFastSquareMaxelPowerProof =
+  let shear = mkSquareMaxel2x2Direct (intToBoxInt 1) (intToBoxInt 1) (intToBoxInt 0) (intToBoxInt 1)
+      p4 = fastSquareMaxelPower 10 4 shear
+      c00 = projectSquareMaxel00 p4
+      c01 = lookupCellMultiset (mkPixel 0 1) p4.entries
+      c10 = lookupCellMultiset (mkPixel 1 0) p4.entries
+      c11 = lookupCellMultiset (mkPixel 1 1) p4.entries
+  in boxEq c00 (intToBoxInt 1) &&
+     boxEq c01 (intToBoxInt 4) &&
+     boxEq c10 (intToBoxInt 0) &&
+     boxEq c11 (intToBoxInt 1)
+
