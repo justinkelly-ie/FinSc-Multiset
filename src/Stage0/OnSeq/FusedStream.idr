@@ -165,6 +165,16 @@ public export
 eqStreamFuelModel : (Eq a) => GohFuel cap -> FusedStream a -> FusedStream a -> Bool
 eqStreamFuelModel fuel = eqStreamNat (gohSteps fuel)
 
+||| Deforested stream equality comparison bounded by Master Substrate Primorial Ground State capacity (Rule 03).
+public export
+eqStream : (Eq a) => FusedStream a -> FusedStream a -> Bool
+eqStream = eqStreamFuelModel masterSubstrateGohFuelModel
+
+||| Definitional stream equality interface bounded by Master Substrate Primorial Ground State capacity.
+public export
+(Eq a) => Eq (FusedStream a) where
+  (==) = eqStream
+
 
 ------------------------------------------------------------------------
 -- DEFORESTED STREAM FUSION COMBINATOR LIBRARY
@@ -547,6 +557,73 @@ public export
 streamTokensToMultiset : Eq a => FusedStream (Token a) -> Multiset BoxInt a
 streamTokensToMultiset strm =
   foldStream (\acc, tok => addMultiset (tokenToBox tok) acc) ZeroM strm
+
+------------------------------------------------------------------------
+-- STREAMING MULTISET ALGEBRA (MODULE SCALING, DIFFERENCE & REDUCTIONS)
+------------------------------------------------------------------------
+
+||| Multiplies all weights in a key-weight stream by an integer scale factor in O(1) auxiliary registers.
+public export
+scaleWeightedStream : BoxInt -> FusedStream (a, BoxInt) -> FusedStream (a, BoxInt)
+scaleWeightedStream factor = mapStream (\(x, w) => (x, mulBox w factor))
+
+||| Negates all weights in a key-weight stream (particle-antiparticle conjugation).
+public export
+negateWeightedStream : FusedStream (a, BoxInt) -> FusedStream (a, BoxInt)
+negateWeightedStream = mapStream (\(x, w) => (x, negBox w))
+
+||| Computes the signed difference of two key-weight streams.
+public export
+diffWeightedStream : FusedStream (a, BoxInt) -> FusedStream (a, BoxInt) -> FusedStream (a, BoxInt)
+diffWeightedStream s1 s2 = appendStream s1 (negateWeightedStream s2)
+
+||| Computes total accumulated weight/charge of a key-weight stream as a single-pass fold.
+public export
+streamWeight : FusedStream (a, BoxInt) -> BoxInt
+streamWeight = foldStream (\acc, (_, w) => addBox acc w) (intToBoxInt 0)
+
+||| Counts total atomic tokens in a token stream as a single-pass fold.
+public export
+streamTokenCount : FusedStream (Token a) -> Nat
+streamTokenCount = foldStream (\acc, _ => S acc) 0
+
+||| Deforested stream support projection (extracts keys with non-zero weight).
+public export
+streamSupport : FusedStream (a, BoxInt) -> FusedStream a
+streamSupport = filterMapStream (\(x, w) => if unwrapBox w /= 0 then Just x else Nothing)
+
+||| Merges two key-sorted weighted streams into a consolidated stream combining weights of matching keys.
+public export
+mergeWeightedStream : (Ord a) => FusedStream (a, BoxInt) -> FusedStream (a, BoxInt) -> FusedStream (a, BoxInt)
+mergeWeightedStream {a} (MkStream {s=sL} nextL seedL) (MkStream {s=sR} nextR seedR) =
+  MkStream nextStep (seedL, seedR, Nothing, Nothing)
+  where
+    nextStep : (sL, sR, Maybe (a, BoxInt), Maybe (a, BoxInt)) -> Step (sL, sR, Maybe (a, BoxInt), Maybe (a, BoxInt)) (a, BoxInt)
+    nextStep (sl, sr, Nothing, Nothing) = case nextL sl of
+      Done => case nextR sr of
+        Done => Done
+        Skip sr' => Skip (sl, sr', Nothing, Nothing)
+        Yield yr sr' => Yield yr (sl, sr', Nothing, Nothing)
+      Skip sl' => Skip (sl', sr, Nothing, Nothing)
+      Yield xl sl' => Skip (sl', sr, Just xl, Nothing)
+    nextStep (sl, sr, Just xl, Nothing) = case nextR sr of
+      Done => Yield xl (sl, sr, Nothing, Nothing)
+      Skip sr' => Skip (sl, sr, Just xl, Nothing)
+      Yield yr sr' => Skip (sl, sr', Just xl, Just yr)
+    nextStep (sl, sr, Nothing, Just yr) = case nextL sl of
+      Done => Yield yr (sl, sr, Nothing, Nothing)
+      Skip sl' => Skip (sl', sr, Nothing, Just yr)
+      Yield xl sl' => Skip (sl', sr, Just xl, Just yr)
+    nextStep (sl, sr, Just (kL, wL), Just (kR, wR)) =
+      if kL == kR then
+        let wTotal = addBox wL wR
+        in if unwrapBox wTotal == 0
+             then Skip (sl, sr, Nothing, Nothing)
+             else Yield (kL, wTotal) (sl, sr, Nothing, Nothing)
+      else if kL < kR then
+        Yield (kL, wL) (sl, sr, Nothing, Just (kR, wR))
+      else
+        Yield (kR, wR) (sl, sr, Just (kL, wL), Nothing)
 
 
 

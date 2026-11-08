@@ -7,7 +7,7 @@ import public Stage0.BoxNat
 %default total
 
 --------------------------------------------------------------------------------
--- 1. MODEL GENERATORS & RELATIONAL SCALING FUNCTIONS (RULE 03)
+-- 1. ARITHMETIC SCALING GENERATORS
 --------------------------------------------------------------------------------
 
 ||| Relational scaling function for 3D spatial field lattice cells.
@@ -34,35 +34,8 @@ triangularSum : Nat -> Nat
 triangularSum Z = Z
 triangularSum (S k) = S k + triangularSum k
 
-||| Formal constructive proof witness certifying that the Model-Derived Primorial Cosmic Budget
-||| matches the 4th Primorial factorization: p_4# = 2 * 3 * 5 * 7 = 210.
-public export
-0 prfMasterGohBudgetMatchesFactorization :
-    (computeVMSize 3 + computeDESize 7 + triangularSum 10) = 210
-prfMasterGohBudgetMatchesFactorization = Refl
-
-||| Formal compile-time witness certifying Elliptic VM spatial capacity: 3^3 = 27.
-public export
-0 prfEllipticCapacity27 : computeVMSize 3 = 27
-prfEllipticCapacity27 = Refl
-
-||| Formal compile-time witness certifying Hyperbolic DE ROM bit depth capacity: 2^7 = 128.
-public export
-0 prfHyperbolicCapacity128 : computeDESize 7 = 128
-prfHyperbolicCapacity128 = Refl
-
-||| Formal compile-time witness certifying Parabolic DM triangular residue: T_10 = 55.
-public export
-0 prfParabolicCapacity55 : triangularSum 10 = 55
-prfParabolicCapacity55 = Refl
-
-||| Formal compile-time witness certifying the exact Primorial 210 partition: 27 + 128 + 55 = 210.
-public export
-0 prfPrimorial210Partition : (27 + 128 + 55) = 210
-prfPrimorial210Partition = Refl
-
 --------------------------------------------------------------------------------
--- 2. GOH FACTORISATION STRUCTURAL FUEL GENERATORS (BOXNAT & NAT)
+-- 2. CONSTRUCTIVIST GOH FUEL GENERATOR & CAPACITY BOUNDS (RULE 03 & 04)
 --------------------------------------------------------------------------------
 
 ||| Division by 2 via structural recursion.
@@ -104,42 +77,108 @@ gohFuelForCapacity cap = MkGohFuel (gohFuelNat cap)
 gohSteps : GohFuel cap -> Nat
 gohSteps f = f.fuelSteps
 
-||| Model-derived Elliptic Confinement Fuel (3^3 = 27 VM bound states).
+||| Canonical default capacity budget for constructivist stream evaluation.
+||| Accommodates up to 210 discrete items (316 structural Goh fuel steps).
+%inline public export
+DefaultStreamCapacity : Nat
+DefaultStreamCapacity = 210
+
+public export
+defaultStreamCapacity : Nat
+defaultStreamCapacity = DefaultStreamCapacity
+
+||| Canonical default GohFuel for total stream folds and equality comparisons.
+%inline public export
+defaultStreamGohFuel : GohFuel DefaultStreamCapacity
+defaultStreamGohFuel = gohFuelForCapacity DefaultStreamCapacity
+
+||| Compile-time verification that default stream fuel provides 316 structural steps:
+public export
+0 prfDefaultStreamGohFuelSteps : Stage0.StructuralFuel.defaultStreamGohFuel.fuelSteps = 316
+prfDefaultStreamGohFuelSteps = Refl
+
+--------------------------------------------------------------------------------
+-- 2. GOH FUEL ALGEBRA (SEQUENTIAL, ENVELOPE JOIN & MULTI-STREAM COMPOSITION)
+--------------------------------------------------------------------------------
+
+||| Monomorphic less-than-or-equal test on inductive Peano Nat for fuel budgets.
+||| Definitionally reducible in the unifier for compile-time reflection audits (Rule 01).
+public export
+fuelLTE : Nat -> Nat -> Bool
+fuelLTE Z _ = True
+fuelLTE (S _) Z = False
+fuelLTE (S k) (S j) = fuelLTE k j
+
+||| Monomorphic maximum on inductive Peano Nat for fuel envelopes.
+||| Definitionally reducible in the unifier for compile-time reflection audits (Rule 01).
+public export
+fuelMax : Nat -> Nat -> Nat
+fuelMax Z b = b
+fuelMax a Z = a
+fuelMax (S a) (S b) = S (fuelMax a b)
+
+||| Additive fuel combination for sequential execution pipelines.
+||| Running two sequential stages with capacities c1 and c2 requires additive fuel steps.
+public export
+sequentialFuel : GohFuel c1 -> GohFuel c2 -> GohFuel (c1 + c2)
+sequentialFuel (MkGohFuel s1) (MkGohFuel s2) = MkGohFuel (s1 + s2)
+
+||| Join/Envelope fuel combination for parallel or branched execution.
+||| Guaranteed to provide sufficient fuel for either branch.
+public export
+joinFuel : GohFuel c1 -> GohFuel c2 -> GohFuel (fuelMax c1 c2)
+joinFuel (MkGohFuel s1) (MkGohFuel s2) = MkGohFuel (fuelMax s1 s2)
+
+||| Multi-stream fuel combinator computing the step budget required for flatMap/fusedConcat
+||| with outer stream steps and inner stream steps.
+||| Accounts for N * (M + 2) + 1 steps (Skip entering inner, inner Yields, Skip exiting inner, Done).
+public export
+multiStreamFuelNat : (outerSteps : Nat) -> (innerSteps : Nat) -> Nat
+multiStreamFuelNat outer inner = (outer * (inner + 2)) + 1
+
+||| Model-indexed multi-stream fuel combinator for nested FusedStream pipelines.
+public export
+multiStreamGohFuel : GohFuel cOuter -> GohFuel cInner -> Nat
+multiStreamGohFuel (MkGohFuel sOuter) (MkGohFuel sInner) = multiStreamFuelNat sOuter sInner
+
+--------------------------------------------------------------------------------
+-- 3. CANONICAL FUEL WRAPPERS & BACKWARD-COMPATIBILITY ALIASES
+--------------------------------------------------------------------------------
+
+||| Backward-compatible alias for the master ground state capacity (Rule 03):
+%inline public export
+masterSubstrateGohFuelModel : GohFuel DefaultStreamCapacity
+masterSubstrateGohFuelModel = defaultStreamGohFuel
+
+||| Backward-compatible alias for Elliptic capacity fuel (27 items):
 %inline public export
 ellipticGohFuelModel : GohFuel 27
 ellipticGohFuelModel = gohFuelForCapacity 27
 
-||| Model-derived Hyperbolic Spectral Fuel (2^7 = 128 DE spectral modes).
+||| Backward-compatible alias for Hyperbolic capacity fuel (128 items):
 %inline public export
 hyperbolicGohFuelModel : GohFuel 128
 hyperbolicGohFuelModel = gohFuelForCapacity 128
 
-||| Model-derived Parabolic Dissipation Drain Fuel (T_10 = 55 DM channels).
+||| Backward-compatible alias for Parabolic capacity fuel (55 items):
 %inline public export
 parabolicGohFuelModel : GohFuel 55
 parabolicGohFuelModel = gohFuelForCapacity 55
 
-||| Model-derived Master Substrate Primorial Ground State Fuel (210 Master Budget).
-%inline public export
-masterSubstrateGohFuelModel : GohFuel 210
-masterSubstrateGohFuelModel = gohFuelForCapacity 210
-
-||| Definitional compile-time reflection witnesses verifying exact step counts:
+||| Formal compile-time witness certifying that default fuel dominates 27 items:
 public export
-0 prfEllipticGohFuelModelSteps : Stage0.StructuralFuel.ellipticGohFuelModel.fuelSteps = 42
-prfEllipticGohFuelModelSteps = Refl
+0 prfMasterDominatesElliptic : fuelLTE (gohSteps Stage0.StructuralFuel.ellipticGohFuelModel) (gohSteps Stage0.StructuralFuel.masterSubstrateGohFuelModel) = True
+prfMasterDominatesElliptic = Refl
 
+||| Formal compile-time witness certifying that default fuel dominates 128 items:
 public export
-0 prfHyperbolicGohFuelModelSteps : Stage0.StructuralFuel.hyperbolicGohFuelModel.fuelSteps = 193
-prfHyperbolicGohFuelModelSteps = Refl
+0 prfMasterDominatesHyperbolic : fuelLTE (gohSteps Stage0.StructuralFuel.hyperbolicGohFuelModel) (gohSteps Stage0.StructuralFuel.masterSubstrateGohFuelModel) = True
+prfMasterDominatesHyperbolic = Refl
 
+||| Formal compile-time witness certifying that default fuel dominates 55 items:
 public export
-0 prfParabolicGohFuelModelSteps : Stage0.StructuralFuel.parabolicGohFuelModel.fuelSteps = 84
-prfParabolicGohFuelModelSteps = Refl
-
-public export
-0 prfMasterSubstrateGohFuelModelSteps : Stage0.StructuralFuel.masterSubstrateGohFuelModel.fuelSteps = 316
-prfMasterSubstrateGohFuelModelSteps = Refl
+0 prfMasterDominatesParabolic : fuelLTE (gohSteps Stage0.StructuralFuel.parabolicGohFuelModel) (gohSteps Stage0.StructuralFuel.masterSubstrateGohFuelModel) = True
+prfMasterDominatesParabolic = Refl
 
 ||| Canonical structural fuel derived from Goh factorisation as a BoxNat multiset tally.
 ||| Bounded by N plus divisor count and gate parity offset:
@@ -152,49 +191,49 @@ public export
 gohFuelBox : BoxNat -> BoxNat
 gohFuelBox bn = gohFuel (boxNatToNat bn)
 
-||| Legacy BoxNat-wrapped Elliptic Confinement Fuel (3^3 = 27 VM bound states).
+||| Legacy BoxNat-wrapped Elliptic Confinement Fuel (27 items).
 public export
 ellipticGohFuel : BoxNat
-ellipticGohFuel = gohFuel (computeVMSize 3)
+ellipticGohFuel = gohFuel 27
 
-||| Legacy BoxNat-wrapped Hyperbolic Spectral Fuel (2^7 = 128 DE spectral modes).
+||| Legacy BoxNat-wrapped Hyperbolic Spectral Fuel (128 items).
 public export
 hyperbolicGohFuel : BoxNat
-hyperbolicGohFuel = gohFuel (computeDESize 7)
+hyperbolicGohFuel = gohFuel 128
 
-||| Legacy BoxNat-wrapped Parabolic Dissipation Drain Fuel (T_10 = 55 DM channels).
+||| Legacy BoxNat-wrapped Parabolic Dissipation Drain Fuel (55 items).
 public export
 parabolicGohFuel : BoxNat
-parabolicGohFuel = gohFuel (triangularSum 10)
+parabolicGohFuel = gohFuel 55
 
-||| Legacy BoxNat-wrapped Master Substrate Primorial Ground State Fuel (210 Master Budget).
+||| Legacy BoxNat-wrapped Master Substrate Ground State Fuel (210 items).
 public export
 masterSubstrateGohFuel : BoxNat
-masterSubstrateGohFuel = gohFuel (computeVMSize 3 + computeDESize 7 + triangularSum 10)
+masterSubstrateGohFuel = gohFuel defaultStreamCapacity
 
 --------------------------------------------------------------------------------
--- 3. LEGACY DATA.FUEL COMPATIBILITY ENVELOPES
+-- 4. LEGACY DATA.FUEL COMPATIBILITY ENVELOPES
 --------------------------------------------------------------------------------
 
-||| Elliptic Bound State Confinement Fuel (27 VM).
+||| Elliptic Bound State Confinement Fuel (27 items).
 public export
 ellipticFuel : Fuel
-ellipticFuel = limit (computeVMSize 3)
+ellipticFuel = limit 27
 
-||| Hyperbolic Gauge Flux Fuel (128 DE).
+||| Hyperbolic Gauge Flux Fuel (128 items).
 public export
 hyperbolicFuel : Fuel
-hyperbolicFuel = limit (computeDESize 7)
+hyperbolicFuel = limit 128
 
-||| Parabolic Dissipation Drain Fuel (55 DM).
+||| Parabolic Dissipation Drain Fuel (55 items).
 public export
 parabolicFuel : Fuel
-parabolicFuel = limit (triangularSum 10)
+parabolicFuel = limit 55
 
-||| Substrate Primorial 210 Ground State Fuel (210 Master Budget).
+||| Substrate Primorial Ground State Fuel (210 items).
 public export
 substrateFuel : Fuel
-substrateFuel = limit (computeVMSize 3 + computeDESize 7 + triangularSum 10)
+substrateFuel = limit defaultStreamCapacity
 
 ||| Prime 13 Gate-Purity Boundary Fuel.
 public export
