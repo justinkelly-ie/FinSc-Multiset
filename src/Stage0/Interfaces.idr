@@ -5,13 +5,22 @@ import Stage0.BoxInt
 
 %default total
 
-||| Vector/Matrix/Tensor Multiset Algebra interface with zero, addition, scaling, and inner product.
+||| Vector/Matrix/Tensor Multiset Algebra interface encompassing the 5 canonical calculus operations:
+||| addition (+), subtraction (-), multiplication (*), Hadamard pointwise product (.*),
+||| tropical infimum (min), tropical supremum (max), and inner product (dot).
 public export
 interface MultisetAlgebra a where
-  zeroM  : a
-  addM   : a -> a -> a
-  scaleM : BoxInt -> a -> a
-  dotM   : a -> a -> BoxInt
+  zeroM     : a
+  addM      : a -> a -> a
+  subM      : a -> a -> a
+  subM x y = addM x (scaleM (intToBoxInt (-1)) y)
+  scaleM    : BoxInt -> a -> a
+  mulM      : a -> a -> a
+  mulM = hadamardM
+  hadamardM : a -> a -> a
+  minM      : a -> a -> a
+  maxM      : a -> a -> a
+  dotM      : a -> a -> BoxInt
 
 public export
 implementation (Show a, Show b) => Show (LPair a b) where

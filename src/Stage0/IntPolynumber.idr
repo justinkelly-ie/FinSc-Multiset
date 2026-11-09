@@ -67,6 +67,26 @@ public export
 scaleIntPoly : BoxInt -> IntPolynumber -> IntPolynumber
 scaleIntPoly = scaleMultisetBox
 
+||| Hadamard (pointwise coefficient) product of two IntPolynumbers.
+public export
+hadamardIntPoly : IntPolynumber -> IntPolynumber -> IntPolynumber
+hadamardIntPoly = hadamardMultisetBox
+
+||| Tropical infimum (componentwise min) of two IntPolynumbers.
+public export
+minIntPoly : IntPolynumber -> IntPolynumber -> IntPolynumber
+minIntPoly = minMultisetBox
+
+||| Tropical supremum (componentwise max) of two IntPolynumbers.
+public export
+maxIntPoly : IntPolynumber -> IntPolynumber -> IntPolynumber
+maxIntPoly = maxMultisetBox
+
+||| Inner product / Frobenius pairing of two IntPolynumbers: sum c1_ij * c2_ij.
+public export
+dotIntPoly : IntPolynumber -> IntPolynumber -> BoxInt
+dotIntPoly = dotMultisetBox
+
 ||| Evaluates a bivariate IntPolynumber P(alpha, beta) at BoxInt coordinates (a, b)
 ||| using O(log d) binary exponentiation.
 public export

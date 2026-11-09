@@ -464,6 +464,34 @@ dotBox a b =
   let MkBox xs = consolidateBox a
   in foldl (\acc, (k, w1) => addBox acc (mulBox w1 (lookupBox k b))) (intToBoxInt 0) xs
 
+||| Hadamard (pointwise) product of two Box a multisets: (A ⊙ B)(x) = w_A(x) * w_B(x).
+public export
+hadamardBox : Eq a => Box a -> Box a -> Box a
+hadamardBox a b =
+  let MkBox xs = consolidateBox a
+      items = mapMaybe (\(k, w1) =>
+        let w2 = lookupBox k b
+            prod = mulBox w1 w2
+        in if boxIsZero prod then Nothing else Just (k, prod)) xs
+  in MkBox items
+
+||| Tropical supremum / join of two Box a multisets: (A ⊔ B)(x) = max(w_A(x), w_B(x)).
+public export
+maxBox : Eq a => Box a -> Box a -> Box a
+maxBox (MkBox xs) (MkBox ys) =
+  let allKeys = nub (map fst xs ++ map fst ys)
+      items = mapMaybe (\k =>
+        let w1 = lookupBox k (MkBox xs)
+            w2 = lookupBox k (MkBox ys)
+            maxW = if w1 >= w2 then w1 else w2
+        in if maxW > intToBoxInt 0 then Just (k, maxW) else Nothing) allKeys
+  in MkBox items
+
+||| Tropical infimum / intersection of two Box a multisets: (A ⊓ B)(x) = min(w_A(x), w_B(x)).
+public export
+minBox : Eq a => Box a -> Box a -> Box a
+minBox = intersectBox
+
 ||| Tensor (Cartesian) product of two Box multisets: (A ⊗ B)(x, y) = A(x) * B(y).
 public export
 tensorBox : Box a -> Box b -> Box (a, b)
@@ -488,10 +516,15 @@ Foldable Box where
 
 public export
 Eq a => MultisetAlgebra (Box a) where
-  zeroM  = emptyBox
-  addM   = unionBox
-  scaleM = scaleBox
-  dotM   = dotBox
+  zeroM     = emptyBox
+  addM      = unionBox
+  subM      = subBox
+  scaleM    = scaleBox
+  mulM      = hadamardBox
+  hadamardM = hadamardBox
+  minM      = minBox
+  maxM      = maxBox
+  dotM      = dotBox
 
 ------------------------------------------------------------------------
 -- 3. UNIFIED MULTISET COMBINATION, LATTICE & REACTION ALGEBRA
@@ -520,12 +553,20 @@ dotMultisetBox m1 m2 =
   let c1 = annihilateMultiset m1
   in foldMultiset (\k, w1, acc => addBox acc (mulBox w1 (lookupCountBox k m2))) (intToBoxInt 0) c1
 
+||| Hadamard (pointwise) product of two Multiset BoxInt a carriers: (M1 ⊙ M2)(x) = M1(x) * M2(x).
 public export
-Eq a => MultisetAlgebra (Multiset BoxInt a) where
-  zeroM  = ZeroM
-  addM   = unionMultisetBox
-  scaleM = scaleMultisetBox
-  dotM   = dotMultisetBox
+hadamardMultisetBox : Eq a => Multiset BoxInt a -> Multiset BoxInt a -> Multiset BoxInt a
+hadamardMultisetBox m1 m2 =
+  let c1 = annihilateMultiset m1
+  in foldMultiset (\k, w1, acc =>
+       let w2 = lookupCountBox k m2
+           prod = mulBox w1 w2
+       in if boxIsZero prod then acc else insertItemBox k prod acc) ZeroM c1
+
+||| Subtraction of two Multiset BoxInt a carriers: M1 - M2 = M1 + (-1)*M2.
+public export
+subMultisetBox : Eq a => Multiset BoxInt a -> Multiset BoxInt a -> Multiset BoxInt a
+subMultisetBox m1 m2 = unionMultisetBox m1 (scaleMultisetBox (intToBoxInt (-1)) m2)
 
 ||| Tensor (Cartesian) product of two Multiset BoxInt carriers: (M1 ⊗ M2)(x, y) = M1(x) * M2(y).
 public export
@@ -554,6 +595,11 @@ intersectMultisetBox m1 m2 =
            minW = if w1 <= w2 then w1 else w2
        in if minW > intToBoxInt 0 then insertItemBox k minW acc else acc) ZeroM c1
 
+||| Tropical infimum alias on Multiset BoxInt a: minM M1 M2 = M1 ⊓ M2.
+public export
+minMultisetBox : Eq a => Multiset BoxInt a -> Multiset BoxInt a -> Multiset BoxInt a
+minMultisetBox = intersectMultisetBox
+
 ||| Multiset Lattice Join (Supremum Union): (M1 ∨ M2)(x) = max(M1(x), M2(x)) for positive weights.
 public export
 supremumUnionMultisetBox : Eq a => Multiset BoxInt a -> Multiset BoxInt a -> Multiset BoxInt a
@@ -564,6 +610,23 @@ supremumUnionMultisetBox m1 m2 =
            w2 = lookupCountBox k m2
            maxW = if w1 >= w2 then w1 else w2
        in if maxW > intToBoxInt 0 then insertItemBox k maxW acc else acc) ZeroM allKeys
+
+||| Tropical supremum alias on Multiset BoxInt a: maxM M1 M2 = M1 ⊔ M2.
+public export
+maxMultisetBox : Eq a => Multiset BoxInt a -> Multiset BoxInt a -> Multiset BoxInt a
+maxMultisetBox = supremumUnionMultisetBox
+
+public export
+Eq a => MultisetAlgebra (Multiset BoxInt a) where
+  zeroM     = ZeroM
+  addM      = unionMultisetBox
+  subM      = subMultisetBox
+  scaleM    = scaleMultisetBox
+  mulM      = hadamardMultisetBox
+  hadamardM = hadamardMultisetBox
+  minM      = minMultisetBox
+  maxM      = maxMultisetBox
+  dotM      = dotMultisetBox
 
 ||| Bounded Multiset Difference (Monus): (M1 \ M2)(x) = max(0, M1(x) - M2(x)).
 public export

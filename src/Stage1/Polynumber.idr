@@ -3,6 +3,7 @@ module Stage1.Polynumber
 import Stage0.BoxInt
 import Stage0.BoxNat
 import Stage0.Multiset
+import Stage0.Interfaces
 import Stage0.StructuralFuel
 import Stage0.StreamPolynumber
 import Stage0.OnSeq.FusedStream as FS
@@ -207,6 +208,56 @@ public export
 Neg Polynumber where
   negate p = scalePolynumber (intToBoxInt (-1)) p
   (-) = subPolynumber
+
+||| Hadamard (pointwise coefficient) product of two Polynumbers: (P ⊙ Q)_k = P_k * Q_k.
+public export
+hadamardPolynumber : Polynumber -> Polynumber -> Polynumber
+hadamardPolynumber (MkPolynumber cs1) (MkPolynumber cs2) =
+  trimPolynumber (MkPolynumber (zipWith mulBox cs1 cs2))
+
+||| Tropical infimum (componentwise min) of two Polynumbers.
+public export
+minPolynumber : Polynumber -> Polynumber -> Polynumber
+minPolynumber (MkPolynumber cs1) (MkPolynumber cs2) =
+  trimPolynumber (MkPolynumber (go cs1 cs2))
+  where
+    go : List BoxInt -> List BoxInt -> List BoxInt
+    go [] _ = []
+    go _ [] = []
+    go (x :: xs) (y :: ys) =
+      let minW = if x <= y then x else y
+      in minW :: go xs ys
+
+||| Tropical supremum (componentwise max) of two Polynumbers.
+public export
+maxPolynumber : Polynumber -> Polynumber -> Polynumber
+maxPolynumber (MkPolynumber cs1) (MkPolynumber cs2) =
+  trimPolynumber (MkPolynumber (go cs1 cs2))
+  where
+    go : List BoxInt -> List BoxInt -> List BoxInt
+    go [] ys = map (\y => if y >= intToBoxInt 0 then y else intToBoxInt 0) ys
+    go xs [] = map (\x => if x >= intToBoxInt 0 then x else intToBoxInt 0) xs
+    go (x :: xs) (y :: ys) =
+      let maxW = if x >= y then x else y
+      in maxW :: go xs ys
+
+||| Inner product / coefficient pairing of two Polynumbers: sum P_k * Q_k.
+public export
+dotPolynumber : Polynumber -> Polynumber -> BoxInt
+dotPolynumber (MkPolynumber cs1) (MkPolynumber cs2) =
+  foldl addBox (intToBoxInt 0) (zipWith mulBox cs1 cs2)
+
+public export
+MultisetAlgebra Polynumber where
+  zeroM     = zeroPolynumber
+  addM      = addPolynumber
+  subM      = subPolynumber
+  scaleM    = scalePolynumber
+  mulM      = mulPolynumber
+  hadamardM = hadamardPolynumber
+  minM      = minPolynumber
+  maxM      = maxPolynumber
+  dotM      = dotPolynumber
 
 public export
 Semigroup Polynumber where

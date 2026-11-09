@@ -5,6 +5,7 @@ import Data.Nat
 import Data.Vect
 import Stage0.BoxInt
 import Stage0.BoxNat
+import Stage0.Interfaces
 import Stage0.StructuralFuel
 import Language.Reflection
 import Stage1.TypeTheory.Staging
@@ -196,6 +197,48 @@ public export
 addSquareMaxel : {dim : Nat} -> SquareMaxel dim -> SquareMaxel dim -> SquareMaxel dim
 addSquareMaxel {dim} (MkSquareMaxel t1) (MkSquareMaxel t2) =
   MkSquareMaxel (addCellMultiset t1 t2)
+
+||| Subtracts two SquareMaxels of matching dimension `dim`.
+public export
+subSquareMaxel : {dim : Nat} -> SquareMaxel dim -> SquareMaxel dim -> SquareMaxel dim
+subSquareMaxel {dim} (MkSquareMaxel t1) (MkSquareMaxel t2) =
+  MkSquareMaxel (subCellMultiset t1 t2)
+
+||| Hadamard (pointwise) product of two SquareMaxels of matching dimension `dim`.
+public export
+hadamardSquareMaxel : {dim : Nat} -> SquareMaxel dim -> SquareMaxel dim -> SquareMaxel dim
+hadamardSquareMaxel {dim} (MkSquareMaxel t1) (MkSquareMaxel t2) =
+  MkSquareMaxel (hadamardCellMultiset t1 t2)
+
+||| Tropical infimum (lattice intersection) of two SquareMaxels of matching dimension `dim`.
+public export
+minSquareMaxel : {dim : Nat} -> SquareMaxel dim -> SquareMaxel dim -> SquareMaxel dim
+minSquareMaxel {dim} (MkSquareMaxel t1) (MkSquareMaxel t2) =
+  MkSquareMaxel (minCellMultiset t1 t2)
+
+||| Tropical supremum (lattice join) of two SquareMaxels of matching dimension `dim`.
+public export
+maxSquareMaxel : {dim : Nat} -> SquareMaxel dim -> SquareMaxel dim -> SquareMaxel dim
+maxSquareMaxel {dim} (MkSquareMaxel t1) (MkSquareMaxel t2) =
+  MkSquareMaxel (maxCellMultiset t1 t2)
+
+||| Frobenius inner product of two SquareMaxels: Tr(A^T B).
+public export
+dotSquareMaxel : {dim : Nat} -> SquareMaxel dim -> SquareMaxel dim -> BoxInt
+dotSquareMaxel (MkSquareMaxel t1) (MkSquareMaxel t2) =
+  dotCellMultiset t1 t2
+
+public export
+{dim : Nat} -> MultisetAlgebra (SquareMaxel dim) where
+  zeroM     = MkSquareMaxel BoxLeaf
+  addM      = addSquareMaxel
+  subM      = subSquareMaxel
+  scaleM    = scaleSquareMaxel
+  mulM      = mulSquareMaxel
+  hadamardM = hadamardSquareMaxel
+  minM      = minSquareMaxel
+  maxM      = maxSquareMaxel
+  dotM      = dotSquareMaxel
 
 
 ||| Perturbs the (0, 0) entry of a SquareMaxel with an additive defect in O(1).

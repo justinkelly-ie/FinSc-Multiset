@@ -278,12 +278,76 @@ dotCellMultiset t1 t2 =
     (intToBoxInt 0)
     t1
 
+||| Evaluates the Hadamard (pointwise) product between two CellMultisets directly via BoxMultisetTree:
+||| (A ⊙ B)(c) = A(c) * B(c) in O(N log N) AVL tree operations.
+public export
+hadamardCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
+hadamardCellMultiset t1 t2 =
+  foldBoxTreeL (\acc, (c, w1) =>
+    let w2 = lookupCellMultiset c t2
+        prod = mulBox w1 w2
+    in if boxIsZero prod then acc else setCellMultiset c prod acc)
+    BoxLeaf
+    t1
+
+||| Evaluates the Tropical infimum / lattice intersection between two CellMultisets:
+||| (A ⊓ B)(c) = min(A(c), B(c)) in O(N log N) AVL tree operations.
+public export
+minCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
+minCellMultiset t1 t2 =
+  foldBoxTreeL (\acc, (c, w1) =>
+    let w2 = lookupCellMultiset c t2
+        minW = if w1 <= w2 then w1 else w2
+    in if minW > intToBoxInt 0 then setCellMultiset c minW acc else acc)
+    BoxLeaf
+    t1
+
+||| Evaluates the Tropical supremum / join between two CellMultisets:
+||| (A ⊔ B)(c) = max(A(c), B(c)) in O((N + M) log(N + M)) AVL tree operations.
+public export
+maxCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
+maxCellMultiset t1 t2 =
+  let step1 = foldBoxTreeL (\acc, (c, w1) =>
+        let w2 = lookupCellMultiset c t2
+            maxW = if w1 >= w2 then w1 else w2
+        in if boxIsZero maxW then acc else setCellMultiset c maxW acc)
+        BoxLeaf
+        t1
+      step2 = foldBoxTreeL (\acc, (c, w2) =>
+        let w1 = lookupCellMultiset c t1
+        in if boxIsNonZero w1 then acc
+           else let maxW = if w2 >= intToBoxInt 0 then w2 else intToBoxInt 0
+                in if boxIsZero maxW then acc else setCellMultiset c maxW acc)
+        step1
+        t2
+  in step2
+
+||| Evaluates multi-dimensional Cauchy convolution of two CellMultisets via vector coordinate addition:
+||| (A * B)(c1 + c2) = A(c1) * B(c2).
+public export
+convCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
+convCellMultiset t1 t2 =
+  foldBoxTreeL (\treeAcc, (c1, w1) =>
+    foldBoxTreeL (\acc, (c2, w2) =>
+      let cOut = addCoordCell c1 c2
+          prod = mulBox w1 w2
+      in if boxIsZero prod then acc else addCellTree cOut prod acc)
+      treeAcc
+      t2)
+    BoxLeaf
+    t1
+
 public export
 {dim : Nat} -> MultisetAlgebra (CellMultiset dim) where
-  zeroM  = emptyCellMultiset
-  addM   = addCellMultiset
-  scaleM = scaleCellMultiset
-  dotM   = dotCellMultiset
+  zeroM     = emptyCellMultiset
+  addM      = addCellMultiset
+  subM      = subCellMultiset
+  scaleM    = scaleCellMultiset
+  mulM      = convCellMultiset
+  hadamardM = hadamardCellMultiset
+  minM      = minCellMultiset
+  maxM      = maxCellMultiset
+  dotM      = dotCellMultiset
 
 ||| Evaluates the inner product between two CellMultisets directly via FusedStream (Rule 04 §8).
 public export
