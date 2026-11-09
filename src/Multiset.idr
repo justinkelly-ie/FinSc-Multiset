@@ -16,6 +16,8 @@ import public Stage0.StructuralFuel
 import public Stage0.TransitionNetwork
 import public Stage0.Basis.GeometricPixel
 import public Stage0.Token
+import public Stage0.Bit
+import public Stage0.Bit2
 import public Stage0.Singleton.Bit
 import public Stage0.Singleton.Bit2
 import public Stage0.Singleton.Sing

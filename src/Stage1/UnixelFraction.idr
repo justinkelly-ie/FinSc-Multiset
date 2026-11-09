@@ -111,6 +111,56 @@ unitUnixelFraction : UnixelFraction
 unitUnixelFraction = mkUnixelFraction (intToBoxInt 1) 1
 
 ------------------------------------------------------------------------
+-- 2b. CERTIFIED NON-ZERO DENOMINATORS (PosUnixel & CertifiedUnixelFraction)
+------------------------------------------------------------------------
+
+||| Dependent Sigma-type bundling a Unixel with a compile-time proof that its coordinate is strictly positive (> 0).
+public export
+PosUnixel : Type
+PosUnixel = (u : Unixel ** IsPositiveNat (unwrapUnixel u))
+
+||| Smart constructor building a certified positive Unixel (clamping 0 to 1).
+public export
+mkPosUnixel : Nat -> PosUnixel
+mkPosUnixel Z     = (mkUnixel 1 ** ())
+mkPosUnixel (S k) = (mkUnixel (S k) ** ())
+
+||| Extracts the natural coordinate value from a PosUnixel.
+public export
+posUnixelNat : PosUnixel -> Nat
+posUnixelNat (u ** _) = unwrapUnixel u
+
+||| Projects the underlying Unixel from a PosUnixel.
+public export
+fromPosUnixel : PosUnixel -> Unixel
+fromPosUnixel (u ** _) = u
+
+||| An exact rational observable Q = N / [D] certified at compile-time to have a non-zero denominator.
+public export
+record CertifiedUnixelFraction where
+  constructor MkCertifiedUnixelFraction
+  num : BoxInt
+  den : PosUnixel
+
+||| Smart constructor building a CertifiedUnixelFraction with guaranteed positive denominator.
+public export
+mkCertifiedUnixelFraction : BoxInt -> Nat -> CertifiedUnixelFraction
+mkCertifiedUnixelFraction n d = MkCertifiedUnixelFraction n (mkPosUnixel d)
+
+||| Projects a standard UnixelFraction from a CertifiedUnixelFraction.
+public export
+fromCertifiedUnixelFraction : CertifiedUnixelFraction -> UnixelFraction
+fromCertifiedUnixelFraction (MkCertifiedUnixelFraction n (u ** _)) = MkUnixelFraction n u
+
+||| Promotes a UnixelFraction to a CertifiedUnixelFraction (clamping 0 to 1).
+public export
+toCertifiedUnixelFraction : UnixelFraction -> CertifiedUnixelFraction
+toCertifiedUnixelFraction (MkUnixelFraction n u) =
+  case unwrapUnixel u of
+    Z   => MkCertifiedUnixelFraction n (mkPosUnixel 1)
+    S k => MkCertifiedUnixelFraction n (mkPosUnixel (S k))
+
+------------------------------------------------------------------------
 -- 2a. SINGLETON & TOKEN FRACTION LENSES
 ------------------------------------------------------------------------
 
@@ -507,18 +557,39 @@ mediantUnixelFraction (MkUnixelFraction (MkBoxInt n1) u1)
   in mkUnixelFraction newNum newDen
 
 
+||| A boundary point in the Stern-Brocot projective tree P^1(Q),
+||| formally segregating finite affine fractions from the infinite boundary limit [1:0].
+public export
+data ProjectiveBound : Type where
+  ||| Finite affine boundary point (n / d with d > 0).
+  AffineBound : BoxInt -> Nat -> ProjectiveBound
+  ||| Formal projective right-endpoint [1:0] (infinity) bounding the Stern-Brocot interval [0, oo).
+  InfBound    : ProjectiveBound
+
+||| Computes the mediant between two Stern-Brocot boundary points.
+||| Guaranteed to produce an affine fraction with strictly positive denominator.
+public export
+mediantProjective : ProjectiveBound -> ProjectiveBound -> UnixelFraction
+mediantProjective (AffineBound n1 d1) (AffineBound n2 d2) =
+  mkUnixelFraction (n1 + n2) (d1 + d2)
+mediantProjective (AffineBound n1 d1) InfBound =
+  mkUnixelFraction (n1 + intToBoxInt 1) d1
+mediantProjective InfBound (AffineBound n2 d2) =
+  mkUnixelFraction (n2 + intToBoxInt 1) d2
+mediantProjective InfBound InfBound =
+  unitUnixelFraction
+
 ||| Converts an exact UnixelFraction to a Stern-Brocot binary path of branch directions.
 ||| Uses explicit fuel to guarantee total constructivist termination.
 public export
 toSternBrocotPath : (fuel : Nat) -> UnixelFraction -> List SternBrocotBranch
-
 toSternBrocotPath fuel target =
-  helper fuel zeroUnixelFraction (MkUnixelFraction (intToBoxInt 1) (mkUnixel 0)) target
+  helper fuel (AffineBound (intToBoxInt 0) 1) InfBound target
   where
-    helper : Nat -> UnixelFraction -> UnixelFraction -> UnixelFraction -> List SternBrocotBranch
+    helper : Nat -> ProjectiveBound -> ProjectiveBound -> UnixelFraction -> List SternBrocotBranch
     helper Z _ _ _ = []
     helper (S f) l r q =
-      let m = mediantUnixelFraction l r
+      let m = mediantProjective l r
           nq = q.num
           dq = denominatorNat q
           nm = m.num
@@ -527,24 +598,24 @@ toSternBrocotPath fuel target =
       in if boxIsZero crossDiff
            then []
            else if crossDiff < intToBoxInt 0
-                  then BranchL :: helper f l m q
-                  else BranchR :: helper f m r q
+                  then BranchL :: helper f l (AffineBound nm dm) q
+                  else BranchR :: helper f (AffineBound nm dm) r q
 
 
 ||| Reconstructs the exact UnixelFraction from a Stern-Brocot binary path.
 public export
 fromSternBrocotPath : List SternBrocotBranch -> UnixelFraction
 fromSternBrocotPath path =
-  helper path zeroUnixelFraction (MkUnixelFraction (intToBoxInt 1) (mkUnixel 0))
+  helper path (AffineBound (intToBoxInt 0) 1) InfBound
   where
-    helper : List SternBrocotBranch -> UnixelFraction -> UnixelFraction -> UnixelFraction
-    helper [] l r = mediantUnixelFraction l r
+    helper : List SternBrocotBranch -> ProjectiveBound -> ProjectiveBound -> UnixelFraction
+    helper [] l r = mediantProjective l r
     helper (BranchL :: rest) l r =
-      let m = mediantUnixelFraction l r
-      in helper rest l m
+      let m = mediantProjective l r
+      in helper rest l (AffineBound m.num (denominatorNat m))
     helper (BranchR :: rest) l r =
-      let m = mediantUnixelFraction l r
-      in helper rest m r
+      let m = mediantProjective l r
+      in helper rest (AffineBound m.num (denominatorNat m)) r
 
 ||| Stern-Brocot binary path parameterized by model-indexed GohFuel.
 public export
