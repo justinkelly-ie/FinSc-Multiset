@@ -176,6 +176,27 @@ public export
 evalPolynumber : Polynumber -> BoxInt -> BoxInt
 evalPolynumber (MkPolynumber cs) a = evalPolyList cs a
 
+||| Composition of two Polynumbers: (P ∘ Q)(x) = P(Q(x)).
+||| Evaluated structurally via Horner's rule: c_0 + Q * (c_1 + Q * (c_2 + ...)).
+public export
+composePolynumber : Polynumber -> Polynumber -> Polynumber
+composePolynumber (MkPolynumber cs) q =
+  composeList cs q
+  where
+    composeList : List BoxInt -> Polynumber -> Polynumber
+    composeList [] _ = zeroPolynumber
+    composeList (c :: rest) qIn =
+      addPolynumber (constantPolynumber c) (mulPolynumber qIn (composeList rest qIn))
+
+||| Algebraic Double-Zero Criterion (FMP 22d):
+||| A Polynumber P(x) has a double zero at x = 0 iff P(0) = 0 and P'(0) = 0.
+||| Equivalent to: the constant term c_0 and linear coefficient c_1 are both zero.
+public export
+hasDoubleZeroAtOrigin : Polynumber -> Bool
+hasDoubleZeroAtOrigin (MkPolynumber (c0 :: c1 :: _)) = boxIsZero c0 && boxIsZero c1
+hasDoubleZeroAtOrigin (MkPolynumber [c0]) = boxIsZero c0
+hasDoubleZeroAtOrigin (MkPolynumber []) = True
+
 public export
 Num Polynumber where
   (+) = addPolynumber

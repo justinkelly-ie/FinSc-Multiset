@@ -86,3 +86,23 @@ evalIntPoly p a b =
     in addBox acc (mulBox c (mulBox powA powB)))
     (MkBoxInt 0)
     p
+
+||| Raises an IntPolynumber to a natural power n via repeated Cauchy multiplication.
+public export
+powerIntPoly : IntPolynumber -> Nat -> IntPolynumber
+powerIntPoly _ Z = AddM (0, 0) (MkBoxInt 1) ZeroM
+powerIntPoly p (S k) = mulIntPoly p (powerIntPoly p k)
+
+||| Substitutes alpha -> r and beta -> s into an IntPolynumber P(alpha, beta).
+||| Evaluated structurally via multiset fold: sum c_ij * r^i * s^j.
+public export
+substituteIntPoly : (r : IntPolynumber) -> (s : IntPolynumber) -> IntPolynumber -> IntPolynumber
+substituteIntPoly r s p =
+  foldMultiset (\(degA, degB), c, acc =>
+    let termR = powerIntPoly r degA
+        termS = powerIntPoly s degB
+        termProd = mulIntPoly termR termS
+        scaledTerm = scaleIntPoly c termProd
+    in addIntPoly acc scaledTerm)
+    emptyIntPoly
+    p
