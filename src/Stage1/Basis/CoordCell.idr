@@ -17,6 +17,11 @@ import public Stage1.Order.Preorder
 -- 1. CANONICAL DISCRETE DIMENSION CONSTANTS (Nat)
 ------------------------------------------------------------------------
 
+||| Canonical 0-dimensional discrete dimension index (dimensionless scalar basepoint).
+public export
+Dim0 : Nat
+Dim0 = 0
+
 ||| Canonical 1-dimensional discrete dimension index.
 public export
 Dim1 : Nat
@@ -72,6 +77,11 @@ coordCellLT (ConsCell (MkToken x) xs) (ConsCell (MkToken y) ys) =
 public export
 Eq (CoordCell dim) where
   (==) = coordCellEq
+
+||| 0D coordinate cell (Nullexel = CoordCell 0) has a trivial order (single terminal point).
+public export
+Ord (CoordCell 0) where
+  compare ZeroCell ZeroCell = EQ
 
 ||| 1D coordinate cells (Unixel = CoordCell 1) have a canonical mathematical total order on Nat.
 ||| Higher-dimensional cells (Pixel, Voxel) use internal tree comparators (coordCellLT/coordCellEq) via CellMultiset.
@@ -141,6 +151,10 @@ mkCoordCellFromList (S k) (x :: xs) = ConsCell (MkToken x) (mkCoordCellFromList 
 
 ||| Curried dimension-indexed constructors.
 public export
+mkCell0 : CoordCell Dim0
+mkCell0 = ZeroCell
+
+public export
 mkCell1 : Nat -> CoordCell Dim1
 mkCell1 i = ConsCell (MkToken i) ZeroCell
 
@@ -163,6 +177,22 @@ appendCell : {n, m : Nat} -> CoordCell n -> CoordCell m -> CoordCell (n + m)
 appendCell ZeroCell c2 = c2
 appendCell (ConsCell t rest) c2 = ConsCell t (appendCell rest c2)
 
+-- 0D Nullexel (Dimensionless scalar basepoint / anchor cell)
+public export
+Nullexel : Type
+Nullexel = CoordCell Dim0
+
+%inline public export
+mkNullexel : Nullexel
+mkNullexel = ZeroCell
+
+%inline public export
+MkNullexel : Nullexel
+MkNullexel = ZeroCell
+
+public export
+nullexelEq : Nullexel -> Nullexel -> Bool
+nullexelEq ZeroCell ZeroCell = True
 
 -- 1D Unixel
 public export

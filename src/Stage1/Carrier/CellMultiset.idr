@@ -43,10 +43,25 @@ public export
 tokenToCellMultiset : {dim : Nat} -> Token (CoordCell dim) -> CellMultiset dim
 tokenToCellMultiset (MkToken c) = singletonCell c (intToBoxInt 1)
 
-||| Direct O(1) construction of a CellMultiset from a basis singleton with unit weight 1.
+||| Direct O(1) construction of a CellMultiset from a coordinate cell with unit weight 1.
+public export
+coordCellToCellMultiset : {dim : Nat} -> CoordCell dim -> CellMultiset dim
+coordCellToCellMultiset c = singletonCell c (intToBoxInt 1)
+
+||| Direct O(1) construction of a CellMultiset 1 from a 1D Unixel with unit weight 1.
+public export
+unixelToCellMultiset : Unixel -> CellMultiset 1
+unixelToCellMultiset u = singletonCell u (intToBoxInt 1)
+
+||| Direct O(1) construction of a CellMultiset 0 from a 0D Nullexel with unit weight 1.
+public export
+nullexelToCellMultiset : Nullexel -> CellMultiset 0
+nullexelToCellMultiset n = singletonCell n (intToBoxInt 1)
+
+||| Direct O(1) construction of a CellMultiset from a basis singleton with unit weight 1 (legacy alias).
 public export
 singToCellMultiset : {dim : Nat} -> Sing (CoordCell dim) -> CellMultiset dim
-singToCellMultiset (MkSing c) = singletonCell c (intToBoxInt 1)
+singToCellMultiset = tokenToCellMultiset
 
 ||| Lookups the weight of a coordinate cell in a CellMultiset in O(log N) via monomorphic CoordCell comparators.
 public export

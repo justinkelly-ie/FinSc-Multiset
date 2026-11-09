@@ -7,121 +7,99 @@ import public Stage0.Token
 %default total
 
 ------------------------------------------------------------------------
--- 1. CANONICAL SINGLETON TYPE & ARCHITECTURAL TAXONOMY
+-- 1. CANONICAL SINGLETON TAXONOMY & MODERNIZATION
 --
 -- Norman Wildberger originally introduced "Singleton" (Sing) to denote
 -- both an atomic 1D point and a polymorphic carrier wrapper.
 --
--- In the modernized dimensional taxonomy:
---   1. 1D Geometric Coordinates: Unixel (Stage1.Basis.CoordCell.Unixel)
---   2. Polymorphic Carrier Tokens: Token a (Stage0.Token.Token)
---   3. Sing a is maintained as the backward-compatible isomorphism bridge
---      to Token a and Unixel, preventing breaking changes across packages.
+-- In the modernized constructivist taxonomy:
+--   1. 0D Scalar Basepoint: Nullexel (Stage1.Basis.CoordCell.Nullexel)
+--   2. 1D Geometric Coordinates: Unixel (Stage1.Basis.CoordCell.Unixel)
+--   3. Polymorphic Atomic Carrier Tokens: Token a (Stage0.Token.Token)
+--
+-- Sing is maintained here as a transparent backward-compatibility alias
+-- mapping directly to Token a.
 ------------------------------------------------------------------------
 
-||| A singleton holding exactly one element of type `a`.
-||| An atomic point carrier in the 2LTT multiset ecosystem.
-||| Isomorphic to `Token a` (Stage0.Token).
+||| Transparent backward-compatibility type alias: Sing a is Token a.
 public export
-data Sing : (a : Type) -> Type where
-  MkSing : a -> Sing a
+Sing : (a : Type) -> Type
+Sing = Token
+
+||| Transparent backward-compatibility constructor alias: MkSing is MkToken.
+public export
+MkSing : a -> Token a
+MkSing = MkToken
 
 public export
 Eq Void where
   _ == _ = True
 
-public export
-Eq a => Eq (Sing a) where
-  (MkSing x) == (MkSing y) = x == y
-
-public export
-[singShow] Show a => Show (Sing a) where
-  show (MkSing x) = "{" ++ show x ++ "}"
-
-public export
-Functor Sing where
-  map f (MkSing x) = MkSing (f x)
-
-public export
-Applicative Sing where
-  pure = MkSing
-  (MkSing f) <*> (MkSing x) = MkSing (f x)
-
-public export
-Monad Sing where
-  (MkSing x) >>= f = f x
-
-public export
-Foldable Sing where
-  foldr f acc (MkSing x) = f x acc
-  foldl f acc (MkSing x) = f acc x
-
 ------------------------------------------------------------------------
 -- 2. WRAPPERS & LEGACY ALIASES
--- Preserves 100% backward compatibility.
 ------------------------------------------------------------------------
 
 public export
-toSing : a -> Sing a
-toSing = MkSing
+toSing : a -> Token a
+toSing = MkToken
 
 public export
-fromSing : Sing a -> a
-fromSing (MkSing x) = x
+fromSing : Token a -> a
+fromSing (MkToken x) = x
 
-||| A guaranteed-present singleton. Alias for Sing.
+||| A guaranteed-present singleton. Alias for Token.
 public export
 Sing1 : Type -> Type
-Sing1 = Sing
+Sing1 = Token
 
 ------------------------------------------------------------------------
 -- 3. BRIDGING & ISOMORPHISMS WITH TOKEN
 ------------------------------------------------------------------------
 
-||| Canonical isomorphism from Sing to Token.
+||| Canonical isomorphism from Sing (Token) to Token (identity).
 public export
-singToToken : Sing a -> Token a
-singToToken (MkSing x) = MkToken x
+singToToken : Token a -> Token a
+singToToken = id
 
-||| Canonical isomorphism from Token to Sing.
+||| Canonical isomorphism from Token to Sing (identity).
 public export
-tokenToSing : Token a -> Sing a
-tokenToSing (MkToken x) = MkSing x
+tokenToSing : Token a -> Token a
+tokenToSing = id
 
 ||| Proof witness that Sing -> Token -> Sing is identity.
 public export
-singTokenRoundTripProof : (s : Sing a) -> tokenToSing (singToToken s) = s
-singTokenRoundTripProof (MkSing _) = Refl
+singTokenRoundTripProof : (s : Token a) -> tokenToSing (singToToken s) = s
+singTokenRoundTripProof _ = Refl
 
 ||| Proof witness that Token -> Sing -> Token is identity.
 public export
 tokenSingRoundTripProof : (t : Token a) -> singToToken (tokenToSing t) = t
-tokenSingRoundTripProof (MkToken _) = Refl
+tokenSingRoundTripProof _ = Refl
 
 ------------------------------------------------------------------------
 -- 4. ADJUNCTION UNIT: INJECTION INTO MULTISET CARRIERS
 ------------------------------------------------------------------------
 
-||| Unit of the Free Commutative Monoid Adjunction for Sing:
-||| Injects a singleton into an algebraic multiset with unit multiplicity 1.
+||| Unit of the Free Commutative Monoid Adjunction:
+||| Injects a singleton token into an algebraic multiset with unit multiplicity 1.
 public export
-singToMultiset : Num c => Sing a -> Multiset c a
-singToMultiset (MkSing x) = AddM x 1 ZeroM
+singToMultiset : Num c => Token a -> Multiset c a
+singToMultiset = tokenToMultiset
 
-||| Injects a singleton into a BoxInt multiset with exact unit weight 1.
+||| Injects a singleton token into a BoxInt multiset with exact unit weight 1.
 public export
-singToBox : Sing a -> Multiset BoxInt a
-singToBox (MkSing x) = AddM x (intToBoxInt 1) ZeroM
+singToBox : Token a -> Multiset BoxInt a
+singToBox = tokenToBox
 
-||| Injects a singleton into a multiset with specified scalar count.
+||| Injects a singleton token into a multiset with specified scalar count.
 public export
-singToMultisetCount : Num c => Sing a -> c -> Multiset c a
-singToMultisetCount (MkSing x) cnt = AddM x cnt ZeroM
+singToMultisetCount : Num c => Token a -> c -> Multiset c a
+singToMultisetCount = tokenToMultisetCount
 
-||| Injects a singleton into a BoxInt multiset with specified BoxInt count.
+||| Injects a singleton token into a BoxInt multiset with specified BoxInt count.
 public export
-singToBoxCount : Sing a -> BoxInt -> Multiset BoxInt a
-singToBoxCount (MkSing x) cnt = AddM x cnt ZeroM
+singToBoxCount : Token a -> BoxInt -> Multiset BoxInt a
+singToBoxCount = tokenToBoxCount
 
 ------------------------------------------------------------------------
 -- 5. TRANSITION RELATION

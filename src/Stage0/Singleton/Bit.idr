@@ -4,38 +4,52 @@ import Data.Linear
 import Stage0.Interfaces
 import public Stage0.BoxInt
 import public Stage0.Multiset
-import public Stage0.Singleton.Sing
+import public Stage0.Token
 
 %default total
 
+||| Bit is the canonical atomic binary logic carrier in the Multiset Algebra of Boole.
+||| Defined directly as an atomic token constructor carrying the von Neumann multiset representation:
+||| Zero = MkToken ZeroM ([] = empty multiset)
+||| One  = MkToken (AddM ZeroM 1 ZeroM) ([[]] = multiset containing the empty multiset)
 public export
-Bit : Type
-Bit = Sing (Multiset BoxInt (Multiset BoxInt Void))
+data Bit : Type where
+  MkToken : Multiset BoxInt (Multiset BoxInt Void) -> Bit
+
+||| Converts an atomic Bit to a generic Token.
+public export
+bitToToken : Bit -> Token (Multiset BoxInt (Multiset BoxInt Void))
+bitToToken (MkToken m) = MkToken m
+
+||| Converts a generic Token over multiset void to an atomic Bit.
+public export
+tokenToBit : Token (Multiset BoxInt (Multiset BoxInt Void)) -> Bit
+tokenToBit (MkToken m) = MkToken m
 
 public export
 Zero : Bit
-Zero = MkSing ZeroM
+Zero = MkToken ZeroM
 
 public export
 One : Bit
-One = MkSing (AddM ZeroM 1 ZeroM)
+One = MkToken (AddM ZeroM 1 ZeroM)
 
 public export
 isZero : Bit -> Bool
-isZero (MkSing ZeroM) = True
-isZero _              = False
+isZero (MkToken ZeroM) = True
+isZero _               = False
 
 public export
 isOne : Bit -> Bool
-isOne (MkSing (AddM _ _ _)) = True
-isOne _                     = False
+isOne (MkToken (AddM _ _ _)) = True
+isOne _                      = False
 
 public export
 Eq Bit where
-  (MkSing ZeroM) == (MkSing ZeroM) = True
-  (MkSing ZeroM) == _              = False
-  _              == (MkSing ZeroM) = False
-  _              == _              = True
+  (MkToken ZeroM) == (MkToken ZeroM) = True
+  (MkToken ZeroM) == _               = False
+  _               == (MkToken ZeroM) = False
+  _               == _               = True
 
 public export
 Show Bit where
@@ -43,15 +57,15 @@ Show Bit where
 
 public export
 addBit : Bit -> Bit -> Bit
-addBit (MkSing ZeroM) y             = y
-addBit x             (MkSing ZeroM) = x
-addBit _             _              = Zero
+addBit (MkToken ZeroM) y               = y
+addBit x               (MkToken ZeroM) = x
+addBit _               _               = Zero
 
 public export
 mulBit : Bit -> Bit -> Bit
-mulBit (MkSing ZeroM) _             = Zero
-mulBit _             (MkSing ZeroM) = Zero
-mulBit x             _              = x
+mulBit (MkToken ZeroM) _               = Zero
+mulBit _               (MkToken ZeroM) = Zero
+mulBit x               _               = x
 
 public export
 negBit : Bit -> Bit
@@ -101,16 +115,16 @@ Abs Bit where
 
 public export
 LConsumable Bit where
-  lconsume (MkSing _) = ()
+  lconsume (MkToken _) = ()
 
 public export
 LComonoid Bit where
-  lcomult (MkSing ZeroM) = Builtin.(#) Zero Zero
-  lcomult (MkSing m)     = Builtin.(#) (MkSing m) (MkSing m)
+  lcomult (MkToken ZeroM) = Builtin.(#) Zero Zero
+  lcomult (MkToken m)     = Builtin.(#) (MkToken m) (MkToken m)
 
 public export
 LEq Bit where
-  lEq (MkSing ZeroM) (MkSing ZeroM) = Builtin.(#) True  (Builtin.(#) Zero Zero)
-  lEq (MkSing ZeroM) y              = Builtin.(#) False (Builtin.(#) Zero y)
-  lEq x              (MkSing ZeroM) = Builtin.(#) False (Builtin.(#) x    Zero)
-  lEq x              y              = Builtin.(#) True  (Builtin.(#) x    y)
+  lEq (MkToken ZeroM) (MkToken ZeroM) = Builtin.(#) True  (Builtin.(#) Zero Zero)
+  lEq (MkToken ZeroM) y               = Builtin.(#) False (Builtin.(#) Zero y)
+  lEq x               (MkToken ZeroM) = Builtin.(#) False (Builtin.(#) x    Zero)
+  lEq x               y               = Builtin.(#) True  (Builtin.(#) x    y)

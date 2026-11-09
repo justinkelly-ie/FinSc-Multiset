@@ -10,24 +10,34 @@ import public Stage0.Singleton.Sing
 
 ------------------------------------------------------------------------
 -- 1. CANONICAL DEPENDENT SINGLETON PRIMITIVE
+--
+-- DepSing is maintained as a transparent alias to DepToken
+-- (Stage0.Token.DepToken).
 ------------------------------------------------------------------------
 
-||| A dependently typed singleton primitive.
-||| Tracks coordinate element `x` at the type level.
-||| Retained intact for 100% backward compatibility with DepVexel.
+||| Transparent backward-compatibility type alias: DepSing is DepToken.
 public export
-data DepSing : (a : Type) -> a -> Type where
-  MkDepSing : (x : a) -> DepSing a x
+DepSing : (a : Type) -> a -> Type
+DepSing = DepToken
+
+||| Transparent constructor alias.
+public export
+MkDepSing : (x : a) -> DepToken a x
+MkDepSing = MkDepToken
 
 ------------------------------------------------------------------------
 -- 2. WEIGHTED DEPENDENT SINGLETON (DepSingWeighted)
 ------------------------------------------------------------------------
 
-||| A dependently typed weighted singleton primitive.
-||| Tracks coordinate element `x` and weight `weight` at the type level.
+||| Transparent backward-compatibility type alias: DepSingWeighted is DepTokenWeighted.
 public export
-data DepSingWeighted : (c : Type) -> (a : Type) -> a -> c -> Type where
-  MkDepSingWeighted : (x : a) -> (weight : c) -> DepSingWeighted c a x weight
+DepSingWeighted : (c : Type) -> (a : Type) -> a -> c -> Type
+DepSingWeighted = DepTokenWeighted
+
+||| Transparent constructor alias.
+public export
+MkDepSingWeighted : (x : a) -> (weight : c) -> DepTokenWeighted c a x weight
+MkDepSingWeighted = MkDepTokenWeighted
 
 ||| Dependent weighted singleton type synonym.
 public export
@@ -43,35 +53,35 @@ SingW1 c a x weight = (DepSingWeighted c a x weight, (weight == 0) = False)
 -- 3. BRIDGING WITH TOKEN & UNTYPED SING
 ------------------------------------------------------------------------
 
-||| Converts a dependent singleton to an untyped Sing.
+||| Converts a dependent singleton to an untyped Sing (Token).
 public export
-depSingToSing : DepSing a x -> Sing a
-depSingToSing (MkDepSing x) = MkSing x
+depSingToSing : DepToken a x -> Token a
+depSingToSing (MkDepToken x) = MkToken x
 
 ||| Converts a dependent singleton to an unrestricted Token.
 public export
-depSingToToken : DepSing a x -> Token a
-depSingToToken (MkDepSing x) = MkToken x
+depSingToToken : DepToken a x -> Token a
+depSingToToken (MkDepToken x) = MkToken x
 
-||| Converts a dependent singleton to a DepToken.
+||| Converts a dependent singleton to a DepToken (identity).
 public export
-depSingToDepToken : DepSing a x -> DepToken a x
-depSingToDepToken (MkDepSing x) = MkDepToken x
+depSingToDepToken : DepToken a x -> DepToken a x
+depSingToDepToken = id
 
-||| Converts a DepToken to a DepSing.
+||| Converts a DepToken to a DepSing (identity).
 public export
-depTokenToDepSing : DepToken a x -> DepSing a x
-depTokenToDepSing (MkDepToken x) = MkDepSing x
+depTokenToDepSing : DepToken a x -> DepToken a x
+depTokenToDepSing = id
 
 ||| Projects the coordinate Sing and weight from a weighted dependent singleton.
 public export
-depSingWeightedToSing : DepSingWeighted c a x w -> (Sing a, c)
-depSingWeightedToSing (MkDepSingWeighted x w) = (MkSing x, w)
+depSingWeightedToSing : DepTokenWeighted c a x w -> (Token a, c)
+depSingWeightedToSing (MkDepTokenWeighted x w) = (MkToken x, w)
 
 ||| Proof witness that DepSing -> DepToken -> DepSing is identity.
 public export
-depSingTokenRoundTripProof : (ds : DepSing a x) -> depTokenToDepSing (depSingToDepToken ds) = ds
-depSingTokenRoundTripProof (MkDepSing _) = Refl
+depSingTokenRoundTripProof : (ds : DepToken a x) -> depTokenToDepSing (depSingToDepToken ds) = ds
+depSingTokenRoundTripProof (MkDepToken _) = Refl
 
 ------------------------------------------------------------------------
 -- 4. ADJUNCTION UNIT: INJECTION INTO DEPENDENT MULTISETS
@@ -79,15 +89,15 @@ depSingTokenRoundTripProof (MkDepSing _) = Refl
 
 ||| Injects a dependent singleton into a DepMultiset with unit multiplicity 1.
 public export
-depSingToDepMultiset : Num c => DepSing a x -> DepMultiset c a (AddM x 1 ZeroM)
-depSingToDepMultiset (MkDepSing x) = DepAddM x 1 DepEmptyM
+depSingToDepMultiset : Num c => DepToken a x -> DepMultiset c a (AddM x 1 ZeroM)
+depSingToDepMultiset (MkDepToken x) = DepAddM x 1 DepEmptyM
 
 ||| Injects a dependent singleton into a BoxInt DepMultiset with unit weight MkBoxInt 1.
 public export
-depSingToBoxDepMultiset : DepSing a x -> DepMultiset BoxInt a (AddM x (intToBoxInt 1) ZeroM)
-depSingToBoxDepMultiset (MkDepSing x) = DepAddM x (intToBoxInt 1) DepEmptyM
+depSingToBoxDepMultiset : DepToken a x -> DepMultiset BoxInt a (AddM x (intToBoxInt 1) ZeroM)
+depSingToBoxDepMultiset (MkDepToken x) = DepAddM x (intToBoxInt 1) DepEmptyM
 
 ||| Injects a weighted dependent singleton into a DepMultiset with its type-level weight.
 public export
-depSingWeightedToDepMultiset : DepSingWeighted c a x w -> DepMultiset c a (AddM x w ZeroM)
-depSingWeightedToDepMultiset (MkDepSingWeighted x w) = DepAddM x w DepEmptyM
+depSingWeightedToDepMultiset : DepTokenWeighted c a x w -> DepMultiset c a (AddM x w ZeroM)
+depSingWeightedToDepMultiset (MkDepTokenWeighted x w) = DepAddM x w DepEmptyM

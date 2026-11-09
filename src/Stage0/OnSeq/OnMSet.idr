@@ -1,6 +1,7 @@
 module Stage0.OnSeq.OnMSet
 
 import Stage0.Multiset
+import Stage0.Token
 import Stage0.Singleton.Sing
 import Stage0.Singleton.Bit
 
@@ -114,7 +115,12 @@ public export
 subOnMSet : Neg c => OnMSet c a -> OnMSet c a -> OnMSet c a
 subOnMSet = zipWith subMultiset
 
-||| On-sequence of singletons.
+||| On-sequence of atomic tokens.
 public export
-0 OnSing : (a : Type) -> Type
-OnSing a = OnSeq (Sing a)
+OnToken : (a : Type) -> Type
+OnToken a = OnSeq (Token a)
+
+||| On-sequence of singletons (transparent alias for OnToken).
+public export
+OnSing : (a : Type) -> Type
+OnSing = OnToken

@@ -25,10 +25,15 @@ public export
 tokenToVexel : Token (CoordCell 1) -> Vexel
 tokenToVexel = tokenToCellMultiset
 
-||| Injects a 1D coordinate singleton into a Vexel with unit weight 1.
+||| Injects a 1D coordinate Unixel directly into a Vexel with unit weight 1.
+public export
+unixelToVexel : Unixel -> Vexel
+unixelToVexel = unixelToCellMultiset
+
+||| Injects a 1D coordinate singleton into a Vexel with unit weight 1 (legacy alias).
 public export
 singToVexel : Sing (CoordCell 1) -> Vexel
-singToVexel = singToCellMultiset
+singToVexel = tokenToVexel
 
 
 
