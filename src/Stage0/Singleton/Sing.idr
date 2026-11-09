@@ -7,11 +7,21 @@ import public Stage0.Token
 %default total
 
 ------------------------------------------------------------------------
--- 1. CANONICAL SINGLETON TYPE
+-- 1. CANONICAL SINGLETON TYPE & ARCHITECTURAL TAXONOMY
+--
+-- Norman Wildberger originally introduced "Singleton" (Sing) to denote
+-- both an atomic 1D point and a polymorphic carrier wrapper.
+--
+-- In the modernized dimensional taxonomy:
+--   1. 1D Geometric Coordinates: Unixel (Stage1.Basis.CoordCell.Unixel)
+--   2. Polymorphic Carrier Tokens: Token a (Stage0.Token.Token)
+--   3. Sing a is maintained as the backward-compatible isomorphism bridge
+--      to Token a and Unixel, preventing breaking changes across packages.
 ------------------------------------------------------------------------
 
 ||| A singleton holding exactly one element of type `a`.
 ||| An atomic point carrier in the 2LTT multiset ecosystem.
+||| Isomorphic to `Token a` (Stage0.Token).
 public export
 data Sing : (a : Type) -> Type where
   MkSing : a -> Sing a
