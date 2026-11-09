@@ -349,6 +349,17 @@ public export
   maxM      = maxCellMultiset
   dotM      = dotCellMultiset
 
+public export
+{dim : Nat} -> Num (CellMultiset dim) where
+  (+) = addCellMultiset
+  (*) = convCellMultiset
+  fromInteger n = singletonCell (constCoordCell dim 0) (intToBoxInt n)
+
+public export
+{dim : Nat} -> Neg (CellMultiset dim) where
+  negate m = scaleCellMultiset (intToBoxInt (-1)) m
+  (-) = subCellMultiset
+
 ||| Evaluates the inner product between two CellMultisets directly via FusedStream (Rule 04 §8).
 public export
 dotCellMultisetStream : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> BoxInt

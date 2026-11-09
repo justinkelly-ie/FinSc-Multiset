@@ -22,6 +22,42 @@ interface MultisetAlgebra a where
   maxM      : a -> a -> a
   dotM      : a -> a -> BoxInt
 
+-----------------------------------------------------------------------
+-- CANONICAL SYMBOLIC INFIX OPERATORS FOR MULTISET ALGEBRA
+-----------------------------------------------------------------------
+
+public export
+infixl 7 <.>
+
+||| Inner / Dot product: <.>
+public export
+(<.>) : MultisetAlgebra a => a -> a -> BoxInt
+(<.>) = dotM
+
+public export
+infixl 8 .*.
+
+||| Pointwise / Hadamard product: .*.
+public export
+(.*.) : MultisetAlgebra a => a -> a -> a
+(.*.) = hadamardM
+
+public export
+infixl 8 /\
+
+||| Tropical infimum / Lattice meet (min): /\
+public export
+(/\) : MultisetAlgebra a => a -> a -> a
+(/\) = minM
+
+public export
+infixl 8 \/
+
+||| Tropical supremum / Lattice join (max): \/
+public export
+(\/) : MultisetAlgebra a => a -> a -> a
+(\/) = maxM
+
 public export
 implementation (Show a, Show b) => Show (LPair a b) where
   show (x # y) = "(" ++ show x ++ " # " ++ show y ++ ")"

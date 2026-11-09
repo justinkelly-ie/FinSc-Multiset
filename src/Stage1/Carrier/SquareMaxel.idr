@@ -240,6 +240,17 @@ public export
   maxM      = maxSquareMaxel
   dotM      = dotSquareMaxel
 
+public export
+{dim : Nat} -> Num (SquareMaxel dim) where
+  (+) = addSquareMaxel
+  (*) = mulSquareMaxel
+  fromInteger n = scaleSquareMaxel (intToBoxInt n) (identitySquareMaxel dim)
+
+public export
+{dim : Nat} -> Neg (SquareMaxel dim) where
+  negate m = scaleSquareMaxel (intToBoxInt (-1)) m
+  (-) = subSquareMaxel
+
 
 ||| Perturbs the (0, 0) entry of a SquareMaxel with an additive defect in O(1).
 public export
