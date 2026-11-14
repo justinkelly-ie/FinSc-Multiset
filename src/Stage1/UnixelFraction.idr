@@ -6,15 +6,13 @@ import Stage0.StructuralFuel
 import public Stage1.Basis.Coordinate
 import Stage0.Multiset
 import Stage0.Token
-import Stage0.Singleton.Sing
-import Stage0.Singleton.DepSing
 import Stage1.Order.Preorder
 import Language.Reflection
 
 %default total
 
 ------------------------------------------------------------------------
--- 1. WILDBERGER'S FRACTIONAL MULTISETS & SINGLETON DENOMINATORS
+-- 1. WILDBERGER'S FRACTIONAL MULTISETS & UNIXEL DENOMINATORS
 ------------------------------------------------------------------------
 
 ||| A Fractional Multiset with a multiset or token numerator and a strictly non-zero Unixel denominator.
@@ -41,11 +39,6 @@ public export
 TokenFraction : Type -> Type
 TokenFraction a = FractionalBox (Token a)
 
-||| A fractional singleton: legacy alias for TokenFraction.
-public export
-SingFraction : Type -> Type
-SingFraction a = TokenFraction a
-
 ||| A fractional multiset: an entire multiset distribution over a Unixel denominator.
 public export
 MultisetFraction : Type -> Type
@@ -55,11 +48,6 @@ MultisetFraction a = FractionalBox (Multiset BoxInt a)
 public export
 mkTokenFraction : Token a -> Nat -> TokenFraction a
 mkTokenFraction t d = mkFractionalBox t d
-
-||| Smart constructor for SingFraction (legacy alias).
-public export
-mkSingFraction : Token a -> Nat -> SingFraction a
-mkSingFraction s d = mkTokenFraction s d
 
 ||| Smart constructor for MultisetFraction.
 public export
@@ -161,43 +149,23 @@ toCertifiedUnixelFraction (MkUnixelFraction n u) =
     S k => MkCertifiedUnixelFraction n (mkPosUnixel (S k))
 
 ------------------------------------------------------------------------
--- 2a. SINGLETON & TOKEN FRACTION LENSES
+-- 2a. TOKEN FRACTION LENSES
 ------------------------------------------------------------------------
-
-||| Bridges a SingFraction over BoxInt to an exact UnixelFraction (legacy alias).
-public export
-singFractionToUnixelFraction : SingFraction BoxInt -> UnixelFraction
-singFractionToUnixelFraction (OverUnixel (MkToken n) d) = MkUnixelFraction n d
 
 ||| Bridges a TokenFraction over BoxInt to an exact UnixelFraction.
 public export
 tokenFractionToUnixelFraction : TokenFraction BoxInt -> UnixelFraction
 tokenFractionToUnixelFraction (OverUnixel (MkToken n) d) = MkUnixelFraction n d
 
-||| Embeds an exact UnixelFraction into a SingFraction over BoxInt (legacy alias).
-public export
-unixelFractionToSingFraction : UnixelFraction -> SingFraction BoxInt
-unixelFractionToSingFraction (MkUnixelFraction n d) = OverUnixel (MkToken n) d
-
 ||| Embeds an exact UnixelFraction into a TokenFraction over BoxInt.
 public export
 unixelFractionToTokenFraction : UnixelFraction -> TokenFraction BoxInt
 unixelFractionToTokenFraction (MkUnixelFraction n d) = OverUnixel (MkToken n) d
 
-||| Injects a Sing into a UnixelFraction with denominator 1 (legacy alias).
-public export
-singToFraction : Sing BoxInt -> UnixelFraction
-singToFraction (MkToken n) = mkUnixelFraction n 1
-
 ||| Injects a Token into a UnixelFraction with denominator 1.
 public export
 tokenToFraction : Token BoxInt -> UnixelFraction
 tokenToFraction (MkToken n) = mkUnixelFraction n 1
-
-||| Proof witness that UnixelFraction -> SingFraction -> UnixelFraction is identity.
-public export
-unixelSingFractionRoundTripProof : (q : UnixelFraction) -> singFractionToUnixelFraction (unixelFractionToSingFraction q) = q
-unixelSingFractionRoundTripProof (MkUnixelFraction _ _) = Refl
 
 ||| Proof witness that UnixelFraction -> TokenFraction -> UnixelFraction is identity.
 public export
@@ -541,6 +509,13 @@ Eq SternBrocotBranch where
   _ == _ = False
 
 public export
+Ord SternBrocotBranch where
+  compare BranchL BranchL = EQ
+  compare BranchL BranchR = LT
+  compare BranchR BranchL = GT
+  compare BranchR BranchR = EQ
+
+public export
 Show SternBrocotBranch where
   show BranchL = "L"
   show BranchR = "R"
@@ -691,7 +666,7 @@ auditHehnerScaleConversionProof =
 ||| Evaluates the exact multiset chance of an event / item target inside a total ensemble Omega:
 ||| c(target, Omega) = lookupBox(target, Omega) / [ totalMass(Omega) ]
 public export
-multisetChance : Eq a => a -> Box a -> UnixelFraction
+multisetChance : Ord a => a -> Box a -> UnixelFraction
 multisetChance target omega =
   let w = lookupBox target omega
       d = boxIntToPositiveNat (totalMassBox omega)
@@ -743,7 +718,7 @@ auditMultisetHehnerTriadProof =
 ||| Compactness(P, Q) = |P ∩ Q| / [ |P ∪ Q| ]
 ||| Measures model predictive intelligence: 1/1 = perfect compression, 0/1 = complete failure.
 public export
-multisetCompactnessRatio : Eq a => Box a -> Box a -> UnixelFraction
+multisetCompactnessRatio : Ord a => Box a -> Box a -> UnixelFraction
 multisetCompactnessRatio p q =
   let interMass = boxIntersectionMass p q
       unionM = boxUnionMass p q
@@ -753,7 +728,7 @@ multisetCompactnessRatio p q =
 ||| Evaluates the exact Multiset Jaccard Distance in [0, 1]:
 ||| D_Jaccard(P, Q) = 1 - Compactness(P, Q) = |P △ Q| / [ |P ∪ Q| ]
 public export
-multisetJaccardDistance : Eq a => Box a -> Box a -> UnixelFraction
+multisetJaccardDistance : Ord a => Box a -> Box a -> UnixelFraction
 multisetJaccardDistance p q =
   let diffMass = boxSymmetricDifference p q
       unionM = boxUnionMass p q

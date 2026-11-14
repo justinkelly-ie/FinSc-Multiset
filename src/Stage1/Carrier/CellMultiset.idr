@@ -9,7 +9,6 @@ import Stage0.StructuralFuel
 import Language.Reflection
 import Stage1.TypeTheory.Staging
 import Stage0.Token
-import Stage0.Singleton.Sing
 import public Stage0.OnSeq.FusedStream
 import public Stage1.MultisetTree
 import public Stage1.Basis.CoordCell
@@ -18,13 +17,13 @@ import public Stage1.MultisetTensor
 %default total
 
 ------------------------------------------------------------------------
--- 1. CANONICAL CARRIER MULTISET (CellMultiset) & SPATIAL TRANSLATION
+-- 1. CANONICAL INDEXED CARRIER (Carrier k) & CELLMULTISET
 ------------------------------------------------------------------------
 
-||| A CellMultiset is an AVL multiset of D-dimensional coordinate basis cells.
+||| A CellMultiset is a Carrier over D-dimensional coordinate basis cells (CoordCell dim).
 public export
 CellMultiset : (dim : Nat) -> Type
-CellMultiset dim = BoxMultisetTree (CoordCell dim)
+CellMultiset dim = Carrier (CoordCell dim)
 
 ||| Empty cell multiset.
 public export
@@ -34,9 +33,7 @@ emptyCellMultiset = BoxLeaf
 ||| Direct O(1) singleton construction of a CellMultiset without intermediate List allocation.
 public export
 singletonCell : {dim : Nat} -> CoordCell dim -> BoxInt -> CellMultiset dim
-singletonCell c w =
-  if boxIsZero w then BoxLeaf
-  else BoxNode 1 BoxLeaf c w BoxLeaf
+singletonCell = singletonCarrier
 
 ||| Direct O(1) construction of a CellMultiset from a basis token with unit weight 1.
 public export
@@ -57,11 +54,6 @@ unixelToCellMultiset u = singletonCell u (intToBoxInt 1)
 public export
 nullexelToCellMultiset : Nullexel -> CellMultiset 0
 nullexelToCellMultiset n = singletonCell n (intToBoxInt 1)
-
-||| Direct O(1) construction of a CellMultiset from a basis singleton with unit weight 1 (legacy alias).
-public export
-singToCellMultiset : {dim : Nat} -> Sing (CoordCell dim) -> CellMultiset dim
-singToCellMultiset = tokenToCellMultiset
 
 ||| Lookups the weight of a coordinate cell in a CellMultiset in O(log N) via monomorphic CoordCell comparators.
 public export
@@ -131,21 +123,17 @@ streamToCellMultiset strm =
 ||| Adds two cell multisets by merging coordinate weights in a single pass per node.
 public export
 addCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
-addCellMultiset t1 t2 =
-  foldBoxTreeL (\tree, (c, w) => addCellTree c w tree) t1 t2
+addCellMultiset = addCarrier
 
 ||| Scales a cell multiset by a BoxInt scalar.
 public export
 scaleCellMultiset : {dim : Nat} -> BoxInt -> CellMultiset dim -> CellMultiset dim
-scaleCellMultiset s t =
-  if boxIsZero s then BoxLeaf
-  else mapBoxTreeWeight (s *) t
+scaleCellMultiset = scaleCarrier
 
 ||| Computes total weight across all cells in a CellMultiset.
 public export
 totalCellMultisetWeight : {dim : Nat} -> CellMultiset dim -> BoxInt
-totalCellMultisetWeight t =
-  foldBoxTreeL (\acc, (_, w) => acc + w) (intToBoxInt 0) t
+totalCellMultisetWeight = totalMassBox
 
 ||| Evaluates the L1 norm of a CellMultiset (sum of absolute weights) across arbitrary dimension `dim`.
 public export
@@ -159,8 +147,8 @@ translateCell : {dim : Nat} -> CoordCell dim -> CellMultiset dim -> CellMultiset
 translateCell delta mset =
   foldBoxTreeL (\acc, (c, w) => setCellMultiset (addCoordCell c delta) w acc) BoxLeaf mset
 
-||| Universal Free Adjunction Spatial Pushforward (F ⊣ U):
-||| Lifts a transformation on coordinate basis tokens to a unique homomorphism over entire CellMultisets.
+||| Universal Free Multiset Spatial Pushforward:
+||| Lifts a transformation on coordinate basis tokens to a unique linear map over entire CellMultisets.
 public export
 liftCoordCellToken : {dim, dim' : Nat} -> (Token (CoordCell dim) -> CellMultiset dim') -> CellMultiset dim -> CellMultiset dim'
 liftCoordCellToken f BoxLeaf = BoxLeaf
@@ -171,7 +159,7 @@ liftCoordCellToken f (BoxNode _ l c w r) =
               else scaleCellMultiset w (f (MkToken c))
   in addCellMultiset (addCellMultiset leftM thisM) rightM
 
-||| Canonical category-theoretic free monoid adjunction homomorphism for CellMultisets.
+||| Canonical free multiset spatial pushforward alias for CellMultisets.
 public export
 liftCellMultisetHom : {dim, dim' : Nat} -> (Token (CoordCell dim) -> CellMultiset dim') -> CellMultiset dim -> CellMultiset dim'
 liftCellMultisetHom = liftCoordCellToken
@@ -213,14 +201,12 @@ tree t = t
 
 public export
 subCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
-subCellMultiset t1 t2 =
-  foldBoxTreeL (\tree, (c, w) => addCellTree c (negate w) tree) t1 t2
+subCellMultiset = subCarrier
 
 ||| Rebuilds a canonical CellMultiset by filtering non-zero weights and rebalancing.
 public export
 canonicalizeCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim
-canonicalizeCellMultiset t =
-  foldBoxTreeL (\acc, (c, w) => if boxIsNonZero w then setCellMultiset c w acc else acc) BoxLeaf t
+canonicalizeCellMultiset = consolidateBox
 
 public export
 canonicalizeCell : {dim : Nat} -> CellMultiset dim -> CellMultiset dim
@@ -256,109 +242,38 @@ public export
 supportVexelStream : Vexel -> FusedStream Unixel
 supportVexelStream = supportCellStream
 
-public export
-{dim : Nat} -> Semigroup (CellMultiset dim) where
-  (<+>) = addCellMultiset
-
-public export
-{dim : Nat} -> Monoid (CellMultiset dim) where
-  neutral = BoxLeaf
-
 ------------------------------------------------------------------------
 -- 2. DISCRETE MATRIX, VECTOR & EXTERIOR ALGEBRA OPERATORS
 ------------------------------------------------------------------------
 
-||| Evaluates the canonical Frobenius / multiset inner product between two CellMultisets directly via BoxMultisetTree.
+||| Evaluates the canonical Frobenius / multiset inner product between two CellMultisets directly via Box.
 public export
 dotCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> BoxInt
-dotCellMultiset t1 t2 =
-  foldBoxTreeL (\acc, (u, w1) =>
-    let w2 = lookupCellMultiset u t2
-    in acc + (w1 * w2))
-    (intToBoxInt 0)
-    t1
+dotCellMultiset = dotCarrier
 
-||| Evaluates the Hadamard (pointwise) product between two CellMultisets directly via BoxMultisetTree:
+||| Evaluates the Hadamard (pointwise) product between two CellMultisets directly via Box:
 ||| (A ⊙ B)(c) = A(c) * B(c) in O(N log N) AVL tree operations.
 public export
 hadamardCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
-hadamardCellMultiset t1 t2 =
-  foldBoxTreeL (\acc, (c, w1) =>
-    let w2 = lookupCellMultiset c t2
-        prod = mulBox w1 w2
-    in if boxIsZero prod then acc else setCellMultiset c prod acc)
-    BoxLeaf
-    t1
+hadamardCellMultiset = hadamardCarrier
 
 ||| Evaluates the Tropical infimum / lattice intersection between two CellMultisets:
 ||| (A ⊓ B)(c) = min(A(c), B(c)) in O(N log N) AVL tree operations.
 public export
 minCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
-minCellMultiset t1 t2 =
-  foldBoxTreeL (\acc, (c, w1) =>
-    let w2 = lookupCellMultiset c t2
-        minW = if w1 <= w2 then w1 else w2
-    in if minW > intToBoxInt 0 then setCellMultiset c minW acc else acc)
-    BoxLeaf
-    t1
+minCellMultiset = minCarrier
 
 ||| Evaluates the Tropical supremum / join between two CellMultisets:
 ||| (A ⊔ B)(c) = max(A(c), B(c)) in O((N + M) log(N + M)) AVL tree operations.
 public export
 maxCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
-maxCellMultiset t1 t2 =
-  let step1 = foldBoxTreeL (\acc, (c, w1) =>
-        let w2 = lookupCellMultiset c t2
-            maxW = if w1 >= w2 then w1 else w2
-        in if boxIsZero maxW then acc else setCellMultiset c maxW acc)
-        BoxLeaf
-        t1
-      step2 = foldBoxTreeL (\acc, (c, w2) =>
-        let w1 = lookupCellMultiset c t1
-        in if boxIsNonZero w1 then acc
-           else let maxW = if w2 >= intToBoxInt 0 then w2 else intToBoxInt 0
-                in if boxIsZero maxW then acc else setCellMultiset c maxW acc)
-        step1
-        t2
-  in step2
+maxCellMultiset = maxCarrier
 
 ||| Evaluates multi-dimensional Cauchy convolution of two CellMultisets via vector coordinate addition:
 ||| (A * B)(c1 + c2) = A(c1) * B(c2).
 public export
 convCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
-convCellMultiset t1 t2 =
-  foldBoxTreeL (\treeAcc, (c1, w1) =>
-    foldBoxTreeL (\acc, (c2, w2) =>
-      let cOut = addCoordCell c1 c2
-          prod = mulBox w1 w2
-      in if boxIsZero prod then acc else addCellTree cOut prod acc)
-      treeAcc
-      t2)
-    BoxLeaf
-    t1
-
-public export
-{dim : Nat} -> MultisetAlgebra (CellMultiset dim) where
-  zeroM     = emptyCellMultiset
-  addM      = addCellMultiset
-  subM      = subCellMultiset
-  scaleM    = scaleCellMultiset
-  mulM      = convCellMultiset
-  hadamardM = hadamardCellMultiset
-  minM      = minCellMultiset
-  maxM      = maxCellMultiset
-  dotM      = dotCellMultiset
-
-public export
-{dim : Nat} -> Num (CellMultiset dim) where
-  (+) = addCellMultiset
-  (*) = convCellMultiset
-  fromInteger n = singletonCell (constCoordCell dim 0) (intToBoxInt n)
-
-public export
-{dim : Nat} -> Neg (CellMultiset dim) where
-  negate m = scaleCellMultiset (intToBoxInt (-1)) m
-  (-) = subCellMultiset
+convCellMultiset = mulCarrier
 
 ||| Evaluates the inner product between two CellMultisets directly via FusedStream (Rule 04 §8).
 public export

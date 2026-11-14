@@ -2,7 +2,6 @@ module Stage0.OnSeq.OnMSet
 
 import Stage0.Multiset
 import Stage0.Token
-import Stage0.Singleton.Sing
 import Stage0.Bit
 
 %default total
@@ -120,7 +119,3 @@ public export
 OnToken : (a : Type) -> Type
 OnToken a = OnSeq (Token a)
 
-||| On-sequence of singletons (transparent alias for OnToken).
-public export
-OnSing : (a : Type) -> Type
-OnSing = OnToken

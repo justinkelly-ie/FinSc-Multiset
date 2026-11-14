@@ -4,7 +4,6 @@ import Data.Nat
 import Stage0.BoxInt
 import Stage0.OnSeq.FusedStream
 import Stage0.Token
-import Stage0.Singleton.Sing
 import Stage1.MultisetTree
 import Stage1.Basis.CoordCell
 import public Stage1.Carrier.CellMultiset
@@ -29,11 +28,6 @@ tokenToVexel = tokenToCellMultiset
 public export
 unixelToVexel : Unixel -> Vexel
 unixelToVexel = unixelToCellMultiset
-
-||| Injects a 1D coordinate singleton into a Vexel with unit weight 1 (legacy alias).
-public export
-singToVexel : Sing (CoordCell 1) -> Vexel
-singToVexel = tokenToVexel
 
 
 

@@ -78,18 +78,16 @@ public export
 Eq (CoordCell dim) where
   (==) = coordCellEq
 
-||| 0D coordinate cell (Nullexel = CoordCell 0) has a trivial order (single terminal point).
+||| Universal lexicographic total order on CoordCell dim using monomorphic Peano comparators.
 public export
-Ord (CoordCell 0) where
-  compare ZeroCell ZeroCell = EQ
-
-||| 1D coordinate cells (Unixel = CoordCell 1) have a canonical mathematical total order on Nat.
-||| Higher-dimensional cells (Pixel, Voxel) use internal tree comparators (coordCellLT/coordCellEq) via CellMultiset.
-public export
-Ord (CoordCell 1) where
-  compare (ConsCell (MkToken x) ZeroCell) (ConsCell (MkToken y) ZeroCell) =
-    if natEq x y then EQ
-    else if natLT x y then LT else GT
+Ord (CoordCell dim) where
+  compare c1 c2 =
+    if coordCellEq c1 c2 then EQ
+    else if coordCellLT c1 c2 then LT else GT
+  (<) = coordCellLT
+  (>) c1 c2 = coordCellLT c2 c1
+  (<=) c1 c2 = coordCellEq c1 c2 || coordCellLT c1 c2
+  (>=) c1 c2 = coordCellEq c1 c2 || coordCellLT c2 c1
 
 public export
 cellToList : CoordCell dim -> List Nat
@@ -900,3 +898,25 @@ prfTesseractRoundTrip _ = Refl
 public export
 prfCellToTesseractRoundTrip : (c : CoordCell Dim4) -> tesseractToCell (cellToTesseract c) = c
 prfCellToTesseractRoundTrip _ = Refl
+
+public export
+DiscreteCoord (CoordCell dim) where
+
+public export
+{dim : Nat} -> MonoidCoord (CoordCell dim) where
+  combine = addCoordCell
+  origin  = zeroCoordCell
+  assoc x y z = sym (prfCoordCellAddAssoc x y z)
+
+public export
+FiniteCoord Nullexel where
+  cardinality = 1
+  toIndex ZeroCell = FZ
+  fromIndex FZ = ZeroCell
+  leftInv ZeroCell = Refl
+  rightInv FZ = Refl
+
+public export
+GroupCoord Nullexel where
+  inverse ZeroCell = ZeroCell
+  invLaw ZeroCell = Refl

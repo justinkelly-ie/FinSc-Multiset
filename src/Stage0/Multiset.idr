@@ -282,249 +282,506 @@ multisetToListL (AddM k v rest) =
   in Builtin.(#) ((k, v) :: listRest) (AddM k v restM)
 
 ------------------------------------------------------------------------
--- FIRST-CLASS MULTISET CONTAINERS (BOX)
+-- FIRST-CLASS AVL MULTISET CARRIERS (Box k = Carrier k = BoxMultisetTree k)
 ------------------------------------------------------------------------
 
-||| A discrete Multiset (bag) of elements with integer multiplicities.
+||| Canonical coordinate-indexed multiset carrier (`Box k` / `Carrier k` / `BoxMultisetTree k`)
+||| backed by an O(log N) AVL height-balanced binary search tree with signed BoxInt multiplicities.
 public export
-record Box a where
-  constructor MkBox
-  items : List (a, BoxInt)
+data Box a =
+    BoxLeaf
+  | BoxNode Nat (Box a) a BoxInt (Box a)
+
+||| Canonical alias connecting `BoxMultisetTree` to `Box`.
+public export
+BoxMultisetTree : Type -> Type
+BoxMultisetTree = Box
+
+||| Canonical coordinate-indexed multiset carrier (`Gemini.md` & `ARCHITECTURE.md`).
+public export
+Carrier : Type -> Type
+Carrier = Box
+
+public export
+%inline
+boxHeight : Box a -> Nat
+boxHeight BoxLeaf = Z
+boxHeight (BoxNode h _ _ _ _) = h
+
+public export
+%inline
+mkBoxNode : Box a -> a -> BoxInt -> Box a -> Box a
+mkBoxNode l x c r =
+  let hl = boxHeight l
+      hr = boxHeight r
+      h  = S (if hl > hr then hl else hr)
+  in BoxNode h l x c r
+
+public export
+%inline
+rotateRightBox : Box a -> a -> BoxInt -> Box a -> Box a
+rotateRightBox (BoxNode _ ll lx lc lr) x c r = mkBoxNode ll lx lc (mkBoxNode lr x c r)
+rotateRightBox l x c r = mkBoxNode l x c r
+
+public export
+%inline
+rotateLeftBox : Box a -> a -> BoxInt -> Box a -> Box a
+rotateLeftBox l x c (BoxNode _ rl rx rc rr) = mkBoxNode (mkBoxNode l x c rl) rx rc rr
+rotateLeftBox l x c r = mkBoxNode l x c r
+
+public export
+balanceBoxNode : Box a -> a -> BoxInt -> Box a -> Box a
+balanceBoxNode l x c r =
+  let hl = boxHeight l
+      hr = boxHeight r
+  in if hl > hr + 1
+       then case l of
+              BoxLeaf => mkBoxNode l x c r
+              BoxNode _ ll lx lc lr =>
+                if boxHeight ll >= boxHeight lr
+                  then rotateRightBox l x c r
+                  else rotateRightBox (rotateLeftBox ll lx lc lr) x c r
+       else if hr > hl + 1
+              then case r of
+                     BoxLeaf => mkBoxNode l x c r
+                     BoxNode _ rl rx rc rr =>
+                       if boxHeight rr >= boxHeight rl
+                         then rotateLeftBox l x c r
+                         else rotateLeftBox l x c (rotateRightBox rl rx rc rr)
+              else mkBoxNode l x c r
+
+||| Extracts the minimum (leftmost) key-weight pair and returns the rebalanced remaining subtree.
+public export
+deleteMinBoxNode : Box a -> Maybe (a, BoxInt, Box a)
+deleteMinBoxNode BoxLeaf = Nothing
+deleteMinBoxNode (BoxNode _ BoxLeaf x c r) = Just (x, c, r)
+deleteMinBoxNode (BoxNode _ l x c r) =
+  case deleteMinBoxNode l of
+    Nothing => Just (x, c, r)
+    Just (minK, minW, l') => Just (minK, minW, balanceBoxNode l' x c r)
+
+||| Removes the root of a BoxNode and rebalances its left and right subtrees.
+public export
+deleteRootBoxNode : Box a -> a -> Box a -> Box a
+deleteRootBoxNode BoxLeaf _ r = r
+deleteRootBoxNode l _ BoxLeaf = l
+deleteRootBoxNode l _ r =
+  case deleteMinBoxNode r of
+    Nothing => l
+    Just (minK, minW, r') => balanceBoxNode l minK minW r'
+
+||| Monomorphic comparator-driven lookup in O(log N) time without Ord dictionary dispatch.
+public export
+lookupBoxTreeBy : (lt : a -> a -> Bool) -> (eq : a -> a -> Bool) -> a -> Box a -> BoxInt
+lookupBoxTreeBy _ _ _ BoxLeaf = intToBoxInt 0
+lookupBoxTreeBy lt eq val (BoxNode _ l x c r) =
+  if eq val x then c
+  else if lt val x then lookupBoxTreeBy lt eq val l
+  else lookupBoxTreeBy lt eq val r
+
+||| Monomorphic comparator-driven set in O(log N) time, pruning zero-weight nodes on cancellation.
+public export
+setBoxTreeBy : (lt : a -> a -> Bool) -> (eq : a -> a -> Bool) -> a -> BoxInt -> Box a -> Box a
+setBoxTreeBy _ _ val w BoxLeaf =
+  if boxIsZero w then BoxLeaf else mkBoxNode BoxLeaf val w BoxLeaf
+setBoxTreeBy lt eq val w (BoxNode _ l x c r) =
+  if eq val x
+    then if boxIsZero w then deleteRootBoxNode l x r else mkBoxNode l x w r
+    else if lt val x
+      then balanceBoxNode (setBoxTreeBy lt eq val w l) x c r
+      else balanceBoxNode l x c (setBoxTreeBy lt eq val w r)
+
+||| Monomorphic comparator-driven additive update in a single O(log N) pass, pruning zero-weight nodes.
+public export
+addBoxTreeBy : (lt : a -> a -> Bool) -> (eq : a -> a -> Bool) -> a -> BoxInt -> Box a -> Box a
+addBoxTreeBy _ _ val dw BoxLeaf =
+  if boxIsZero dw then BoxLeaf else mkBoxNode BoxLeaf val dw BoxLeaf
+addBoxTreeBy lt eq val dw node@(BoxNode _ l x c r) =
+  if boxIsZero dw then node
+  else if eq val x
+    then let newW = addBox c dw
+         in if boxIsZero newW then deleteRootBoxNode l x r else mkBoxNode l x newW r
+    else if lt val x
+      then balanceBoxNode (addBoxTreeBy lt eq val dw l) x c r
+      else balanceBoxNode l x c (addBoxTreeBy lt eq val dw r)
+
+||| Lookups the signed BoxInt value of a key in O(log N) time.
+public export
+lookupBoxTree : Ord a => a -> Box a -> BoxInt
+lookupBoxTree = lookupBoxTreeBy (<) (==)
+
+||| Sets the signed BoxInt value of a key in O(log N) time, removing the node when weight is zero.
+public export
+setBoxTree : Ord a => a -> BoxInt -> Box a -> Box a
+setBoxTree = setBoxTreeBy (<) (==)
+
+||| Adds a signed BoxInt delta to a key's weight in a single O(log N) pass, pruning zero-weight nodes.
+public export
+addBoxTree : Ord a => a -> BoxInt -> Box a -> Box a
+addBoxTree = addBoxTreeBy (<) (==)
+
+||| Structurally recursive in-order tree left fold accumulator for Box.
+public export
+foldBoxTreeL : (f : b -> (a, BoxInt) -> b) -> b -> Box a -> b
+foldBoxTreeL _ acc BoxLeaf = acc
+foldBoxTreeL f acc (BoxNode _ l x c r) =
+  let accL = foldBoxTreeL f acc l
+      accNode = f accL (x, c)
+  in foldBoxTreeL f accNode r
+
+||| Structurally recursive in-order tree right fold accumulator for Box.
+public export
+foldBoxTreeR : (f : a -> BoxInt -> b -> b) -> b -> Box a -> b
+foldBoxTreeR _ z BoxLeaf = z
+foldBoxTreeR f z (BoxNode _ l x c r) =
+  foldBoxTreeR f (f x c (foldBoxTreeR f z r)) l
+
+||| Flattens active non-zero elements into a sorted association list in O(N) time.
+public export
+boxTreeToList : Box a -> List (a, BoxInt)
+boxTreeToList tree = foldBoxTreeR (\x, c, acc => if boxIsNonZero c then (x, c) :: acc else acc) [] tree
+
+||| Extracts sorted (key, weight) pairs from a Box.
+public export
+items : Box a -> List (a, BoxInt)
+items = boxTreeToList
+
+||| Maps a function over all non-zero weights in a Box, preserving AVL balance and key order.
+public export
+mapBoxTreeWeight : (BoxInt -> BoxInt) -> Box a -> Box a
+mapBoxTreeWeight _ BoxLeaf = BoxLeaf
+mapBoxTreeWeight f (BoxNode h l x c r) = BoxNode h (mapBoxTreeWeight f l) x (f c) (mapBoxTreeWeight f r)
+
+||| Evaluates the total number of coordinate nodes in a Box.
+public export
+boxTreeSize : Box a -> Nat
+boxTreeSize BoxLeaf = 0
+boxTreeSize (BoxNode _ l _ _ r) = S (boxTreeSize l + boxTreeSize r)
+
+||| Evaluates the number of active non-zero weight nodes in a Box with zero allocations.
+public export
+treeSizeNonZero : Box a -> Nat
+treeSizeNonZero = foldBoxTreeL (\acc, (_, w) => if boxIsNonZero w then S acc else acc) 0
+
+||| Definitional structural equality comparison between two Boxes via in-order list projection.
+public export
+structuralBoxTreeEqual : Eq a => Box a -> Box a -> Bool
+structuralBoxTreeEqual t1 t2 =
+  boxTreeToList t1 == boxTreeToList t2
+
+public export
+boxTreeEqual : Eq a => Box a -> Box a -> Bool
+boxTreeEqual = structuralBoxTreeEqual
+
+public export
+Eq a => Eq (Box a) where
+  (==) = structuralBoxTreeEqual
+
+public export
+Ord a => Ord (Box a) where
+  compare t1 t2 = compare (boxTreeToList t1) (boxTreeToList t2)
 
 public export
 Show a => Show (Box a) where
-  show (MkBox xs) = "Box(" ++ show xs ++ ")"
+  show t = "Box(" ++ show (boxTreeToList t) ++ ")"
+
+||| Empty carrier over coordinate domain `k`.
+public export
+emptyCarrier : Carrier k
+emptyCarrier = BoxLeaf
 
 ||| Canonical empty multiset.
 public export
 emptyBox : Box a
-emptyBox = MkBox []
+emptyBox = BoxLeaf
 
-||| Creates a singleton multiset.
+||| Direct O(1) singleton construction of a Carrier k without intermediate List allocation.
+public export
+singletonCarrier : k -> BoxInt -> Carrier k
+singletonCarrier c w =
+  if boxIsZero w then BoxLeaf
+  else BoxNode 1 BoxLeaf c w BoxLeaf
+
+||| Creates a singleton multiset in O(1) without Ord constraint.
 public export
 unixelBox : a -> BoxInt -> Box a
-unixelBox x w = MkBox [(x, w)]
+unixelBox = singletonCarrier
 
-||| Fast O(1) multiset element insertion (prepending raw pair without eager consolidation).
-%inline public export
-insertBoxFast : a -> BoxInt -> Box a -> Box a
-insertBoxFast x w (MkBox xs) =
-  if boxIsZero w then MkBox xs else MkBox ((x, w) :: xs)
-
-||| Converts a Multiset BoxInt a into a Box a.
+||| Constructs a balanced AVL Box from an association list of (key, weight) pairs.
 public export
-multisetToBox : Multiset BoxInt a -> Box a
-multisetToBox ZeroM = emptyBox
-multisetToBox (AddM x w rest) = insertBoxFast x w (multisetToBox rest)
+MkBox : Ord a => List (a, BoxInt) -> Box a
+MkBox [] = BoxLeaf
+MkBox ((k, w) :: rest) = addBoxTree k w (MkBox rest)
+
+||| Lookups the signed BoxInt multiplicity at coordinate `c` in O(log N) time.
+public export
+lookupCarrier : Ord k => k -> Carrier k -> BoxInt
+lookupCarrier = lookupBoxTree
+
+public export
+lookupBox : Ord a => a -> Box a -> BoxInt
+lookupBox = lookupBoxTree
+
+||| Inserts or updates the multiplicity of an element in a single O(log N) AVL pass.
+public export
+insertBox : Ord a => a -> BoxInt -> Box a -> Box a
+insertBox = addBoxTree
+
+public export
+insertBoxFast : Ord a => a -> BoxInt -> Box a -> Box a
+insertBoxFast = addBoxTree
+
+||| Converts a Multiset BoxInt a into a balanced AVL Box a.
+public export
+multisetToBox : Ord a => Multiset BoxInt a -> Box a
+multisetToBox ZeroM = BoxLeaf
+multisetToBox (AddM x w rest) = addBoxTree x w (multisetToBox rest)
 
 ||| Converts a Box a into a Multiset BoxInt a.
 public export
-boxToMultiset : Eq a => Box a -> Multiset BoxInt a
-boxToMultiset (MkBox items) = fromListBox items
+boxToMultiset : Box a -> Multiset BoxInt a
+boxToMultiset t = foldBoxTreeR (\x, w, acc => if boxIsZero w then acc else AddM x w acc) ZeroM t
 
-||| Lookups the total multiplicity of an element in a Box multiset (summing any unconsolidated duplicate keys).
+||| Rebuilds a canonical Box by filtering non-zero weights and rebalancing.
 public export
-lookupBox : Eq a => a -> Box a -> BoxInt
-lookupBox _ (MkBox []) = intToBoxInt 0
-lookupBox target (MkBox ((x, w) :: xs)) =
-  if x == target then addBox w (lookupBox target (MkBox xs)) else lookupBox target (MkBox xs)
-
-||| Inserts or updates the multiplicity of an element in a single structural pass without filter reallocations.
-public export
-insertBox : Eq a => a -> BoxInt -> Box a -> Box a
-insertBox target w (MkBox xs) =
-  if boxIsZero w then MkBox xs else MkBox (go target w xs)
-  where
-    go : a -> BoxInt -> List (a, BoxInt) -> List (a, BoxInt)
-    go k dw [] = [(k, dw)]
-    go k dw ((k', w') :: rest) =
-      if k == k'
-        then let newW = addBox w' dw
-             in if boxIsZero newW then rest else (k, newW) :: rest
-        else (k', w') :: go k dw rest
-
-||| Consolidates multiset entries by summing duplicate keys and removing zero multiplicities via structural recursion.
-public export
-consolidateBox : Eq a => Box a -> Box a
-consolidateBox (MkBox []) = emptyBox
-consolidateBox (MkBox ((x, w) :: xs)) = insertBox x w (consolidateBox (MkBox xs))
+consolidateBox : Ord a => Box a -> Box a
+consolidateBox t =
+  foldBoxTreeL (\acc, (c, w) => if boxIsNonZero w then setBoxTree c w acc else acc) BoxLeaf t
 
 ||| Negates all weights in a Box a multiset.
 public export
 negateBox : Box a -> Box a
-negateBox (MkBox []) = emptyBox
-negateBox (MkBox ((x, w) :: xs)) =
-  let MkBox rest = negateBox (MkBox xs)
-  in MkBox ((x, negBox w) :: rest)
+negateBox = mapBoxTreeWeight negBox
 
-||| Multiset Union (pouring containers together): adds multiplicities.
+||| Pointwise multiset addition (AddM) over Carrier k in O(N log N) time.
 public export
-unionBox : Eq a => Box a -> Box a -> Box a
-unionBox (MkBox []) ys = ys
-unionBox (MkBox ((x, w) :: xs)) ys =
-  insertBox x w (unionBox (MkBox xs) ys)
-
-||| Extensional Multiset Equality on Box a: invariant under permutation and zero-weight cancellation.
-public export
-Eq a => Eq (Box a) where
-  x == y =
-    let MkBox diff = consolidateBox (unionBox x (negateBox y))
-    in isNil diff
-    where
-      isNil : {0 b : Type} -> List (b, BoxInt) -> Bool
-      isNil [] = True
-      isNil _  = False
+addCarrier : Ord k => Carrier k -> Carrier k -> Carrier k
+addCarrier BoxLeaf t2 = t2
+addCarrier t1 BoxLeaf = t1
+addCarrier t1 t2 =
+  foldBoxTreeL (\tree, (c, w) => addBoxTree c w tree) t1 t2
 
 public export
-Eq a => Semigroup (Box a) where
-  (<+>) = unionBox
+unionBox : Ord a => Box a -> Box a -> Box a
+unionBox = addCarrier
+
+||| Pointwise multiset subtraction (SubM) over Carrier k in O(N log N) time.
+public export
+subCarrier : Ord k => Carrier k -> Carrier k -> Carrier k
+subCarrier t1 BoxLeaf = t1
+subCarrier t1 t2 =
+  foldBoxTreeL (\tree, (c, w) => addBoxTree c (negate w) tree) t1 t2
 
 public export
-Eq a => Monoid (Box a) where
-  neutral = emptyBox
+subBox : Ord a => Box a -> Box a -> Box a
+subBox = subCarrier
 
-||| Multiset Difference: subtracts multiplicities (bounded below by 0).
+||| Scalar multiplication of a Carrier k by a BoxInt factor.
 public export
-subBox : Eq a => Box a -> Box a -> Box a
-subBox (MkBox []) _ = MkBox []
-subBox (MkBox ((k, w) :: xs)) ys =
-  let subW = lookupBox k ys
-      remW = w - subW
-      (MkBox rest) = subBox (MkBox xs) ys
-  in if remW > intToBoxInt 0 then MkBox ((k, remW) :: rest) else MkBox rest
+scaleCarrier : BoxInt -> Carrier k -> Carrier k
+scaleCarrier s t =
+  if boxIsZero s then BoxLeaf
+  else mapBoxTreeWeight (s *) t
 
-||| Computes total multiset mass: sum of all item multiplicities.
+public export
+scaleBox : BoxInt -> Box a -> Box a
+scaleBox = scaleCarrier
+
+||| Computes total multiset mass: sum of all item multiplicities in O(N) without list allocation.
 public export
 totalMassBox : Box a -> BoxInt
-totalMassBox (MkBox []) = intToBoxInt 0
-totalMassBox (MkBox ((_, w) :: xs)) = w + totalMassBox (MkBox xs)
+totalMassBox = foldBoxTreeL (\acc, (_, w) => acc + w) (intToBoxInt 0)
 
-||| Filters a multiset by a predicate.
+||| Filters a Box multiset by a coordinate predicate.
 public export
-filterBox : (a -> Bool) -> Box a -> Box a
-filterBox p (MkBox xs) =
-  MkBox (filter (\(x, _) => p x) xs)
+filterBox : Ord a => (a -> Bool) -> Box a -> Box a
+filterBox p t =
+  foldBoxTreeL (\acc, (x, w) => if p x then setBoxTree x w acc else acc) BoxLeaf t
 
-||| Multiset Intersection: Computes the common shared tokens min(w_A, w_B).
+||| Pointwise Hadamard product (HadamardM) over Carrier k in O(N log N) time.
 public export
-intersectBox : Eq a => Box a -> Box a -> Box a
-intersectBox (MkBox xs) (MkBox ys) =
-  let commonKeys = filter (\k => lookupBox k (MkBox ys) /= intToBoxInt 0) (nub (map fst xs))
-      itemsList = map (\k =>
-        let w1 = lookupBox k (MkBox xs)
-            w2 = lookupBox k (MkBox ys)
-            minW = if w1 <= w2 then w1 else w2
-        in (k, minW)) commonKeys
-  in MkBox (filter (\(_, w) => w > intToBoxInt 0) itemsList)
+hadamardCarrier : Ord k => Carrier k -> Carrier k -> Carrier k
+hadamardCarrier t1 t2 =
+  foldBoxTreeL (\acc, (c, w1) =>
+    let w2 = lookupBoxTree c t2
+        prod = mulBox w1 w2
+    in if boxIsZero prod then acc else setBoxTree c prod acc)
+    BoxLeaf
+    t1
+
+public export
+hadamardBox : Ord a => Box a -> Box a -> Box a
+hadamardBox = hadamardCarrier
+
+||| Pointwise lattice infimum (MinM) over Carrier k in O(N log N) time.
+public export
+minCarrier : Ord k => Carrier k -> Carrier k -> Carrier k
+minCarrier t1 t2 =
+  foldBoxTreeL (\acc, (c, w1) =>
+    let w2 = lookupBoxTree c t2
+        minW = if w1 <= w2 then w1 else w2
+    in if minW > intToBoxInt 0 then setBoxTree c minW acc else acc)
+    BoxLeaf
+    t1
+
+public export
+minBox : Ord a => Box a -> Box a -> Box a
+minBox = minCarrier
+
+public export
+intersectBox : Ord a => Box a -> Box a -> Box a
+intersectBox = minCarrier
+
+||| Pointwise lattice supremum (MaxM) over Carrier k in O((N + M) log(N + M)) time.
+public export
+maxCarrier : Ord k => Carrier k -> Carrier k -> Carrier k
+maxCarrier t1 t2 =
+  let step1 = foldBoxTreeL (\acc, (c, w1) =>
+        let w2 = lookupBoxTree c t2
+            maxW = if w1 >= w2 then w1 else w2
+        in if boxIsZero maxW then acc else setBoxTree c maxW acc)
+        BoxLeaf
+        t1
+  in foldBoxTreeL (\acc, (c, w2) =>
+       let w1 = lookupBoxTree c t1
+       in if boxIsNonZero w1 then acc
+          else let maxW = if w2 >= intToBoxInt 0 then w2 else intToBoxInt 0
+               in if boxIsZero maxW then acc else setBoxTree c maxW acc)
+       step1
+       t2
+
+public export
+maxBox : Ord a => Box a -> Box a -> Box a
+maxBox = maxCarrier
 
 ||| Computes total mass of common shared tokens between two multisets |A ∩ B|.
 public export
-boxIntersectionMass : Eq a => Box a -> Box a -> Nat
-boxIntersectionMass a b =
-  let inter = intersectBox a b
-  in boxToNat (totalMassBox inter)
+boxIntersectionMass : Ord a => Box a -> Box a -> Nat
+boxIntersectionMass a b = boxToNat (totalMassBox (minCarrier a b))
 
 ||| Computes total union mass |A ∪ B| = sum max(w_A, w_B).
 public export
-boxUnionMass : Eq a => Box a -> Box a -> Nat
-boxUnionMass (MkBox xs) (MkBox ys) =
-  let allKeys = nub (map fst xs ++ map fst ys)
-      maxWeights = map (\k =>
-        let w1 = lookupBox k (MkBox xs)
-            w2 = lookupBox k (MkBox ys)
-            maxW = if w1 >= w2 then w1 else w2
-        in boxToNat maxW) allKeys
-  in sum maxWeights
+boxUnionMass : Ord a => Box a -> Box a -> Nat
+boxUnionMass a b = boxToNat (totalMassBox (maxCarrier a b))
 
 ||| Multiset Symmetric Difference Information Distance.
 public export
-boxSymmetricDifference : Eq a => Box a -> Box a -> Nat
-boxSymmetricDifference (MkBox xs) (MkBox ys) =
-  let allKeys = nub (map fst xs ++ map fst ys)
-      diffs = map (\k =>
-        let w1 = lookupBox k (MkBox xs)
-            w2 = lookupBox k (MkBox ys)
-            diff = if w1 >= w2 then w1 - w2 else w2 - w1
-        in boxToNat diff) allKeys
-  in sum diffs
+boxSymmetricDifference : Ord a => Box a -> Box a -> Nat
+boxSymmetricDifference a b =
+  let diff = subCarrier a b
+  in foldBoxTreeL (\acc, (_, w) => acc + boxToNat (absBox w)) 0 diff
 
-||| Scales a Box a multiset by a BoxInt scalar, pruning zero weights.
+||| Canonical inner product (DotStatic) between two Carrier k multisets in O(N log N) time.
 public export
-scaleBox : BoxInt -> Box a -> Box a
-scaleBox s (MkBox xs) =
-  if boxIsZero s then emptyBox
-  else MkBox (mapMaybe (\(x, w) =>
-         let sw = mulBox s w
-         in if boxIsZero sw then Nothing else Just (x, sw)) xs)
-
-||| Inner product of two Box a multisets: sum_x w_A(x) * w_B(x).
-public export
-dotBox : Eq a => Box a -> Box a -> BoxInt
-dotBox a b =
-  let MkBox xs = consolidateBox a
-  in foldl (\acc, (k, w1) => addBox acc (mulBox w1 (lookupBox k b))) (intToBoxInt 0) xs
-
-||| Hadamard (pointwise) product of two Box a multisets: (A ⊙ B)(x) = w_A(x) * w_B(x).
-public export
-hadamardBox : Eq a => Box a -> Box a -> Box a
-hadamardBox a b =
-  let MkBox xs = consolidateBox a
-      items = mapMaybe (\(k, w1) =>
-        let w2 = lookupBox k b
-            prod = mulBox w1 w2
-        in if boxIsZero prod then Nothing else Just (k, prod)) xs
-  in MkBox items
-
-||| Tropical supremum / join of two Box a multisets: (A ⊔ B)(x) = max(w_A(x), w_B(x)).
-public export
-maxBox : Eq a => Box a -> Box a -> Box a
-maxBox (MkBox xs) (MkBox ys) =
-  let allKeys = nub (map fst xs ++ map fst ys)
-      items = mapMaybe (\k =>
-        let w1 = lookupBox k (MkBox xs)
-            w2 = lookupBox k (MkBox ys)
-            maxW = if w1 >= w2 then w1 else w2
-        in if maxW > intToBoxInt 0 then Just (k, maxW) else Nothing) allKeys
-  in MkBox items
-
-||| Tropical infimum / intersection of two Box a multisets: (A ⊓ B)(x) = min(w_A(x), w_B(x)).
-public export
-minBox : Eq a => Box a -> Box a -> Box a
-minBox = intersectBox
-
-||| Tensor (Cartesian) product of two Box multisets: (A ⊗ B)(x, y) = A(x) * B(y).
-public export
-tensorBox : Box a -> Box b -> Box (a, b)
-tensorBox (MkBox xs) (MkBox ys) =
-  MkBox (concatMap (\(x, wx) =>
-          mapMaybe (\(y, wy) =>
-            let prod = mulBox wx wy
-            in if boxIsZero prod then Nothing else Just ((x, y), prod)) ys) xs)
-
-||| Functorial map over Box a elements (pushforward without eager consolidation).
-public export
-mapBox : (a -> b) -> Box a -> Box b
-mapBox f (MkBox xs) = MkBox (map (\(x, w) => (f x, w)) xs)
+dotCarrier : Ord k => Carrier k -> Carrier k -> BoxInt
+dotCarrier t1 t2 =
+  foldBoxTreeL (\acc, (c, w1) =>
+    let w2 = lookupBoxTree c t2
+    in acc + (w1 * w2))
+    (intToBoxInt 0)
+    t1
 
 public export
-Functor Box where
-  map = mapBox
+dotBox : Ord a => Box a -> Box a -> BoxInt
+dotBox = dotCarrier
+
+||| Cartesian outer product (OuterM): Carrier k1 -> Carrier k2 -> Carrier (k1, k2).
+public export
+outerCarrier : (Ord k1, Ord k2) => Carrier k1 -> Carrier k2 -> Carrier (k1, k2)
+outerCarrier m1 m2 =
+  foldBoxTreeL (\acc1, (c1, w1) =>
+    foldBoxTreeL (\acc2, (c2, w2) =>
+      addBoxTree (c1, c2) (w1 * w2) acc2)
+      acc1
+      m2)
+    BoxLeaf
+    m1
+
+public export
+tensorBox : (Ord a, Ord b) => Box a -> Box b -> Box (a, b)
+tensorBox = outerCarrier
+
+public export
+(><) : (Ord k1, Ord k2) => Box k1 -> Box k2 -> Box (k1, k2)
+(><) = outerCarrier
+
+||| Right index contraction / marginalization (ContractR):
+||| Sums out k2 to project Carrier (k1, k2) -> Carrier k1 (relational GROUP BY k1).
+public export
+contractR : Ord k1 => Carrier (k1, k2) -> Carrier k1
+contractR m =
+  foldBoxTreeL (\acc, ((c1, _), w) => addBoxTree c1 w acc) BoxLeaf m
+
+||| Left index contraction / marginalization (ContractL):
+||| Sums out k1 to project Carrier (k1, k2) -> Carrier k2 (relational GROUP BY k2).
+public export
+contractL : Ord k2 => Carrier (k1, k2) -> Carrier k2
+contractL m =
+  foldBoxTreeL (\acc, ((_, c2), w) => addBoxTree c2 w acc) BoxLeaf m
+
+||| Coordinate pushforward (f_* / aggregate): re-indexes a Carrier k1 along f : k1 -> k2,
+||| summing multiplicities of colliding coordinates in k2.
+public export
+pushforwardCarrier : Ord k2 => (k1 -> k2) -> Carrier k1 -> Carrier k2
+pushforwardCarrier f m =
+  foldBoxTreeL (\acc, (c1, w) => addBoxTree (f c1) w acc) BoxLeaf m
+
+public export
+mapBox : Ord b => (a -> b) -> Box a -> Box b
+mapBox = pushforwardCarrier
+
+||| Cauchy convolution (MulStatic) on Carrier k over any MonoidCoord k.
+public export
+mulCarrier : MonoidCoord k => Carrier k -> Carrier k -> Carrier k
+mulCarrier t1 t2 =
+  foldBoxTreeL (\treeAcc, (c1, w1) =>
+    foldBoxTreeL (\acc, (c2, w2) =>
+      let cOut = combine c1 c2
+          prod = mulBox w1 w2
+      in if boxIsZero prod then acc else addBoxTree cOut prod acc)
+      treeAcc
+      t2)
+    BoxLeaf
+    t1
+
+public export
+convCarrier : MonoidCoord k => Carrier k -> Carrier k -> Carrier k
+convCarrier = mulCarrier
 
 public export
 Foldable Box where
-  foldr f z (MkBox xs) = foldr (\(x, _), acc => f x acc) z xs
+  foldr f z t = foldBoxTreeR (\x, _, acc => f x acc) z t
 
 public export
-Eq a => MultisetAlgebra (Box a) where
-  zeroM     = emptyBox
-  addM      = unionBox
-  subM      = subBox
-  scaleM    = scaleBox
-  mulM      = hadamardBox
-  hadamardM = hadamardBox
-  minM      = minBox
-  maxM      = maxBox
-  dotM      = dotBox
+Ord a => Semigroup (Box a) where
+  (<+>) = addCarrier
+
+public export
+Ord a => Monoid (Box a) where
+  neutral = BoxLeaf
+
+public export
+Ord a => MultisetAlgebra (Box a) where
+  zeroM     = BoxLeaf
+  addM      = addCarrier
+  subM      = subCarrier
+  scaleM    = scaleCarrier
+  mulM      = hadamardCarrier
+  hadamardM = hadamardCarrier
+  minM      = minCarrier
+  maxM      = maxCarrier
+  dotM      = dotCarrier
+
+public export
+MonoidCoord k => Num (Box k) where
+  (+) = addCarrier
+  (*) = mulCarrier
+  fromInteger n = singletonCarrier origin (intToBoxInt n)
+
+public export
+MonoidCoord k => Neg (Box k) where
+  negate = scaleCarrier (intToBoxInt (-1))
+  (-) = subCarrier
 
 ------------------------------------------------------------------------
 -- 3. UNIFIED MULTISET COMBINATION, LATTICE & REACTION ALGEBRA

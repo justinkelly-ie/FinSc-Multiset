@@ -52,6 +52,13 @@ Eq Bit where
   _               == _               = True
 
 public export
+Ord Bit where
+  compare (MkToken ZeroM) (MkToken ZeroM) = EQ
+  compare (MkToken ZeroM) _               = LT
+  compare _               (MkToken ZeroM) = GT
+  compare _               _               = EQ
+
+public export
 Show Bit where
   show b = if isOne b then "1" else "0"
 

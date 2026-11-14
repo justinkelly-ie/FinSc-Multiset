@@ -23,6 +23,17 @@ Eq Geometry where
   (==) = geomEq
 
 public export
+geomRank : Geometry -> Nat
+geomRank Elliptic   = 0
+geomRank Hyperbolic = 1
+geomRank Parabolic  = 2
+geomRank Substrate  = 3
+
+public export
+Ord Geometry where
+  compare g1 g2 = compare (geomRank g1) (geomRank g2)
+
+public export
 Show Geometry where
   show Elliptic   = "Elliptic"
   show Hyperbolic = "Hyperbolic"
@@ -51,6 +62,15 @@ Eq GeometricPixel where
   (==) = geomPixelEq
 
 public export
+Ord GeometricPixel where
+  compare (MkGeometricPixel s1 t1 g1) (MkGeometricPixel s2 t2 g2) =
+    case compare s1 s2 of
+      EQ => case compare t1 t2 of
+              EQ => compare g1 g2
+              o  => o
+      o  => o
+
+public export
 Show GeometricPixel where
   show (MkGeometricPixel s t g) =
     "[" ++ show s ++ ", " ++ show t ++ "]_" ++ show g
@@ -72,41 +92,14 @@ Eq GeometricUnixel where
   (==) = geomUnixelEq
 
 public export
+Ord GeometricUnixel where
+  compare (MkGeometricUnixel i1 g1) (MkGeometricUnixel i2 g2) =
+    case compare i1 i2 of
+      EQ => compare g1 g2
+      o  => o
+
+public export
 Show GeometricUnixel where
   show (MkGeometricUnixel i g) =
     "[" ++ show i ++ "]_" ++ show g
-
-------------------------------------------------------------------------
--- 3. BACKWARD COMPATIBILITY ALIASES
-------------------------------------------------------------------------
-
-||| Deprecated: Use `Geometry` instead.
-public export %deprecate
-0 GeometrySector : Type
-GeometrySector = Geometry
-
-||| Deprecated: Use `GeometricPixel` instead.
-public export %deprecate
-0 MaxelUnit : Type
-MaxelUnit = GeometricPixel
-
-||| Deprecated: Use `MkGeometricPixel` instead.
-public export %deprecate
-MkMaxelUnit : Int -> Int -> Geometry -> GeometricPixel
-MkMaxelUnit = MkGeometricPixel
-
-||| Deprecated: Use `GeometricUnixel` instead.
-public export %deprecate
-0 VexelUnit : Type
-VexelUnit = GeometricUnixel
-
-||| Deprecated: Use `MkGeometricUnixel` instead.
-public export %deprecate
-MkVexelUnit : Int -> Geometry -> GeometricUnixel
-MkVexelUnit = MkGeometricUnixel
-
-||| Deprecated: Use `.geometry` instead.
-public export %deprecate
-sector : GeometricPixel -> Geometry
-sector p = p.geometry
 

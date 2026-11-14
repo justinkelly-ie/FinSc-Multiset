@@ -18,23 +18,18 @@ import public Stage0.Basis.GeometricPixel
 import public Stage0.Token
 import public Stage0.Bit
 import public Stage0.Bit2
-import public Stage0.Singleton.Bit
-import public Stage0.Singleton.Bit2
-import public Stage0.Singleton.Sing
-import public Stage0.Singleton.DepSing
 import public Stage0.OnSeq.FusedStream
 import public Stage0.OnSeq.OnMSet
 
 import public Stage1.Basis.Coordinate
 import public Stage1.Carrier.CellMultiset
-import public Stage1.Carrier.MaxelNonCommutativity
+import public Stage1.Carrier.Maxel
 import public Stage1.Carrier.BalanceArray
 import public Stage1.UnixelFraction
 
 import public Stage1.MultisetTree
 import public Stage1.MultisetTensor
 import public Stage1.MultisetDuality
-import public Stage1.HigherDuality
 import public Stage1.Polynumber
 import public Stage1.Order.Preorder
 import public Stage1.TypeTheory.TwoLevel
@@ -42,8 +37,6 @@ import public Stage1.TypeTheory.Staging
 import public Stage1.TypeTheory.MultisetLevel
 import public Stage1.TypeTheory.Smoothness
 import public Stage1.OnSeq
-import public Stage1.OnSeq.Staging
-import public Stage1.OnSeq.MultisetStaging
 import public Stage1.ScaleTransform
 import public Stage1.ConjugateHylo
 

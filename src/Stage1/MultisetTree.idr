@@ -1,7 +1,7 @@
 module Stage1.MultisetTree
 
 import Stage0.BoxInt
-import Stage0.Multiset
+import public Stage0.Multiset
 import Stage0.Token
 import Stage0.PrimeMultiset
 import Stage1.TypeTheory.Smoothness
@@ -153,16 +153,16 @@ public export
 lookupToken : Ord a => Token a -> MultisetTree a -> Nat
 lookupToken (MkToken x) tree = lookupTokenTree x tree
 
-||| Converts a linear Box multiset into a balanced logarithmic MultisetTree:
+||| Converts a Box multiset into a balanced logarithmic MultisetTree:
 public export
 fromBoxMultiset : Ord a => Box a -> MultisetTree a
-fromBoxMultiset (MkBox items) =
-  foldl (\acc, (x, w) => insertTokenTree x (boxToNat w) acc) Leaf items
+fromBoxMultiset b =
+  foldBoxTreeL (\acc, (x, w) => insertTokenTree x (boxToNat w) acc) Leaf b
 
-||| Converts a balanced MultisetTree back into a linear Box multiset in a single deforested O(N) pass:
+||| Converts a balanced MultisetTree back into a Box multiset in a single O(N log N) pass:
 public export
-toBoxMultiset : Eq a => MultisetTree a -> Box a
-toBoxMultiset tree = MkBox (foldTreeR (\x, c, acc => (x, natToBoxInt c) :: acc) [] tree)
+toBoxMultiset : Ord a => MultisetTree a -> Box a
+toBoxMultiset tree = foldTreeL (\acc, (x, c) => setBoxTree x (natToBoxInt c) acc) BoxLeaf tree
 
 ------------------------------------------------------------------------
 -- 2. ELABORATOR REFLECTION MACROS FOR MULTISETTREE
@@ -590,160 +590,8 @@ auditPrimeMultisetTree : Elab (Stage1.MultisetTree.auditPrimeMultisetTreeProof =
 auditPrimeMultisetTree = pure Refl
 
 ------------------------------------------------------------------------
--- 7. FAST BALANCED SIGNED BOXMULTISETTREE O(LOG N)
+-- 7. DEFORESTED STREAMING FOR UNIFIED BOX / BOXMULTISETTREE
 ------------------------------------------------------------------------
-
-||| AVL Height-Balanced Binary Search Tree for Signed BoxInt Multiplicities.
-||| Keys represent coordinates/tokens of type a, values represent exact signed integer weights.
-public export
-data BoxMultisetTree a =
-    BoxLeaf
-  | BoxNode Nat (BoxMultisetTree a) a BoxInt (BoxMultisetTree a)
-
-
-public export
-%inline
-boxHeight : BoxMultisetTree a -> Nat
-boxHeight BoxLeaf = Z
-boxHeight (BoxNode h _ _ _ _) = h
-
-public export
-%inline
-mkBoxNode : BoxMultisetTree a -> a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
-mkBoxNode l x c r =
-  let hl = boxHeight l
-      hr = boxHeight r
-      h  = S (if hl > hr then hl else hr)
-  in BoxNode h l x c r
-
-public export
-%inline
-rotateRightBox : BoxMultisetTree a -> a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
-rotateRightBox (BoxNode _ ll lx lc lr) x c r = mkBoxNode ll lx lc (mkBoxNode lr x c r)
-rotateRightBox l x c r = mkBoxNode l x c r
-
-public export
-%inline
-rotateLeftBox : BoxMultisetTree a -> a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
-rotateLeftBox l x c (BoxNode _ rl rx rc rr) = mkBoxNode (mkBoxNode l x c rl) rx rc rr
-rotateLeftBox l x c r = mkBoxNode l x c r
-
-public export
-balanceBoxNode : BoxMultisetTree a -> a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
-balanceBoxNode l x c r =
-  let hl = boxHeight l
-      hr = boxHeight r
-  in if hl > hr + 1
-       then case l of
-              BoxLeaf => mkBoxNode l x c r
-              BoxNode _ ll lx lc lr =>
-                if boxHeight ll >= boxHeight lr
-                  then rotateRightBox l x c r
-                  else rotateRightBox (rotateLeftBox ll lx lc lr) x c r
-       else if hr > hl + 1
-              then case r of
-                     BoxLeaf => mkBoxNode l x c r
-                     BoxNode _ rl rx rc rr =>
-                       if boxHeight rr >= boxHeight rl
-                         then rotateLeftBox l x c r
-                         else rotateLeftBox l x c (rotateRightBox rl rx rc rr)
-              else mkBoxNode l x c r
-
-||| Extracts the minimum (leftmost) key-weight pair and returns the rebalanced remaining subtree.
-public export
-deleteMinBoxNode : BoxMultisetTree a -> Maybe (a, BoxInt, BoxMultisetTree a)
-deleteMinBoxNode BoxLeaf = Nothing
-deleteMinBoxNode (BoxNode _ BoxLeaf x c r) = Just (x, c, r)
-deleteMinBoxNode (BoxNode _ l x c r) =
-  case deleteMinBoxNode l of
-    Nothing => Just (x, c, r)
-    Just (minK, minW, l') => Just (minK, minW, balanceBoxNode l' x c r)
-
-||| Removes the root of a BoxNode and rebalances its left and right subtrees.
-public export
-deleteRootBoxNode : BoxMultisetTree a -> a -> BoxMultisetTree a -> BoxMultisetTree a
-deleteRootBoxNode BoxLeaf _ r = r
-deleteRootBoxNode l _ BoxLeaf = l
-deleteRootBoxNode l _ r =
-  case deleteMinBoxNode r of
-    Nothing => l
-    Just (minK, minW, r') => balanceBoxNode l minK minW r'
-
-||| Monomorphic comparator-driven lookup in O(log N) time without Ord dictionary dispatch.
-public export
-lookupBoxTreeBy : (lt : a -> a -> Bool) -> (eq : a -> a -> Bool) -> a -> BoxMultisetTree a -> BoxInt
-lookupBoxTreeBy _ _ _ BoxLeaf = intToBoxInt 0
-lookupBoxTreeBy lt eq val (BoxNode _ l x c r) =
-  if eq val x then c
-  else if lt val x then lookupBoxTreeBy lt eq val l
-  else lookupBoxTreeBy lt eq val r
-
-||| Monomorphic comparator-driven set in O(log N) time, pruning zero-weight nodes on cancellation.
-public export
-setBoxTreeBy : (lt : a -> a -> Bool) -> (eq : a -> a -> Bool) -> a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
-setBoxTreeBy _ _ val w BoxLeaf =
-  if boxIsZero w then BoxLeaf else mkBoxNode BoxLeaf val w BoxLeaf
-setBoxTreeBy lt eq val w (BoxNode _ l x c r) =
-  if eq val x
-    then if boxIsZero w then deleteRootBoxNode l x r else mkBoxNode l x w r
-    else if lt val x
-      then balanceBoxNode (setBoxTreeBy lt eq val w l) x c r
-      else balanceBoxNode l x c (setBoxTreeBy lt eq val w r)
-
-||| Monomorphic comparator-driven additive update in a single O(log N) pass, pruning zero-weight nodes.
-public export
-addBoxTreeBy : (lt : a -> a -> Bool) -> (eq : a -> a -> Bool) -> a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
-addBoxTreeBy _ _ val dw BoxLeaf =
-  if boxIsZero dw then BoxLeaf else mkBoxNode BoxLeaf val dw BoxLeaf
-addBoxTreeBy lt eq val dw node@(BoxNode _ l x c r) =
-  if boxIsZero dw then node
-  else if eq val x
-    then let newW = addBox c dw
-         in if boxIsZero newW then deleteRootBoxNode l x r else mkBoxNode l x newW r
-    else if lt val x
-      then balanceBoxNode (addBoxTreeBy lt eq val dw l) x c r
-      else balanceBoxNode l x c (addBoxTreeBy lt eq val dw r)
-
-||| Lookups the signed BoxInt value of a key in O(log N) time:
-public export
-lookupBoxTree : Ord a => a -> BoxMultisetTree a -> BoxInt
-lookupBoxTree = lookupBoxTreeBy (<) (==)
-
-||| Sets the signed BoxInt value of a key in O(log N) time, removing the node when weight is zero.
-public export
-setBoxTree : Ord a => a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
-setBoxTree = setBoxTreeBy (<) (==)
-
-||| Adds a signed BoxInt delta to a key's weight in a single O(log N) pass, pruning zero-weight nodes.
-public export
-addBoxTree : Ord a => a -> BoxInt -> BoxMultisetTree a -> BoxMultisetTree a
-addBoxTree = addBoxTreeBy (<) (==)
-
-||| Structurally recursive in-order tree left fold accumulator for BoxMultisetTree.
-public export
-foldBoxTreeL : (f : b -> (a, BoxInt) -> b) -> b -> BoxMultisetTree a -> b
-foldBoxTreeL _ acc BoxLeaf = acc
-foldBoxTreeL f acc (BoxNode _ l x c r) =
-  let accL = foldBoxTreeL f acc l
-      accNode = f accL (x, c)
-  in foldBoxTreeL f accNode r
-
-||| Structurally recursive in-order tree right fold accumulator for BoxMultisetTree.
-public export
-foldBoxTreeR : (f : a -> BoxInt -> b -> b) -> b -> BoxMultisetTree a -> b
-foldBoxTreeR _ z BoxLeaf = z
-foldBoxTreeR f z (BoxNode _ l x c r) =
-  foldBoxTreeR f (f x c (foldBoxTreeR f z r)) l
-
-||| Flattens active non-zero elements into an association list in O(N) time.
-public export
-boxTreeToList : BoxMultisetTree a -> List (a, BoxInt)
-boxTreeToList tree = foldBoxTreeR (\x, c, acc => if boxIsNonZero c then (x, c) :: acc else acc) [] tree
-
-public export
-Show a => Show (BoxMultisetTree a) where
-  show t = "BoxMultisetTree(" ++ show (boxTreeToList t) ++ ")"
-
 
 ||| Traverses and pushes all left ancestor nodes of a BoxMultisetTree onto a search stack.
 public export
@@ -763,30 +611,6 @@ streamBoxMultisetTree tree =
     stepTree (BoxLeaf :: rest) = Skip rest
     stepTree (BoxNode _ _ x c r :: rest) = Yield (x, c) (pushLeftSubtreesBox r rest)
 
-||| Maps a function over all non-zero weights in a BoxMultisetTree, preserving AVL balance and key order.
-public export
-mapBoxTreeWeight : (BoxInt -> BoxInt) -> BoxMultisetTree a -> BoxMultisetTree a
-mapBoxTreeWeight _ BoxLeaf = BoxLeaf
-mapBoxTreeWeight f (BoxNode h l x c r) = BoxNode h (mapBoxTreeWeight f l) x (f c) (mapBoxTreeWeight f r)
-
-||| Evaluates the total number of coordinate nodes in a BoxMultisetTree.
-public export
-boxTreeSize : BoxMultisetTree a -> Nat
-boxTreeSize BoxLeaf = 0
-boxTreeSize (BoxNode _ l _ _ r) = S (boxTreeSize l + boxTreeSize r)
-
-||| Evaluates the number of active non-zero weight nodes in a BoxMultisetTree with zero allocations.
-public export
-treeSizeNonZero : BoxMultisetTree a -> Nat
-treeSizeNonZero = foldBoxTreeL (\acc, (_, w) => if boxIsNonZero w then S acc else acc) 0
-
-||| Definitional structural equality comparison between two BoxMultisetTrees via in-order list projection.
-||| Definitionally reducible at compile time in the core unifier.
-public export
-structuralBoxTreeEqual : Eq a => BoxMultisetTree a -> BoxMultisetTree a -> Bool
-structuralBoxTreeEqual t1 t2 =
-  boxTreeToList t1 == boxTreeToList t2
-
 ||| Zero-allocation equality comparison between two BoxMultisetTrees via deforested lockstep streaming.
 public export
 streamBoxTreeEqual : Eq a => BoxMultisetTree a -> BoxMultisetTree a -> Bool
@@ -798,14 +622,6 @@ streamBoxTreeEqual t1 t2 =
      else eqStreamNat ((boxTreeSize t1 + boxTreeSize t2 + 16) * 4)
                       (streamBoxMultisetTree t1)
                       (streamBoxMultisetTree t2)
-
-public export
-boxTreeEqual : Eq a => BoxMultisetTree a -> BoxMultisetTree a -> Bool
-boxTreeEqual = structuralBoxTreeEqual
-
-public export
-Eq a => Eq (BoxMultisetTree a) where
-  (==) = structuralBoxTreeEqual
 
 ||| Audit witness verifying BoxMultisetTree O(log N) lookup and streaming.
 public export

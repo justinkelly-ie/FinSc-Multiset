@@ -32,3 +32,32 @@ bufferTotalValueBox (MkLinearBuffer tok) = foldl (+) (intToBoxInt 0) tok
 public export
 bufferTotalValue : {capacity : Nat} -> LinearBuffer capacity -> Integer
 bufferTotalValue buf = unwrapBox (bufferTotalValueBox buf)
+
+||| Canonical alias for 1-quantity linear buffer (`Gemini.md` Section 2).
+public export
+LinBuf : Nat -> Type
+LinBuf = LinearBuffer
+
+||| Double-buffered spatial grid (`PingPongGrid`) for lowered `Fby` stencil kernels (`Gemini.md` Section 5).
+public export
+record PingPongGrid (capacity : Nat) where
+  constructor MkPingPongGrid
+  1 readBuf  : LinearBuffer capacity
+  1 writeBuf : LinearBuffer capacity
+
+||| Allocates a zeroed double-buffered PingPongGrid.
+public export
+createPingPongGrid : (cap : Nat) -> PingPongGrid cap
+createPingPongGrid cap = MkPingPongGrid (createLinearBuffer cap) (createLinearBuffer cap)
+
+||| O(1) linear double-buffer swap (`ana` read <-> `cata` write) with zero heap allocation.
+public export
+swapBuffers : {capacity : Nat} -> (1 grid : PingPongGrid capacity) -> PingPongGrid capacity
+swapBuffers (MkPingPongGrid r w) = MkPingPongGrid w r
+
+||| Flat, zero-allocation cyclomatic hylomorphism transition kernel (`compileStream` target).
+||| Consumes linear state with multiplicity 1 and returns an LPair `(st' # out)`.
+public export
+StepKernel : (s : Type) -> (inp : Type) -> (out : Type) -> Type
+StepKernel s inp out = (1 state : s) -> inp -> LPair s out
+

@@ -1,5 +1,6 @@
 module Stage1.Carrier.Maxel
 
+import Data.Fin
 import Data.Nat
 import Stage0.BoxInt
 import Stage0.Multiset
@@ -85,38 +86,17 @@ actMaxelVexel tm tv =
 ||| Extracts the i-th Row of a Maxel as a 1D Vexel: R_i(M) = [i] * M
 public export
 extractRowVexel : Nat -> Maxel -> Vexel
-extractRowVexel i tm =
-  let singI = mkUnixel i
-  in foldBoxTreeL (\acc, (pix, w) =>
-       case mulUnixelPixel singI pix of
-         Just sOut => addCellTree sOut w acc
-         Nothing   => acc)
-       BoxLeaf
-       tm
+extractRowVexel i tm = sliceCellMultiset FZ i tm
 
 ||| Extracts the j-th Column of a Maxel as a 1D Vexel: C_j(M) = M * [j]
 public export
 extractColVexel : Nat -> Maxel -> Vexel
-extractColVexel j tm =
-  let singJ = mkUnixel j
-  in foldBoxTreeL (\acc, (pix, w) =>
-       case mulPixelUnixel pix singJ of
-         Just sOut => addCellTree sOut w acc
-         Nothing   => acc)
-       BoxLeaf
-       tm
+extractColVexel j tm = sliceCellMultiset (FS FZ) j tm
 
 ||| Multiplies a column Vexel (ket) by a row Vexel (bra) to generate a Maxel:
 public export
 outerProductVexel : Vexel -> Vexel -> Maxel
-outerProductVexel tk tb =
-  foldBoxTreeL (\accTree, (k, kw) =>
-    foldBoxTreeL (\innerAcc, (b, bw) =>
-      addCellTree (unixelPairToPixel k b) (kw * bw) innerAcc)
-      accTree
-      tb)
-    BoxLeaf
-    tk
+outerProductVexel = outerProductVexels
 
 ||| Evaluates metric inner product <u, v>_g = u^T (g * v).
 public export
@@ -240,3 +220,107 @@ auditTransposeAntiAutomorphismProof =
       prodT = transposeMaxel (mulMaxel m1 m2)
       tProd = mulMaxel (transposeMaxel m2) (transposeMaxel m1)
   in (transposeMaxel (transposeMaxel m1) == m1) && (prodT == tProd)
+
+------------------------------------------------------------------------
+-- 3. PIXEL BASIS CONTRACTION & EMERGENT NON-COMMUTATIVITY THEOREMS
+------------------------------------------------------------------------
+
+||| Theorem 1 (Basis Propagation):
+||| When the column token of the first pixel matches the row token of the second,
+||| contraction propagates the outer boundary coordinates [A, C].
+public export
+0 prfContractionPropagation123 : mulPixel (mkPixel 1 2) (mkPixel 2 3) = Just (mkPixel 1 3)
+prfContractionPropagation123 = Refl
+
+||| Theorem 2 (Basis Annihilation):
+||| When the inner tokens mismatch (B /= C), the contraction product vanishes identically to Nothing.
+public export
+0 prfContractionAnnihilation1234 : mulPixel (mkPixel 1 2) (mkPixel 3 4) = Nothing
+prfContractionAnnihilation1234 = Refl
+
+||| Theorem 3 (Fermionic / Grassmann Nilpotency):
+||| Off-diagonal basis pixels square to zero: [A, B] * [A, B] = 0 when A /= B.
+public export
+0 prfGrassmannNilpotency12 : mulPixel (mkPixel 1 2) (mkPixel 1 2) = Nothing
+prfGrassmannNilpotency12 = Refl
+
+public export
+0 prfGrassmannNilpotency21 : mulPixel (mkPixel 2 1) (mkPixel 2 1) = Nothing
+prfGrassmannNilpotency21 = Refl
+
+||| Theorem 4 (Idempotent Basis Projection):
+||| Diagonal pixels act as idempotent projection operators: [A, A] * [A, A] = [A, A].
+public export
+0 prfIdempotentProjection11 : mulPixel (mkPixel 1 1) (mkPixel 1 1) = Just (mkPixel 1 1)
+prfIdempotentProjection11 = Refl
+
+public export
+0 prfIdempotentProjection22 : mulPixel (mkPixel 2 2) (mkPixel 2 2) = Just (mkPixel 2 2)
+prfIdempotentProjection22 = Refl
+
+||| Elementary Maxel basis unit [1, 2] with unit weight.
+public export
+M12 : Maxel
+M12 = singletonCell (mkPixel 1 2) (intToBoxInt 1)
+
+||| Elementary Maxel basis unit [2, 1] with unit weight.
+public export
+M21 : Maxel
+M21 = singletonCell (mkPixel 2 1) (intToBoxInt 1)
+
+||| Forward contraction product: [1, 2] * [2, 1] = [1, 1].
+public export
+M12_M21 : Maxel
+M12_M21 = mulMaxel M12 M21
+
+||| Reverse contraction product: [2, 1] * [1, 2] = [2, 2].
+public export
+M21_M12 : Maxel
+M21_M12 = mulMaxel M21 M12
+
+public export
+0 prfForwardProductWeight11 : lookupCellMultiset (mkPixel 1 1) Stage1.Carrier.Maxel.M12_M21 = intToBoxInt 1
+prfForwardProductWeight11 = Refl
+
+public export
+0 prfForwardProductWeight22 : lookupCellMultiset (mkPixel 2 2) Stage1.Carrier.Maxel.M12_M21 = intToBoxInt 0
+prfForwardProductWeight22 = Refl
+
+public export
+0 prfReverseProductWeight22 : lookupCellMultiset (mkPixel 2 2) Stage1.Carrier.Maxel.M21_M12 = intToBoxInt 1
+prfReverseProductWeight22 = Refl
+
+public export
+0 prfReverseProductWeight11 : lookupCellMultiset (mkPixel 1 1) Stage1.Carrier.Maxel.M21_M12 = intToBoxInt 0
+prfReverseProductWeight11 = Refl
+
+public export
+0 prfMaxelAddWeightEquivalence12 :
+  lookupCellMultiset (mkPixel 1 2) (addMaxel Stage1.Carrier.Maxel.M12 Stage1.Carrier.Maxel.M21) =
+  lookupCellMultiset (mkPixel 1 2) (addMaxel Stage1.Carrier.Maxel.M21 Stage1.Carrier.Maxel.M12)
+prfMaxelAddWeightEquivalence12 = Refl
+
+public export
+0 prfMaxelAddWeightEquivalence21 :
+  lookupCellMultiset (mkPixel 2 1) (addMaxel Stage1.Carrier.Maxel.M12 Stage1.Carrier.Maxel.M21) =
+  lookupCellMultiset (mkPixel 2 1) (addMaxel Stage1.Carrier.Maxel.M21 Stage1.Carrier.Maxel.M12)
+prfMaxelAddWeightEquivalence21 = Refl
+
+||| Decision boolean certifying that the forward product differs from the reverse product:
+||| M12 * M21 /= M21 * M12, establishing that non-commutativity emerges from pixel contraction.
+public export
+auditMaxelNonCommutativityProofExport : Bool
+auditMaxelNonCommutativityProofExport =
+  let w11_fwd = lookupCellMultiset (mkPixel 1 1) M12_M21
+      w22_fwd = lookupCellMultiset (mkPixel 2 2) M12_M21
+      w11_rev = lookupCellMultiset (mkPixel 1 1) M21_M12
+      w22_rev = lookupCellMultiset (mkPixel 2 2) M21_M12
+  in boxEq w11_fwd (intToBoxInt 1) &&
+     boxEq w22_fwd (intToBoxInt 0) &&
+     boxEq w11_rev (intToBoxInt 0) &&
+     boxEq w22_rev (intToBoxInt 1)
+
+||| Pure QTT 0-quantity compile-time proof witness that non-commutativity holds definitionally.
+public export
+0 prfAuditMaxelNonCommutativity : Stage1.Carrier.Maxel.auditMaxelNonCommutativityProofExport = True
+prfAuditMaxelNonCommutativity = Refl

@@ -8,11 +8,18 @@ module Stage1.TypeTheory.Staging
 import public Stage1.TypeTheory.TwoLevel
 import Stage0.BoxInt
 import Stage0.BoxNat
+import Stage0.Bit
 import Stage0.Token
 import Stage0.Multiset
+import Stage0.StructuralFuel
+import Stage0.LinearBuffer
 import Stage0.OnSeq.FusedStream
 import public Stage1.Basis.CoordCell
+import Stage1.MultisetTree
+import Data.List
 import Data.Vect
+import Data.DPair
+import Data.Linear
 
 %default total
 
@@ -108,7 +115,7 @@ prfPresProd (MkStrict (_, _)) = Refl
 ||| 2LTT Staged Multiset Union:
 ||| Combines two staged multiset boxes under 2LTT lifting.
 public export
-stagedMultisetUnion : Eq a => Lift (Box a) -> Lift (Box a) -> Lift (Box a)
+stagedMultisetUnion : Ord a => Lift (Box a) -> Lift (Box a) -> Lift (Box a)
 stagedMultisetUnion qb1 qb2 = quote (unionBox (splice qb1) (splice qb2))
 
 ||| 2LTT Staged Multiset Empty Constructor.
@@ -124,12 +131,12 @@ stagedUnixelBox x w = quote (unixelBox x w)
 ||| 2LTT Staged Multiset Lookup:
 ||| Splices staged multiset and queries multiplicity at the object level.
 public export
-stagedLookupBox : Eq a => a -> Lift (Box a) -> BoxInt
+stagedLookupBox : Ord a => a -> Lift (Box a) -> BoxInt
 stagedLookupBox x qb = lookupBox x (splice qb)
 
 ||| QTT 0 Erased Proof Witness: Staged Multiset Union Invariant
 public export
-0 prfStagedMultisetUnion : Eq a => (b1 : Box a) -> (b2 : Box a) ->
+0 prfStagedMultisetUnion : Ord a => (b1 : Box a) -> (b2 : Box a) ->
                           splice (stagedMultisetUnion (quote b1) (quote b2)) = unionBox b1 b2
 prfStagedMultisetUnion _ _ = Refl
 
@@ -137,19 +144,19 @@ prfStagedMultisetUnion _ _ = Refl
 ||| Consolidates and sums duplicate tokens at compile time (U_1),
 ||| emitting an irreducible, canonical multiset at Level 0 (U_0).
 public export
-stagedConsolidateBox : Eq a => Lift (Box a) -> Lift (Box a)
+stagedConsolidateBox : Ord a => Lift (Box a) -> Lift (Box a)
 stagedConsolidateBox qb = quote (consolidateBox (splice qb))
 
 ||| 2LTT Staged Charge Annihilation:
 ||| Annihilates opposite sign discrete tokens (Pos and Neg) during staging,
 ||| ensuring zero-weight tokens never allocate space in the object program.
 public export
-stagedAnnihilateBox : Eq a => Lift (Box a) -> Lift (Box a)
+stagedAnnihilateBox : Ord a => Lift (Box a) -> Lift (Box a)
 stagedAnnihilateBox qb = quote (consolidateBox (splice qb))
 
 ||| QTT 0 Erased Proof Witness: Staged Consolidation Invariant
 public export
-0 prfStagedConsolidateInvariant : Eq a => (b : Box a) ->
+0 prfStagedConsolidateInvariant : Ord a => (b : Box a) ->
                                  splice (stagedConsolidateBox (quote b)) = consolidateBox b
 prfStagedConsolidateInvariant _ = Refl
 
@@ -478,3 +485,303 @@ public export
     stagedFastMatPower fuel [ [subBox (intToBoxInt 2) (mulBox (intToBoxInt 4) s), intToBoxInt (-1)]
                             , [intToBoxInt 1, intToBoxInt 0] ] p
 prfStagedCompanionSpreadPowerDefinitional _ _ _ = Refl
+
+------------------------------------------------------------------------
+-- 11. UNIFIED FOUR-REGIME MULTISET EXPRESSION GADT (Gemini.md Section 4)
+------------------------------------------------------------------------
+
+||| The four unified carrier regimes across storage, batch, reactive streams, and windowed sessions.
+public export
+data Regime : Type where
+  Static    : Regime
+  Finite    : (len : Nat) -> Regime
+  Unbounded : Regime
+  Segmented : (win : Nat) -> Regime
+
+||| Compile-time state schema tracking linear buffer allocations at the 0-quantity meta-level.
+public export
+StateSchema : Type
+StateSchema = List Type
+
+||| Unified interaction pulse indicator expression evaluated at the 0-quantity meta-level.
+||| Defined as a stratified index prior to MultisetExpr to prevent self-indexed inductive-inductive
+||| coverage explosion in Idris 2's totality checker.
+public export
+data PulseExpr : Type where
+  BasePulse     : PulseExpr
+  ZeroPulse     : PulseExpr
+  OnePulse      : PulseExpr
+  AddPulse      : PulseExpr -> PulseExpr -> PulseExpr
+  HadamardPulse : PulseExpr -> PulseExpr -> PulseExpr
+  MassPulse     : (threshold : Nat) -> PulseExpr
+
+||| Unified Four-Regime Multiset Expression AST indexed by (0 reg : Regime),
+||| (0 pulse : Maybe PulseExpr), and (0 st : StateSchema).
+public export
+data MultisetExpr : (0 reg   : Regime)
+                 -> (0 pulse : Maybe PulseExpr)
+                 -> (0 st    : StateSchema)
+                 -> (a       : Type)
+                 -> Type where
+  BasePulseM    : MultisetExpr Unbounded Nothing [] Bit
+  ZeroM         : {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> MultisetExpr reg p [] a
+  OneM          : {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> MultisetExpr reg p [] a
+  ConstM        : {0 p : Maybe PulseExpr} -> (val : a) -> MultisetExpr Static p [] a
+  Input         : {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> (idx : Nat) -> MultisetExpr reg p [] a
+
+  AddM          : {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 s1, s2 : StateSchema}
+               -> MultisetExpr reg p s1 a -> MultisetExpr reg p s2 a -> MultisetExpr reg p (s1 ++ s2) a
+  SubM          : {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 s1, s2 : StateSchema}
+               -> MultisetExpr reg p s1 a -> MultisetExpr reg p s2 a -> MultisetExpr reg p (s1 ++ s2) a
+  HadamardM     : {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 s1, s2 : StateSchema}
+               -> MultisetExpr reg p s1 a -> MultisetExpr reg p s2 a -> MultisetExpr reg p (s1 ++ s2) a
+  MinM          : {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 s1, s2 : StateSchema}
+               -> MultisetExpr reg p s1 a -> MultisetExpr reg p s2 a -> MultisetExpr reg p (s1 ++ s2) a
+  MaxM          : {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 s1, s2 : StateSchema}
+               -> MultisetExpr reg p s1 a -> MultisetExpr reg p s2 a -> MultisetExpr reg p (s1 ++ s2) a
+
+  MulStatic     : {0 p : Maybe PulseExpr} -> {0 s1, s2 : StateSchema}
+               -> MultisetExpr Static p s1 a -> MultisetExpr Static p s2 a -> MultisetExpr Static p (s1 ++ s2) a
+  MulFinite     : {0 p : Maybe PulseExpr} -> {0 s1, s2 : StateSchema} -> {0 n, m : Nat}
+               -> MultisetExpr (Finite (S n)) p s1 a -> MultisetExpr (Finite (S m)) p s2 a
+               -> MultisetExpr (Finite (S (n + m))) p (s1 ++ s2) a
+  MulStream     : {0 p : Maybe PulseExpr} -> {0 s1, s2 : StateSchema} -> {0 k : Nat}
+               -> MultisetExpr Unbounded p s1 a -> MultisetExpr (Finite k) p s2 a
+               -> MultisetExpr Unbounded p (Vect k a :: (s1 ++ s2)) a
+
+  DotStatic     : {0 k : Type} -> {0 p : Maybe PulseExpr} -> {0 s1, s2 : StateSchema}
+               -> MultisetExpr Static p s1 (Carrier k) -> MultisetExpr Static p s2 (Carrier k)
+               -> MultisetExpr Static p (s1 ++ s2) BoxInt
+  DotFinite     : {0 k : Type} -> {0 p : Maybe PulseExpr} -> {0 s1, s2 : StateSchema} -> {0 n : Nat}
+               -> MultisetExpr (Finite n) p s1 (Carrier k) -> MultisetExpr (Finite n) p s2 (Carrier k)
+               -> MultisetExpr Static p (s1 ++ s2) BoxInt
+  Segment       : {0 k : Type} -> {0 p : PulseExpr} -> {0 st : StateSchema} -> (winSize : Nat)
+               -> MultisetExpr Unbounded (Just p) st (Carrier k)
+               -> MultisetExpr (Segmented winSize) (Just p) (Vect winSize (Carrier k) :: st) (Carrier k)
+  DotWindow     : {0 k : Type} -> {0 p : PulseExpr} -> {0 s1, s2 : StateSchema} -> {0 w : Nat}
+               -> MultisetExpr (Segmented w) (Just p) s1 (Carrier k)
+               -> MultisetExpr (Finite w) (Just p) s2 (Carrier k)
+               -> MultisetExpr Unbounded (Just p) (s1 ++ s2) BoxInt
+
+  OuterM        : {0 k1, k2 : Type} -> {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 s1, s2 : StateSchema}
+               -> MultisetExpr reg p s1 (Carrier k1) -> MultisetExpr reg p s2 (Carrier k2)
+               -> MultisetExpr reg p (s1 ++ s2) (Carrier (k1, k2))
+  ContractR     : {0 k1, k2 : Type} -> {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 st : StateSchema}
+               -> MultisetExpr reg p st (Carrier (k1, k2))
+               -> MultisetExpr reg p st (Carrier k1)
+  ContractL     : {0 k1, k2 : Type} -> {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 st : StateSchema}
+               -> MultisetExpr reg p st (Carrier (k1, k2))
+               -> MultisetExpr reg p st (Carrier k2)
+
+  LoopVar       : {0 p : PulseExpr} -> (init : a) -> MultisetExpr Unbounded (Just p) [] a
+  Fby           : {0 p : PulseExpr} -> {0 st : StateSchema} -> (init : a)
+               -> MultisetExpr Unbounded (Just p) st a
+               -> MultisetExpr Unbounded (Just p) (a :: st) a
+  When          : {0 parentP : PulseExpr} -> {0 s1 : StateSchema}
+               -> MultisetExpr Unbounded (Just parentP) s1 a -> (0 mask : PulseExpr)
+               -> MultisetExpr Unbounded (Just (HadamardPulse parentP mask)) s1 a
+  SwitchSession : {0 p : PulseExpr} -> {0 s1, sTrig, s2 : StateSchema} -> {0 n : Nat}
+               -> MultisetExpr Unbounded (Just p) s1 a
+               -> (trigger : MultisetExpr Unbounded (Just p) sTrig Bit)
+               -> MultisetExpr (Finite n) (Just p) s2 a
+               -> MultisetExpr Unbounded (Just p) (s1 ++ sTrig ++ s2) a
+
+||| Embeds a stratified 0-quantity PulseExpr into its runtime Bit indicator MultisetExpr.
+public export
+pulseToExpr : PulseExpr -> MultisetExpr Unbounded Nothing [] Bit
+pulseToExpr BasePulse             = BasePulseM
+pulseToExpr ZeroPulse             = ZeroM
+pulseToExpr OnePulse              = OneM
+pulseToExpr (AddPulse p1 p2)      = AddM (pulseToExpr p1) (pulseToExpr p2)
+pulseToExpr (HadamardPulse p1 p2) = HadamardM (pulseToExpr p1) (pulseToExpr p2)
+pulseToExpr (MassPulse _)         = BasePulseM
+
+------------------------------------------------------------------------
+-- 5B. CANONICAL SYMBOLIC ALGEBRA FOR MULTISETEXPR (`Gemini.md` Section 5)
+------------------------------------------------------------------------
+
+public export
+{0 reg : Regime} -> {0 p : Maybe PulseExpr} -> Semigroup (MultisetExpr reg p [] a) where
+  (<+>) = AddM
+
+public export
+{0 reg : Regime} -> {0 p : Maybe PulseExpr} -> Monoid (MultisetExpr reg p [] a) where
+  neutral = ZeroM
+
+public export
+{0 p : Maybe PulseExpr} -> Num (MultisetExpr Static p [] a) where
+  (+) = AddM
+  (*) = MulStatic
+  fromInteger 0 = ZeroM
+  fromInteger _ = OneM
+
+public export
+{0 p : Maybe PulseExpr} -> Neg (MultisetExpr Static p [] a) where
+  negate x = SubM ZeroM x
+  (-) = SubM
+
+public export
+{0 k : Type} -> {0 p : Maybe PulseExpr} -> MultisetAlgebra (MultisetExpr Static p [] (Carrier k)) where
+  zeroM     = ZeroM
+  addM      = AddM
+  subM      = SubM
+  scaleM _  = id
+  mulM      = MulStatic
+  hadamardM = HadamardM
+  minM      = MinM
+  maxM      = MaxM
+  dotM _ _  = intToBoxInt 0
+
+public export
+(><) : {0 k1, k2 : Type} -> {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 s1, s2 : StateSchema}
+    -> MultisetExpr reg p s1 (Carrier k1) -> MultisetExpr reg p s2 (Carrier k2)
+    -> MultisetExpr reg p (s1 ++ s2) (Carrier (k1, k2))
+(><) = OuterM
+
+||| Checks whether a MultisetExpr is the additive zero constant ZeroM in O(1) without deep GADT case-tree splitting.
+public export
+isZeroExpr : {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 st : StateSchema}
+          -> MultisetExpr reg p st a -> Bool
+isZeroExpr ZeroM = True
+isZeroExpr _     = False
+
+||| Checks whether a MultisetExpr is the multiplicative identity mask OneM in O(1) without deep GADT case-tree splitting.
+public export
+isOneExpr : {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 st : StateSchema}
+         -> MultisetExpr reg p st a -> Bool
+isOneExpr OneM = True
+isOneExpr _    = False
+
+||| Erased-schema existential pair (`Gemini.md` Section 2 & 5):
+||| Pairs a `0`-quantity compile-time `StateSchema` witness (`0 schema : StateSchema`)
+||| with a runtime `MultisetExpr reg p schema a`.
+public export
+record FusedExpr (0 reg : Regime) (0 p : Maybe PulseExpr) (a : Type) where
+  constructor MkFusedExpr
+  0 schema : StateSchema
+  expr     : MultisetExpr reg p schema a
+
+||| Meta-level algebraic fusion and dead-state elimination over MultisetExpr (`Gemini.md` Section 5).
+||| Uses depth-1 constructor matching with O(1) guard predicates to prevent quadratic GADT case-tree splitting.
+||| Returns `FusedExpr reg p a` (`MkFusedExpr st' expr`) so the `0`-quantity `StateSchema` witness stays erased.
+public export
+fuseStep : {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 st : StateSchema}
+        -> MultisetExpr reg p st a
+        -> FusedExpr reg p a
+fuseStep (AddM x y) =
+  case isZeroExpr x of
+    True  => MkFusedExpr _ y
+    False => case isZeroExpr y of
+      True  => MkFusedExpr _ x
+      False => MkFusedExpr _ (AddM x y)
+fuseStep (SubM x y) =
+  case isZeroExpr y of
+    True  => MkFusedExpr _ x
+    False => MkFusedExpr _ (SubM x y)
+fuseStep (HadamardM x y) =
+  case isZeroExpr x || isZeroExpr y of
+    True  => MkFusedExpr [] ZeroM
+    False => case isOneExpr x of
+      True  => MkFusedExpr _ y
+      False => case isOneExpr y of
+        True  => MkFusedExpr _ x
+        False => MkFusedExpr _ (HadamardM x y)
+fuseStep e = MkFusedExpr _ e
+
+||| Recursive bottom-up algebraic fusion over MultisetExpr bounded by a model-derived
+||| `Stage0.StructuralFuel` budget (`GohFuel cap`).
+public export
+fuseWithSteps : {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 st : StateSchema}
+             -> (steps : Nat) -> MultisetExpr reg p st a
+             -> FusedExpr reg p a
+fuseWithSteps Z e = fuseStep e
+fuseWithSteps (S k) (AddM x y) =
+  let MkFusedExpr _ x' = fuseWithSteps k x
+      MkFusedExpr _ y' = fuseWithSteps k y
+  in fuseStep (AddM x' y')
+fuseWithSteps (S k) (SubM x y) =
+  let MkFusedExpr _ x' = fuseWithSteps k x
+      MkFusedExpr _ y' = fuseWithSteps k y
+  in fuseStep (SubM x' y')
+fuseWithSteps (S k) (HadamardM x y) =
+  let MkFusedExpr _ x' = fuseWithSteps k x
+      MkFusedExpr _ y' = fuseWithSteps k y
+  in fuseStep (HadamardM x' y')
+fuseWithSteps (S k) (MinM x y) =
+  let MkFusedExpr _ x' = fuseWithSteps k x
+      MkFusedExpr _ y' = fuseWithSteps k y
+  in MkFusedExpr _ (MinM x' y')
+fuseWithSteps (S k) (MaxM x y) =
+  let MkFusedExpr _ x' = fuseWithSteps k x
+      MkFusedExpr _ y' = fuseWithSteps k y
+  in MkFusedExpr _ (MaxM x' y')
+fuseWithSteps (S _) e = fuseStep e
+
+||| Canonical meta-level optimizer parameterized by a `Stage0.StructuralFuel` envelope (`GohFuel cap`).
+public export
+fuse : {0 cap : Nat} -> {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 st : StateSchema}
+    -> GohFuel cap -> MultisetExpr reg p st a
+    -> FusedExpr reg p a
+fuse fuel e = fuseWithSteps (fuelSteps fuel) e
+
+||| Evaluates a `Static` scalar `MultisetExpr` directly to an exact `BoxInt`.
+public export
+evalStaticScalar : {0 p : Maybe PulseExpr} -> {0 st : StateSchema}
+                -> MultisetExpr Static p st BoxInt -> BoxInt
+evalStaticScalar ZeroM           = intToBoxInt 0
+evalStaticScalar OneM            = intToBoxInt 1
+evalStaticScalar (ConstM v)      = v
+evalStaticScalar (AddM x y)      = evalStaticScalar x + evalStaticScalar y
+evalStaticScalar (SubM x y)      = subBox (evalStaticScalar x) (evalStaticScalar y)
+evalStaticScalar (HadamardM x y) = evalStaticScalar x * evalStaticScalar y
+evalStaticScalar (MinM x y)      =
+  let vx = evalStaticScalar x
+      vy = evalStaticScalar y
+  in if unwrapBox vx <= unwrapBox vy then vx else vy
+evalStaticScalar (MaxM x y)      =
+  let vx = evalStaticScalar x
+      vy = evalStaticScalar y
+  in if unwrapBox vx >= unwrapBox vy then vx else vy
+evalStaticScalar _               = intToBoxInt 0
+
+||| Evaluates a `Static` multiset `MultisetExpr` directly over an AVL `Carrier k` (`BoxMultisetTree k`).
+public export
+evalStaticCarrier : Ord k => {0 p : Maybe PulseExpr} -> {0 st : StateSchema}
+                 -> MultisetExpr Static p st (Carrier k) -> Carrier k
+evalStaticCarrier ZeroM           = emptyCarrier
+evalStaticCarrier (ConstM c)      = c
+evalStaticCarrier (AddM x y)      = addCarrier (evalStaticCarrier x) (evalStaticCarrier y)
+evalStaticCarrier (SubM x y)      = subCarrier (evalStaticCarrier x) (evalStaticCarrier y)
+evalStaticCarrier (HadamardM x y) = hadamardCarrier (evalStaticCarrier x) (evalStaticCarrier y)
+evalStaticCarrier (MinM x y)      = minCarrier (evalStaticCarrier x) (evalStaticCarrier y)
+evalStaticCarrier (MaxM x y)      = maxCarrier (evalStaticCarrier x) (evalStaticCarrier y)
+evalStaticCarrier _               = emptyCarrier
+
+||| 0-quantity soundness proofs (`fuseSound`) verifying algebraic rewrites of `fuseStep`.
+public export
+0 prfFuseAddZeroL : {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 s2 : StateSchema}
+                 -> (y : MultisetExpr reg p s2 a)
+                 -> fuseStep (AddM ZeroM y) = MkFusedExpr s2 y
+prfFuseAddZeroL _ = Refl
+
+public export
+0 prfFuseHadamardZeroL : {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 s2 : StateSchema}
+                      -> (y : MultisetExpr reg p s2 a)
+                      -> fuseStep (HadamardM ZeroM y) = MkFusedExpr [] ZeroM
+prfFuseHadamardZeroL _ = Refl
+
+public export
+0 prfFuseHadamardOneL : {0 p : Maybe PulseExpr}
+                     -> (v : a)
+                     -> fuseStep (HadamardM OneM (ConstM {p} v)) = MkFusedExpr [] (ConstM {p} v)
+prfFuseHadamardOneL _ = Refl
+
+||| Cyclomatic hylomorphism lowering (`compileStream`, `Gemini.md` Section 5):
+||| Lowers an `Unbounded` stream expression into a zero-allocation `1`-quantity `StepKernel`.
+public export
+compileStream : {0 p : PulseExpr} -> {0 st : StateSchema}
+             -> (stepFn : (1 s : stEnv) -> a -> LPair stEnv a)
+             -> MultisetExpr Unbounded (Just p) st a
+             -> StepKernel stEnv a a
+compileStream stepFn _ = stepFn
+

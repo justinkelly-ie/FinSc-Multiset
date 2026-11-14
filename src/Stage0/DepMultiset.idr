@@ -1,7 +1,9 @@
 module Stage0.DepMultiset
 
+import Stage0.BoxInt
 import Stage0.Multiset
 import Stage0.LMultiset
+import Stage0.Token
 
 %default total
 
@@ -132,3 +134,23 @@ depMap1 : {0 contents : Multiset1 c a} ->
           DepMultiset1 c b (depMapContents1 f contents)
 depMap1 f (DepBaseM item count) = DepBaseM (f item) count
 depMap1 f (DepAddM1 item count prev) = DepAddM1 (f item) count (depMap1 f prev)
+
+------------------------------------------------------------------------
+-- DEPENDENT TOKEN INJECTION INTO DEPENDENT MULTISETS
+------------------------------------------------------------------------
+
+||| Injects a dependent token into a DepMultiset with unit multiplicity 1.
+public export
+depTokenToDepMultiset : Num c => DepToken a x -> DepMultiset c a (AddM x 1 ZeroM)
+depTokenToDepMultiset (MkDepToken x) = DepAddM x 1 DepEmptyM
+
+||| Injects a dependent token into a BoxInt DepMultiset with unit weight MkBoxInt 1.
+public export
+depTokenToBoxDepMultiset : DepToken a x -> DepMultiset BoxInt a (AddM x (intToBoxInt 1) ZeroM)
+depTokenToBoxDepMultiset (MkDepToken x) = DepAddM x (intToBoxInt 1) DepEmptyM
+
+||| Injects a weighted dependent token into a DepMultiset with its type-level weight.
+public export
+depTokenWeightedToDepMultiset : DepTokenWeighted c a x w -> DepMultiset c a (AddM x w ZeroM)
+depTokenWeightedToDepMultiset (MkDepTokenWeighted x w) = DepAddM x w DepEmptyM
+

@@ -40,8 +40,16 @@ data DepTokenWeighted : (c : Type) -> (a : Type) -> a -> c -> Type where
 ------------------------------------------------------------------------
 
 public export
+Eq Void where
+  _ == _ = True
+
+public export
 Eq a => Eq (Token a) where
   (MkToken x) == (MkToken y) = x == y
+
+public export
+Ord a => Ord (Token a) where
+  compare (MkToken x) (MkToken y) = compare x y
 
 public export
 Show a => Show (Token a) where
@@ -55,9 +63,14 @@ public export
 Show a => Show (LToken a) where
   show (MkLToken x) = "LToken(" ++ show x ++ ")"
 
+||| Maps a coordinate function over an atomic Token.
+public export
+mapToken : (a -> b) -> Token a -> Token b
+mapToken f (MkToken x) = MkToken (f x)
+
 public export
 Functor Token where
-  map f (MkToken x) = MkToken (f x)
+  map = mapToken
 
 public export
 Applicative Token where
@@ -70,8 +83,55 @@ Monad Token where
 
 public export
 Foldable Token where
-  foldr f acc (MkToken x) = f x acc
-  foldl f acc (MkToken x) = f acc x
+  foldr f z (MkToken x) = f x z
+  foldl f z (MkToken x) = f z x
+  null _ = False
+  toList (MkToken x) = [x]
+  foldMap f (MkToken x) = f x
+
+||| Converts a dependent token to an untyped Token.
+public export
+depTokenToToken : DepToken a x -> Token a
+depTokenToToken (MkDepToken x) = MkToken x
+
+||| Projects the coordinate Token and weight from a weighted dependent token.
+public export
+depTokenWeightedToToken : DepTokenWeighted c a x w -> (Token a, c)
+depTokenWeightedToToken (MkDepTokenWeighted x w) = (MkToken x, w)
+
+------------------------------------------------------------------------
+-- 2B. DIRECTED TOKEN TRANSITION RELATION
+------------------------------------------------------------------------
+
+||| A directed transition relation between two coordinates (src -> tgt).
+public export
+record SingRelation (a : Type) where
+  constructor MkSingRelation
+  src : a
+  tgt : a
+
+public export
+TokenRelation : Type -> Type
+TokenRelation = SingRelation
+
+public export
+MkTokenRelation : a -> a -> SingRelation a
+MkTokenRelation = MkSingRelation
+
+public export
+Eq a => Eq (SingRelation a) where
+  (MkSingRelation s1 t1) == (MkSingRelation s2 t2) = s1 == s2 && t1 == t2
+
+public export
+Ord a => Ord (SingRelation a) where
+  compare (MkSingRelation s1 t1) (MkSingRelation s2 t2) =
+    case compare s1 s2 of
+      EQ => compare t1 t2
+      c  => c
+
+public export
+Show a => Show (SingRelation a) where
+  show (MkSingRelation s t) = show s ++ " -> " ++ show t
 
 ------------------------------------------------------------------------
 -- 3. QTT LINEAR PROTOCOLS & COMBINATORS
