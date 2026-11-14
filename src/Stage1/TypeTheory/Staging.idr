@@ -116,7 +116,7 @@ prfPresProd (MkStrict (_, _)) = Refl
 ||| Combines two staged multiset boxes under 2LTT lifting.
 public export
 stagedMultisetUnion : Ord a => Lift (Box a) -> Lift (Box a) -> Lift (Box a)
-stagedMultisetUnion qb1 qb2 = quote (unionBox (splice qb1) (splice qb2))
+stagedMultisetUnion qb1 qb2 = quote (splice qb1 <+> splice qb2)
 
 ||| 2LTT Staged Multiset Empty Constructor.
 public export
@@ -137,7 +137,7 @@ stagedLookupBox x qb = lookupBox x (splice qb)
 ||| QTT 0 Erased Proof Witness: Staged Multiset Union Invariant
 public export
 0 prfStagedMultisetUnion : Ord a => (b1 : Box a) -> (b2 : Box a) ->
-                          splice (stagedMultisetUnion (quote b1) (quote b2)) = unionBox b1 b2
+                          splice (stagedMultisetUnion (quote b1) (quote b2)) = b1 <+> b2
 prfStagedMultisetUnion _ _ = Refl
 
 ||| 2LTT Staged Multiset Consolidation:
@@ -652,7 +652,7 @@ isOneExpr : {0 reg : Regime} -> {0 p : Maybe PulseExpr} -> {0 st : StateSchema}
 isOneExpr OneM = True
 isOneExpr _    = False
 
-||| Erased-schema existential pair (`Gemini.md` Section 2 & 5):
+||| Erased-schema existential pair (`Gemini.md` Section 2 & 6):
 ||| Pairs a `0`-quantity compile-time `StateSchema` witness (`0 schema : StateSchema`)
 ||| with a runtime `MultisetExpr reg p schema a`.
 public export
@@ -661,7 +661,7 @@ record FusedExpr (0 reg : Regime) (0 p : Maybe PulseExpr) (a : Type) where
   0 schema : StateSchema
   expr     : MultisetExpr reg p schema a
 
-||| Meta-level algebraic fusion and dead-state elimination over MultisetExpr (`Gemini.md` Section 5).
+||| Meta-level algebraic fusion and dead-state elimination over MultisetExpr (`Gemini.md` Section 6).
 ||| Uses depth-1 constructor matching with O(1) guard predicates to prevent quadratic GADT case-tree splitting.
 ||| Returns `FusedExpr reg p a` (`MkFusedExpr st' expr`) so the `0`-quantity `StateSchema` witness stays erased.
 public export
@@ -732,8 +732,9 @@ evalStaticScalar ZeroM           = intToBoxInt 0
 evalStaticScalar OneM            = intToBoxInt 1
 evalStaticScalar (ConstM v)      = v
 evalStaticScalar (AddM x y)      = evalStaticScalar x + evalStaticScalar y
-evalStaticScalar (SubM x y)      = subBox (evalStaticScalar x) (evalStaticScalar y)
+evalStaticScalar (SubM x y)      = evalStaticScalar x - evalStaticScalar y
 evalStaticScalar (HadamardM x y) = evalStaticScalar x * evalStaticScalar y
+evalStaticScalar (MulStatic x y) = evalStaticScalar x * evalStaticScalar y
 evalStaticScalar (MinM x y)      =
   let vx = evalStaticScalar x
       vy = evalStaticScalar y
@@ -748,14 +749,29 @@ evalStaticScalar _               = intToBoxInt 0
 public export
 evalStaticCarrier : Ord k => {0 p : Maybe PulseExpr} -> {0 st : StateSchema}
                  -> MultisetExpr Static p st (Carrier k) -> Carrier k
-evalStaticCarrier ZeroM           = emptyCarrier
+evalStaticCarrier ZeroM           = neutral
 evalStaticCarrier (ConstM c)      = c
-evalStaticCarrier (AddM x y)      = addCarrier (evalStaticCarrier x) (evalStaticCarrier y)
-evalStaticCarrier (SubM x y)      = subCarrier (evalStaticCarrier x) (evalStaticCarrier y)
-evalStaticCarrier (HadamardM x y) = hadamardCarrier (evalStaticCarrier x) (evalStaticCarrier y)
-evalStaticCarrier (MinM x y)      = minCarrier (evalStaticCarrier x) (evalStaticCarrier y)
-evalStaticCarrier (MaxM x y)      = maxCarrier (evalStaticCarrier x) (evalStaticCarrier y)
-evalStaticCarrier _               = emptyCarrier
+evalStaticCarrier (AddM x y)      = evalStaticCarrier x <+> evalStaticCarrier y
+evalStaticCarrier (SubM x y)      = subM (evalStaticCarrier x) (evalStaticCarrier y)
+evalStaticCarrier (HadamardM x y) = evalStaticCarrier x .*. evalStaticCarrier y
+evalStaticCarrier (MinM x y)      = evalStaticCarrier x /\ evalStaticCarrier y
+evalStaticCarrier (MaxM x y)      = evalStaticCarrier x \/ evalStaticCarrier y
+evalStaticCarrier _               = neutral
+
+||| Evaluates a `Static` multiset `MultisetExpr` over a `MonoidCoord k` carrier,
+||| additionally evaluating Cauchy convolution (`MulStatic`).
+public export
+evalStaticCarrierMonoid : (Ord k, MonoidCoord k) => {0 p : Maybe PulseExpr} -> {0 st : StateSchema}
+                       -> MultisetExpr Static p st (Carrier k) -> Carrier k
+evalStaticCarrierMonoid ZeroM           = neutral
+evalStaticCarrierMonoid (ConstM c)      = c
+evalStaticCarrierMonoid (AddM x y)      = evalStaticCarrierMonoid x + evalStaticCarrierMonoid y
+evalStaticCarrierMonoid (SubM x y)      = evalStaticCarrierMonoid x - evalStaticCarrierMonoid y
+evalStaticCarrierMonoid (MulStatic x y) = evalStaticCarrierMonoid x * evalStaticCarrierMonoid y
+evalStaticCarrierMonoid (HadamardM x y) = evalStaticCarrierMonoid x .*. evalStaticCarrierMonoid y
+evalStaticCarrierMonoid (MinM x y)      = evalStaticCarrierMonoid x /\ evalStaticCarrierMonoid y
+evalStaticCarrierMonoid (MaxM x y)      = evalStaticCarrierMonoid x \/ evalStaticCarrierMonoid y
+evalStaticCarrierMonoid _               = neutral
 
 ||| 0-quantity soundness proofs (`fuseSound`) verifying algebraic rewrites of `fuseStep`.
 public export
@@ -776,7 +792,7 @@ public export
                      -> fuseStep (HadamardM OneM (ConstM {p} v)) = MkFusedExpr [] (ConstM {p} v)
 prfFuseHadamardOneL _ = Refl
 
-||| Cyclomatic hylomorphism lowering (`compileStream`, `Gemini.md` Section 5):
+||| Two-phase register/loop lowering (`compileStream`, `Gemini.md` Section 6):
 ||| Lowers an `Unbounded` stream expression into a zero-allocation `1`-quantity `StepKernel`.
 public export
 compileStream : {0 p : PulseExpr} -> {0 st : StateSchema}

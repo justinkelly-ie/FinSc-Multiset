@@ -669,16 +669,6 @@ multiplyGeometricPixels (MkStream {s=sL} nextL seedL) (MkStream {s=sR} nextR see
           then Yield (MkGeometricPixel (source ml) (target mr) (geometry ml)) (sl, sr', Just ml)
           else Skip (sl, sr', Just ml) -- Deforests non-matching cross-terms to Skip!
 
-||| Deprecated: Use `multiplyGeometricPixels` instead.
-public export %inline %deprecate
-multiplyMaxelUnits : FusedStream GeometricPixel -> FusedStream GeometricPixel -> FusedStream GeometricPixel
-multiplyMaxelUnits = multiplyGeometricPixels
-
-||| Deprecated: Use `multiplyGeometricPixels` instead.
-public export %inline %deprecate
-multiplyMaxels : FusedStream GeometricPixel -> FusedStream GeometricPixel -> FusedStream GeometricPixel
-multiplyMaxels = multiplyGeometricPixels
-
 ||| Folds a deforested stream of GeometricPixels into a consolidated Multiset with explicit Fuel.
 public export
 unstreamToMultiset : Fuel -> FusedStream GeometricPixel -> Multiset BoxInt GeometricPixel

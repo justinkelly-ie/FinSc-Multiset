@@ -159,9 +159,166 @@ public export
 implementation (Show a, Show b) => Show (LPair a b) where
   show (x # y) = "(" ++ show x ++ " # " ++ show y ++ ")"
 
+public export
+joinSumFin : (m, n : Nat) -> Either (Fin m) (Fin n) -> Fin (m + n)
+joinSumFin m n (Left i)  = weakenN n i
+joinSumFin m n (Right j) = shift m j
+
+public export
+splitSumCons : Either (Fin m) (Fin n) -> Either (Fin (S m)) (Fin n)
+splitSumCons (Left i)  = Left (FS i)
+splitSumCons (Right j) = Right j
+
+public export
+splitSumFin : (m, n : Nat) -> Fin (m + n) -> Either (Fin m) (Fin n)
+splitSumFin Z     n j      = Right j
+splitSumFin (S m) n FZ     = Left FZ
+splitSumFin (S m) n (FS k) = splitSumCons (splitSumFin m n k)
+
+public export
+0 joinSumSplitCons : (m, n : Nat) -> (sp : Either (Fin m) (Fin n))
+                  -> joinSumFin (S m) n (splitSumCons sp) = FS (joinSumFin m n sp)
+joinSumSplitCons m n (Left i)  = Refl
+joinSumSplitCons m n (Right j) = Refl
+
+public export
+0 splitJoinSum : (m, n : Nat) -> (e : Either (Fin m) (Fin n))
+              -> splitSumFin m n (joinSumFin m n e) = e
+splitJoinSum Z     n (Left i)      = absurd i
+splitJoinSum (S m) n (Left FZ)     = Refl
+splitJoinSum (S m) n (Left (FS i)) = cong splitSumCons (splitJoinSum m n (Left i))
+splitJoinSum Z     n (Right j)     = Refl
+splitJoinSum (S m) n (Right j)     = cong splitSumCons (splitJoinSum m n (Right j))
+
+public export
+0 joinSplitSum : (m, n : Nat) -> (k : Fin (m + n))
+              -> joinSumFin m n (splitSumFin m n k) = k
+joinSplitSum Z     n j      = Refl
+joinSplitSum (S m) n FZ     = Refl
+joinSplitSum (S m) n (FS k) =
+  trans (joinSumSplitCons m n (splitSumFin m n k)) (cong FS (joinSplitSum m n k))
+
+public export
+pairFinCons : (Fin m, Fin n) -> (Fin (S m), Fin n)
+pairFinCons (i, j) = (FS i, j)
+
+public export
+pairToFin : (m, n : Nat) -> Fin m -> Fin n -> Fin (m * n)
+pairToFin Z     _ i      _ = absurd i
+pairToFin (S m) n FZ     j = joinSumFin n (m * n) (Left j)
+pairToFin (S m) n (FS i) j = joinSumFin n (m * n) (Right (pairToFin m n i j))
+
+mutual
+  public export
+  finToPair : (m, n : Nat) -> Fin (m * n) -> (Fin m, Fin n)
+  finToPair Z     _ k = absurd k
+  finToPair (S m) n k = unpairFinStep m n (splitSumFin n (m * n) k)
+
+  public export
+  unpairFinStep : (m, n : Nat) -> Either (Fin n) (Fin (m * n)) -> (Fin (S m), Fin n)
+  unpairFinStep m n (Left j)     = (FZ, j)
+  unpairFinStep m n (Right rest) = pairFinCons (finToPair m n rest)
+
+public export
+0 finPairLeftInv : (m, n : Nat) -> (i : Fin m) -> (j : Fin n)
+                -> finToPair m n (pairToFin m n i j) = (i, j)
+finPairLeftInv Z     _ i      _ = absurd i
+finPairLeftInv (S m) n FZ     j = cong (unpairFinStep m n) (splitJoinSum n (m * n) (Left j))
+finPairLeftInv (S m) n (FS i) j =
+  trans (cong (unpairFinStep m n) (splitJoinSum n (m * n) (Right (pairToFin m n i j))))
+        (cong pairFinCons (finPairLeftInv m n i j))
+
+public export
+0 pairFinConsRound : (m, n : Nat) -> (p : (Fin m, Fin n))
+                  -> uncurry (pairToFin (S m) n) (pairFinCons p)
+                     = joinSumFin n (m * n) (Right (uncurry (pairToFin m n) p))
+pairFinConsRound m n (i, j) = Refl
+
+mutual
+  public export
+  0 unpairFinRound : (m, n : Nat) -> (sp : Either (Fin n) (Fin (m * n)))
+                  -> uncurry (pairToFin (S m) n) (unpairFinStep m n sp) = joinSumFin n (m * n) sp
+  unpairFinRound m n (Left j)     = Refl
+  unpairFinRound m n (Right rest) =
+    trans (pairFinConsRound m n (finToPair m n rest))
+          (cong (joinSumFin n (m * n) . Right) (finPairRightInv m n rest))
+
+  public export
+  0 finPairRightInv : (m, n : Nat) -> (k : Fin (m * n))
+                   -> uncurry (pairToFin m n) (finToPair m n k) = k
+  finPairRightInv Z     _ k = absurd k
+  finPairRightInv (S m) n k =
+    trans (unpairFinRound m n (splitSumFin n (m * n) k))
+          (joinSplitSum n (m * n) k)
+
+public export
+eitherCoordToIndex : FiniteCoord a => FiniteCoord b
+                  => Either a b -> Either (Fin (cardinality {k = a})) (Fin (cardinality {k = b}))
+eitherCoordToIndex (Left x)  = Left (toIndex x)
+eitherCoordToIndex (Right y) = Right (toIndex y)
+
+public export
+eitherIndexToCoord : FiniteCoord a => FiniteCoord b
+                  => Either (Fin (cardinality {k = a})) (Fin (cardinality {k = b})) -> Either a b
+eitherIndexToCoord (Left i)  = Left (fromIndex i)
+eitherIndexToCoord (Right j) = Right (fromIndex j)
+
+public export
+0 eitherIndexRound : (FiniteCoord a, FiniteCoord b)
+                  => (sp : Either (Fin (cardinality {k = a})) (Fin (cardinality {k = b})))
+                  -> eitherCoordToIndex {a} {b} (eitherIndexToCoord {a} {b} sp) = sp
+eitherIndexRound (Left i)  = cong Left (rightInv i)
+eitherIndexRound (Right j) = cong Right (rightInv j)
+
+public export
+(FiniteCoord a, FiniteCoord b) => FiniteCoord (Either a b) where
+  cardinality = cardinality {k = a} + cardinality {k = b}
+  toIndex e = joinSumFin (cardinality {k = a}) (cardinality {k = b}) (eitherCoordToIndex e)
+  fromIndex k = eitherIndexToCoord (splitSumFin (cardinality {k = a}) (cardinality {k = b}) k)
+  leftInv (Left x) =
+    trans (cong eitherIndexToCoord (splitJoinSum (cardinality {k = a}) (cardinality {k = b}) (Left (toIndex x))))
+          (cong Left (leftInv x))
+  leftInv (Right y) =
+    trans (cong eitherIndexToCoord (splitJoinSum (cardinality {k = a}) (cardinality {k = b}) (Right (toIndex y))))
+          (cong Right (leftInv y))
+  rightInv k =
+    trans (cong (joinSumFin (cardinality {k = a}) (cardinality {k = b})) (eitherIndexRound {a} {b} (splitSumFin (cardinality {k = a}) (cardinality {k = b}) k)))
+          (joinSplitSum (cardinality {k = a}) (cardinality {k = b}) k)
+
+public export
+pairCoordToIndex : FiniteCoord a => FiniteCoord b
+                => (a, b) -> (Fin (cardinality {k = a}), Fin (cardinality {k = b}))
+pairCoordToIndex (x, y) = (toIndex x, toIndex y)
+
+public export
+pairIndexToCoord : FiniteCoord a => FiniteCoord b
+                => (Fin (cardinality {k = a}), Fin (cardinality {k = b})) -> (a, b)
+pairIndexToCoord (i, j) = (fromIndex i, fromIndex j)
+
+public export
+0 pairIndexRound : (FiniteCoord a, FiniteCoord b)
+                => (p : (Fin (cardinality {k = a}), Fin (cardinality {k = b})))
+                -> pairCoordToIndex {a} {b} (pairIndexToCoord {a} {b} p) = p
+pairIndexRound (i, j) = rewrite rightInv {k = a} i in rewrite rightInv {k = b} j in Refl
+
+public export
+(FiniteCoord a, FiniteCoord b) => FiniteCoord (a, b) where
+  cardinality = cardinality {k = a} * cardinality {k = b}
+  toIndex p = uncurry (pairToFin (cardinality {k = a}) (cardinality {k = b})) (pairCoordToIndex p)
+  fromIndex k = pairIndexToCoord (finToPair (cardinality {k = a}) (cardinality {k = b}) k)
+  leftInv (x, y) =
+    rewrite finPairLeftInv (cardinality {k = a}) (cardinality {k = b}) (toIndex x) (toIndex y) in
+    rewrite leftInv x in
+    rewrite leftInv y in Refl
+  rightInv k =
+    trans (cong (uncurry (pairToFin (cardinality {k = a}) (cardinality {k = b})))
+                (pairIndexRound {a} {b} (finToPair (cardinality {k = a}) (cardinality {k = b}) k)))
+          (finPairRightInv (cardinality {k = a}) (cardinality {k = b}) k)
+
 -----------------------------------------------------------------------
 -- 1. CORE LINEAR INTERFACES
 -----------------------------------------------------------------------
+
 
 ||| LConsumable: A protocol for destroying linear resources.
 public export

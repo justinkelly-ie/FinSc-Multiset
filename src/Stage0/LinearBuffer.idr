@@ -38,7 +38,7 @@ public export
 LinBuf : Nat -> Type
 LinBuf = LinearBuffer
 
-||| Double-buffered spatial grid (`PingPongGrid`) for lowered `Fby` stencil kernels (`Gemini.md` Section 5).
+||| Double-buffered spatial grid (`PingPongGrid`) for lowered `Fby` stencil kernels (`Gemini.md` Section 6).
 public export
 record PingPongGrid (capacity : Nat) where
   constructor MkPingPongGrid
@@ -50,12 +50,12 @@ public export
 createPingPongGrid : (cap : Nat) -> PingPongGrid cap
 createPingPongGrid cap = MkPingPongGrid (createLinearBuffer cap) (createLinearBuffer cap)
 
-||| O(1) linear double-buffer swap (`ana` read <-> `cata` write) with zero heap allocation.
+||| O(1) linear double-buffer swap (`unfold` read <-> `fold` write) with zero heap allocation.
 public export
 swapBuffers : {capacity : Nat} -> (1 grid : PingPongGrid capacity) -> PingPongGrid capacity
 swapBuffers (MkPingPongGrid r w) = MkPingPongGrid w r
 
-||| Flat, zero-allocation cyclomatic hylomorphism transition kernel (`compileStream` target).
+||| Flat, zero-allocation two-phase unfold/fold transition kernel (`compileStream` target).
 ||| Consumes linear state with multiplicity 1 and returns an LPair `(st' # out)`.
 public export
 StepKernel : (s : Type) -> (inp : Type) -> (out : Type) -> Type

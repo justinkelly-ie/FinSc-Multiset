@@ -123,12 +123,12 @@ streamToCellMultiset strm =
 ||| Adds two cell multisets by merging coordinate weights in a single pass per node.
 public export
 addCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
-addCellMultiset = addCarrier
+addCellMultiset = (<+>)
 
 ||| Scales a cell multiset by a BoxInt scalar.
 public export
 scaleCellMultiset : {dim : Nat} -> BoxInt -> CellMultiset dim -> CellMultiset dim
-scaleCellMultiset = scaleCarrier
+scaleCellMultiset = scaleM
 
 ||| Computes total weight across all cells in a CellMultiset.
 public export
@@ -155,9 +155,9 @@ liftCoordCellToken f BoxLeaf = BoxLeaf
 liftCoordCellToken f (BoxNode _ l c w r) =
   let leftM = liftCoordCellToken f l
       rightM = liftCoordCellToken f r
-      thisM = if boxIsZero w then BoxLeaf
-              else scaleCellMultiset w (f (MkToken c))
-  in addCellMultiset (addCellMultiset leftM thisM) rightM
+      thisM = if boxIsZero w then neutral
+              else scaleM w (f (MkToken c))
+  in (leftM <+> thisM) <+> rightM
 
 ||| Canonical free multiset spatial pushforward alias for CellMultisets.
 public export
@@ -194,14 +194,9 @@ public export
 cellTerms : {dim : Nat} -> CellMultiset dim -> List (CoordCell dim, BoxInt)
 cellTerms = boxTreeToList
 
-||| Universal tree field identity projection for backwards compatibility with (.tree).
-public export
-tree : CellMultiset dim -> CellMultiset dim
-tree t = t
-
 public export
 subCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
-subCellMultiset = subCarrier
+subCellMultiset = subM
 
 ||| Rebuilds a canonical CellMultiset by filtering non-zero weights and rebalancing.
 public export
@@ -216,21 +211,6 @@ canonicalizeCell = canonicalizeCellMultiset
 public export
 compressMaxel : Maxel -> Maxel
 compressMaxel = canonicalizeCellMultiset
-
-||| Extracts the finite active support of a CellMultiset as a list.
-||| @deprecated Use supportCellStream (FusedStream). Materializing support as List is forbidden by Rule 04 §8.
-public export
-supportCellMultiset : {dim : Nat} -> CellMultiset dim -> List (CoordCell dim)
-supportCellMultiset t =
-  foldBoxTreeR (\c, w, acc => if boxIsNonZero w then c :: acc else acc) [] t
-
-public export
-supportMaxel : Maxel -> List Pixel
-supportMaxel = supportCellMultiset
-
-public export
-supportVexel : Vexel -> List Unixel
-supportVexel = supportCellMultiset
 
 ||| Deforested zero-allocation stream extractor for the active support of a Maxel (Rule 04 §8).
 public export
@@ -249,31 +229,31 @@ supportVexelStream = supportCellStream
 ||| Evaluates the canonical Frobenius / multiset inner product between two CellMultisets directly via Box.
 public export
 dotCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> BoxInt
-dotCellMultiset = dotCarrier
+dotCellMultiset = (<.>)
 
 ||| Evaluates the Hadamard (pointwise) product between two CellMultisets directly via Box:
 ||| (A ⊙ B)(c) = A(c) * B(c) in O(N log N) AVL tree operations.
 public export
 hadamardCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
-hadamardCellMultiset = hadamardCarrier
+hadamardCellMultiset = (.*.)
 
 ||| Evaluates the Tropical infimum / lattice intersection between two CellMultisets:
 ||| (A ⊓ B)(c) = min(A(c), B(c)) in O(N log N) AVL tree operations.
 public export
 minCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
-minCellMultiset = minCarrier
+minCellMultiset = (/\)
 
 ||| Evaluates the Tropical supremum / join between two CellMultisets:
 ||| (A ⊔ B)(c) = max(A(c), B(c)) in O((N + M) log(N + M)) AVL tree operations.
 public export
 maxCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
-maxCellMultiset = maxCarrier
+maxCellMultiset = (\/)
 
 ||| Evaluates multi-dimensional Cauchy convolution of two CellMultisets via vector coordinate addition:
 ||| (A * B)(c1 + c2) = A(c1) * B(c2).
 public export
 convCellMultiset : {dim : Nat} -> CellMultiset dim -> CellMultiset dim -> CellMultiset dim
-convCellMultiset = mulCarrier
+convCellMultiset = (*)
 
 ||| Evaluates the inner product between two CellMultisets directly via FusedStream (Rule 04 §8).
 public export
