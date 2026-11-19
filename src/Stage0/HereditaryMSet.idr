@@ -606,3 +606,126 @@ hyperOpFuelOfHMSet : MultisetWeight c =>
 hyperOpFuelOfHMSet Z cap mA mB = multiStreamFuelOfHMSet cap AdditiveMode mA mB
 hyperOpFuelOfHMSet (S Z) cap mA mB = pairHyperOpFuelHM ConvolutionalMode 0 cap mA mB
 hyperOpFuelOfHMSet (S (S _)) cap mA mB = pairHyperOpFuelHM CaretationMode boundaryBracketOverhead cap mA mB
+
+------------------------------------------------------------------------
+-- 7. O(1) CACHED SUPPORT ENVELOPE (`CachedHMSet c`) & `Dec` RECOGNIZER
+------------------------------------------------------------------------
+
+public export
+Eq SupportStats where
+  a == b = a.nnz == b.nnz && a.totalMass == b.totalMass && a.maxDeg == b.maxDeg
+
+public export
+Show SupportStats where
+  show s = "SupportStats(nnz=" ++ show s.nnz ++ ", mass=" ++ show s.totalMass ++ ", maxDeg=" ++ show s.maxDeg ++ ")"
+
+||| Non-breaking O(1) cached support wrapper preserving `BoxNode` and `MkHMSet`
+||| source compatibility while caching `stats` and `treeHeight`.
+public export
+record CachedHMSet (c : Type) where
+  constructor MkCachedHMSet
+  hmset      : HereditaryMSet c
+  stats      : SupportStats
+  treeHeight : Nat
+
+public export
+MultisetWeight c => Eq (CachedHMSet c) where
+  a == b =
+    a.hmset == b.hmset
+      && a.stats == b.stats
+      && a.treeHeight == b.treeHeight
+
+public export
+(Show c, MultisetWeight c) => Show (CachedHMSet c) where
+  show c = "CachedHMSet(h=" ++ show c.treeHeight ++ ", " ++ show c.stats ++ ", " ++ show c.hmset ++ ")"
+
+||| O(1) root AVL height accessor over `HereditaryMSet c`.
+public export
+hmBoxHeight : HereditaryMSet c -> Nat
+hmBoxHeight (MkHMSet rootBox) = boxHeight rootBox
+
+public export
+emptyCachedHMSet : MultisetWeight c => CachedHMSet c
+emptyCachedHMSet = MkCachedHMSet emptyHMSet emptySupportStats 0
+
+||| Computes `stats` and `treeHeight` once for repeated O(1) fuel sizing.
+public export
+cacheHMSet : MultisetWeight c => HereditaryMSet c -> CachedHMSet c
+cacheHMSet m@(MkHMSet rootBox) =
+  MkCachedHMSet m (collectSupportStats rootBox) (boxHeight rootBox)
+
+||| O(1) single-operand `(yieldFuel, stepBudget)` sizer from cached `SupportStats`.
+public export
+fuelOfCachedHMSetWith : (Nat -> Nat) -> (cap : Nat) -> CachedHMSet c -> (GohFuel cap, Nat)
+fuelOfCachedHMSetWith fuelFn cap cm =
+  mkBudgetFromStatsWith fuelFn cap (fastNatPower2 cm.treeHeight) cm.stats
+
+public export
+fuelOfCachedHMSet : (cap : Nat) -> CachedHMSet c -> (GohFuel cap, Nat)
+fuelOfCachedHMSet = fuelOfCachedHMSetWith gohFuelNat
+
+||| O(1) uncapped intrinsic self-fuel extractor reading only cached fields.
+public export
+selfFuelOfCachedHMSetWith : (Nat -> Nat) -> CachedHMSet c -> (AnyGohFuel, Nat)
+selfFuelOfCachedHMSetWith fuelFn cm =
+  let treeBound  = fastNatPower2 cm.treeHeight
+      cap        = cm.stats.nnz + S cm.stats.maxDeg
+      ySteps     = fuelFn cap
+      yieldFuel  = MkGohFuel ySteps
+      stepBudget = ySteps + treeBound + cm.stats.nnz
+  in (MkAnyGohFuel cap yieldFuel, stepBudget)
+
+public export
+selfFuelOfCachedHMSet : CachedHMSet c -> (AnyGohFuel, Nat)
+selfFuelOfCachedHMSet = selfFuelOfCachedHMSetWith gohFuelNat
+
+||| O(1) level-aware `hyperOp` fuel sizer reading only cached `stats` and `treeHeight`.
+public export
+hyperOpFuelOfCachedHMSetWith : (Nat -> Nat) ->
+                               (level : Nat) ->
+                               (cap : Nat) ->
+                               CachedHMSet c ->
+                               CachedHMSet c ->
+                               (GohFuel cap, Nat)
+hyperOpFuelOfCachedHMSetWith fuelFn Z cap a b =
+  let treeBound = fastNatPower2 a.treeHeight + fastNatPower2 b.treeHeight
+      combined  = combineSupportStats AdditiveMode a.stats b.stats
+  in mkBudgetFromStatsWith fuelFn cap treeBound combined
+hyperOpFuelOfCachedHMSetWith fuelFn (S Z) cap a b =
+  let baseBound = fastNatPower2 (a.treeHeight + b.treeHeight)
+      combined  = combineSupportStats ConvolutionalMode a.stats b.stats
+  in mkBudgetFromStatsWith fuelFn cap baseBound combined
+hyperOpFuelOfCachedHMSetWith fuelFn (S (S _)) cap a b =
+  let baseBound = fastNatPower2 (a.treeHeight + b.treeHeight) + boundaryBracketOverhead
+      combined  = combineSupportStats CaretationMode a.stats b.stats
+  in mkBudgetFromStatsWith fuelFn cap baseBound combined
+
+public export
+hyperOpFuelOfCachedHMSet : (level : Nat) ->
+                           (cap : Nat) ->
+                           CachedHMSet c ->
+                           CachedHMSet c ->
+                           (GohFuel cap, Nat)
+hyperOpFuelOfCachedHMSet = hyperOpFuelOfCachedHMSetWith gohFuelNat
+
+||| Boolean invariant verifying cached `stats` and `treeHeight` match `carrier`.
+public export
+isCacheConsistent : MultisetWeight c => CachedHMSet c -> Bool
+isCacheConsistent (MkCachedHMSet (MkHMSet rootBox) st h) =
+  (st == collectSupportStats rootBox) && (h == boxHeight rootBox)
+
+||| Constructive `Dec` recognizer certifying cache consistency of a `CachedHMSet c`
+||| (`recognition-rule.md`).
+public export
+recognizeCachedHMSet : MultisetWeight c => (cm : CachedHMSet c) -> Dec (isCacheConsistent cm = True)
+recognizeCachedHMSet cm = decideBoolTrue (isCacheConsistent cm)
+
+public export
+0 prfCachedFuelMatchesDirect :
+  (Stage0.HereditaryMSet.hyperOpFuelOfCachedHMSet 1 210
+     (Stage0.HereditaryMSet.cacheHMSet Stage0.HereditaryMSet.symmetricMotionTick)
+     (Stage0.HereditaryMSet.cacheHMSet Stage0.HereditaryMSet.symmetricMotionTick)
+   == Stage0.HereditaryMSet.hyperOpFuelOfHMSet 1 210
+        Stage0.HereditaryMSet.symmetricMotionTick
+        Stage0.HereditaryMSet.symmetricMotionTick) = True
+prfCachedFuelMatchesDirect = Refl

@@ -1296,27 +1296,20 @@ buildRadialShells (MkHMSet box) =
   in headZero ++ zipShells negDesc (reverse posRev)
 
 private
-toEntriesList : MultisetWeight c => HereditaryMSet c -> List (HereditaryMSet c, c)
-toEntriesList (MkHMSet box) =
-  reverse $ foldBoxTreeL (\acc, (k, w) => if isZero w then acc else (k, w) :: acc) [] box
-
-private
-insertShellPairs : MultisetWeight c =>
-                   Nat ->
-                   List (HereditaryMSet c, c) ->
-                   List (HereditaryMSet c, c) ->
-                   Box c (HereditaryMSet c) ->
-                   Box c (HereditaryMSet c)
-insertShellPairs _ [] _ acc = acc
-insertShellPairs innerLevel ((k1, w1) :: rest1) entriesB acc =
-  let acc1 = foldl (\bAcc, (k2, w2) =>
-                     let wProd = mulWeight w1 w2
-                     in if isZero wProd
-                          then bAcc
-                          else addAtKeyBox (hyperOp innerLevel k1 k2) wProd bAcc)
-                   acc
-                   entriesB
-  in insertShellPairs innerLevel rest1 entriesB acc1
+insertEntryAgainstBox : MultisetWeight c =>
+                        Nat ->
+                        (HereditaryMSet c, c) ->
+                        Box c (HereditaryMSet c) ->
+                        Box c (HereditaryMSet c) ->
+                        Box c (HereditaryMSet c)
+insertEntryAgainstBox innerLevel (k1, w1) boxB acc =
+  foldBox (\k2, w2, bAcc =>
+            let wProd = mulWeight w1 w2
+            in if isZero wProd
+                 then bAcc
+                 else addAtKeyBox (hyperOp innerLevel k1 k2) wProd bAcc)
+          acc
+          boxB
 
 ||| Consume `n` steps of Idris 2's `Data.Fuel`, returning `Nothing` on `Dry`.
 public export
@@ -1347,7 +1340,8 @@ runDecoupledDataFuel yFuel sFuel stepFn combineFn initAcc seed =
         Skip st'   => loop (More yNext) sNext yU (S sU) acc st'
         Yield x st' => loop yNext sNext (S yU) (S sU) (combineFn x acc) st'
 
-||| Symmetric radial shell convolution driven directly by Idris 2 `Data.Fuel`.
+||| Deforested bidirectional McBride zipper convolution driven directly by Idris 2 `Data.Fuel`
+||| with zero intermediate `List` allocation.
 public export
 runSymmetricRadialConvDataFuel : MultisetWeight c =>
                                  (innerLevel : Nat) ->
@@ -1356,32 +1350,65 @@ runSymmetricRadialConvDataFuel : MultisetWeight c =>
                                  HereditaryMSet c ->
                                  HereditaryMSet c ->
                                  (HereditaryMSet c, FreezeReason, Nat, Nat)
-runSymmetricRadialConvDataFuel innerLevel yFuel sFuel mA mB =
-  let shells   = buildRadialShells mA
-      entriesB = toEntriesList mB
-      nnzB     = length entriesB
-  in loopShells shells yFuel sFuel 0 0 entriesB nnzB BoxLeaf
+runSymmetricRadialConvDataFuel innerLevel yFuel sFuel (MkHMSet boxA) (MkHMSet boxB) =
+  let nnzA = countNonZeroBox boxA
+      nnzB = countNonZeroBox boxB
+  in if nnzA == 0 || nnzB == 0
+       then (MkHMSet BoxLeaf, NaturalCompletion, 0, 0)
+       else
+         let useAOuter  = nnzA >= nnzB
+             outerBox   = if useAOuter then boxA else boxB
+             innerBox   = if useAOuter then boxB else boxA
+             innerNnz   = if useAOuter then nnzB else nnzA
+             rad0       = initRadialZipper (emptyHMSet {c}) outerBox
+         in loopZip (S (boxNodeCount outerBox)) rad0 yFuel sFuel 0 0 innerBox innerNnz BoxLeaf
   where
-    loopShells : List (List (HereditaryMSet c, c)) ->
-                 Fuel -> Fuel -> Nat -> Nat ->
-                 List (HereditaryMSet c, c) -> Nat ->
-                 Box c (HereditaryMSet c) ->
-                 (HereditaryMSet c, FreezeReason, Nat, Nat)
-    loopShells [] _ _ yU sU _ _ acc =
+    loopZip : Nat ->
+              RadialBoxZipper c (HereditaryMSet c) ->
+              Fuel -> Fuel -> Nat -> Nat ->
+              Box c (HereditaryMSet c) -> Nat ->
+              Box c (HereditaryMSet c) ->
+              (HereditaryMSet c, FreezeReason, Nat, Nat)
+    loopZip Z _ _ _ yU sU _ _ acc =
       (MkHMSet acc, NaturalCompletion, yU, sU)
-    loopShells (sh :: rest) yRem sRem yU sU entriesB nnzB acc =
-      let need = length sh * nnzB
-      in case consumeDataFuel need sRem of
-           Nothing => (MkHMSet acc, StepHorizonReached, yU, sU)
-           Just sRem' =>
-             case consumeDataFuel need yRem of
-               Nothing => (MkHMSet acc, YieldExhausted, yU, sU)
-               Just yRem' =>
-                 let acc' = insertShellPairs innerLevel sh entriesB acc
-                 in loopShells rest yRem' sRem' (yU + need) (sU + need) entriesB nnzB acc'
+    loopZip (S rem) rad yRem sRem yU sU innerBox innerNnz acc =
+      case stepRadialZipper (S rem) rad of
+        RadialDone =>
+          (MkHMSet acc, NaturalCompletion, yU, sU)
+        RadialOrigin e nextRad =>
+          let need = innerNnz
+          in case consumeDataFuel need sRem of
+               Nothing => (MkHMSet acc, StepHorizonReached, yU, sU)
+               Just sRem' =>
+                 case consumeDataFuel need yRem of
+                   Nothing => (MkHMSet acc, YieldExhausted, yU, sU)
+                   Just yRem' =>
+                     let acc' = insertEntryAgainstBox innerLevel e innerBox acc
+                     in loopZip rem nextRad yRem' sRem' (yU + need) (sU + need) innerBox innerNnz acc'
+        RadialSingle e nextRad =>
+          let need = innerNnz
+          in case consumeDataFuel need sRem of
+               Nothing => (MkHMSet acc, StepHorizonReached, yU, sU)
+               Just sRem' =>
+                 case consumeDataFuel need yRem of
+                   Nothing => (MkHMSet acc, YieldExhausted, yU, sU)
+                   Just yRem' =>
+                     let acc' = insertEntryAgainstBox innerLevel e innerBox acc
+                     in loopZip rem nextRad yRem' sRem' (yU + need) (sU + need) innerBox innerNnz acc'
+        RadialPair e1 e2 nextRad =>
+          let need = innerNnz + innerNnz
+          in case consumeDataFuel need sRem of
+               Nothing => (MkHMSet acc, StepHorizonReached, yU, sU)
+               Just sRem' =>
+                 case consumeDataFuel need yRem of
+                   Nothing => (MkHMSet acc, YieldExhausted, yU, sU)
+                   Just yRem' =>
+                     let acc1 = insertEntryAgainstBox innerLevel e1 innerBox acc
+                         acc2 = insertEntryAgainstBox innerLevel e2 innerBox acc1
+                     in loopZip rem nextRad yRem' sRem' (yU + need) (sU + need) innerBox innerNnz acc2
 
-||| Symmetric radial shell convolution bounded by `GohFuel cap`, halting cleanly
-||| before an outer shell exceeds remaining yields (`YieldExhausted`).
+||| Deforested bidirectional McBride zipper convolution bounded by `GohFuel cap`,
+||| preserving exact UV-IR shell symmetry across `YieldExhausted` freeze horizons.
 public export
 runSymmetricRadialConv : MultisetWeight c =>
                          (innerLevel : Nat) ->
@@ -1390,28 +1417,59 @@ runSymmetricRadialConv : MultisetWeight c =>
                          HereditaryMSet c ->
                          HereditaryMSet c ->
                          SolidifiedCarrier cap (HereditaryMSet c)
-runSymmetricRadialConv innerLevel yFuel stepBudget mA mB =
-  let shells   = buildRadialShells mA
-      entriesB = toEntriesList mB
-      nnzB     = length entriesB
-  in loopShells shells (gohSteps yFuel) stepBudget entriesB nnzB BoxLeaf
+runSymmetricRadialConv innerLevel yFuel stepBudget (MkHMSet boxA) (MkHMSet boxB) =
+  let nnzA = countNonZeroBox boxA
+      nnzB = countNonZeroBox boxB
+  in if nnzA == 0 || nnzB == 0
+       then MkSolidifiedCarrier (MkHMSet BoxLeaf) NaturalCompletion yFuel stepBudget
+       else
+         let useAOuter = nnzA >= nnzB
+             outerBox  = if useAOuter then boxA else boxB
+             innerBox  = if useAOuter then boxB else boxA
+             innerNnz  = if useAOuter then nnzB else nnzA
+             rad0      = initRadialZipper (emptyHMSet {c}) outerBox
+         in loopZip (S (boxNodeCount outerBox)) rad0 (gohSteps yFuel) stepBudget innerBox innerNnz BoxLeaf
   where
-    loopShells : List (List (HereditaryMSet c, c)) ->
-                 Nat -> Nat ->
-                 List (HereditaryMSet c, c) -> Nat ->
-                 Box c (HereditaryMSet c) ->
-                 SolidifiedCarrier cap (HereditaryMSet c)
-    loopShells [] yRem sRem _ _ acc =
+    loopZip : Nat ->
+              RadialBoxZipper c (HereditaryMSet c) ->
+              Nat -> Nat ->
+              Box c (HereditaryMSet c) -> Nat ->
+              Box c (HereditaryMSet c) ->
+              SolidifiedCarrier cap (HereditaryMSet c)
+    loopZip Z _ yRem sRem _ _ acc =
       MkSolidifiedCarrier (MkHMSet acc) NaturalCompletion (MkGohFuel yRem) sRem
-    loopShells (sh :: rest) yRem sRem entriesB nnzB acc =
-      let need = length sh * nnzB
-      in if need > sRem
-           then MkSolidifiedCarrier (MkHMSet acc) StepHorizonReached (MkGohFuel yRem) sRem
-         else if need > yRem
-           then MkSolidifiedCarrier (MkHMSet acc) YieldExhausted (MkGohFuel yRem) sRem
-         else
-           let acc' = insertShellPairs innerLevel sh entriesB acc
-           in loopShells rest (minus yRem need) (minus sRem need) entriesB nnzB acc'
+    loopZip (S rem) rad yRem sRem innerBox innerNnz acc =
+      case stepRadialZipper (S rem) rad of
+        RadialDone =>
+          MkSolidifiedCarrier (MkHMSet acc) NaturalCompletion (MkGohFuel yRem) sRem
+        RadialOrigin e nextRad =>
+          let need = innerNnz
+          in if need > sRem
+               then MkSolidifiedCarrier (MkHMSet acc) StepHorizonReached (MkGohFuel yRem) sRem
+             else if need > yRem
+               then MkSolidifiedCarrier (MkHMSet acc) YieldExhausted (MkGohFuel yRem) sRem
+             else
+               let acc' = insertEntryAgainstBox innerLevel e innerBox acc
+               in loopZip rem nextRad (minus yRem need) (minus sRem need) innerBox innerNnz acc'
+        RadialSingle e nextRad =>
+          let need = innerNnz
+          in if need > sRem
+               then MkSolidifiedCarrier (MkHMSet acc) StepHorizonReached (MkGohFuel yRem) sRem
+             else if need > yRem
+               then MkSolidifiedCarrier (MkHMSet acc) YieldExhausted (MkGohFuel yRem) sRem
+             else
+               let acc' = insertEntryAgainstBox innerLevel e innerBox acc
+               in loopZip rem nextRad (minus yRem need) (minus sRem need) innerBox innerNnz acc'
+        RadialPair e1 e2 nextRad =>
+          let need = innerNnz + innerNnz
+          in if need > sRem
+               then MkSolidifiedCarrier (MkHMSet acc) StepHorizonReached (MkGohFuel yRem) sRem
+             else if need > yRem
+               then MkSolidifiedCarrier (MkHMSet acc) YieldExhausted (MkGohFuel yRem) sRem
+             else
+               let acc1 = insertEntryAgainstBox innerLevel e1 innerBox acc
+                   acc2 = insertEntryAgainstBox innerLevel e2 innerBox acc1
+               in loopZip rem nextRad (minus yRem need) (minus sRem need) innerBox innerNnz acc2
 
 ||| Legacy left-to-right zipper `hyperOp` evaluator (kept for regression control).
 public export

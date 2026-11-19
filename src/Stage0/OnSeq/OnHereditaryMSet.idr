@@ -205,15 +205,59 @@ recognizeGohPrimeSum n =
                         Yes (q ** (prQ, prf)) => Yes (MkHasGohPrimeSum 13 q Prime13 prQ prf)
                         No c13 => No (\(MkHasGohPrimeSum _ _ prP prQ eqPrf) => refuteFirstPrf n c2 c3 c5 c7 c11 c13 prP prQ eqPrf)
 
-||| Evaluates `gohSteps` using a certified `GohPrimeSum` split when `n`
-||| decomposes into `p + q = n`, falling back to `gohFuelNat n` otherwise.
+||| Recursive 13-smooth `GohPrime` sum partition witness for arbitrary `n : Nat`.
+public export
+data GohPrimePartition : (n : Nat) -> Type where
+  PartZero  : GohPrimePartition 0
+  PartUnit  : GohPrimePartition 1
+  PartPrime : (p : Nat) -> GohPrime p -> GohPrimePartition p
+  PartAdd   : (p : Nat) -> GohPrime p -> {rem : Nat} -> GohPrimePartition rem -> GohPrimePartition (p + rem)
+
+||| Lowers any `GohPrimePartition n` to a sequential `GohFuel n` envelope.
+public export
+partitionFuel : {n : Nat} -> GohPrimePartition n -> GohFuel n
+partitionFuel PartZero              = gohFuelForCapacity 0
+partitionFuel PartUnit              = gohFuelForCapacity 1
+partitionFuel (PartPrime p _)       = gohFuelForCapacity p
+partitionFuel (PartAdd p _ rest)    = sequentialFuel (gohFuelForCapacity p) (partitionFuel rest)
+
+||| Total structural builder decomposing any capacity `n` (including macroscopic `210+`)
+||| into certified 13-smooth `GohPrime` segments (preferring exact 2-prime Goldbach pairs
+||| when available, and chunking larger inputs by `Prime13`).
+public export
+buildGohPrimePartition : (n : Nat) -> GohPrimePartition n
+buildGohPrimePartition 0  = PartZero
+buildGohPrimePartition 1  = PartUnit
+buildGohPrimePartition 2  = PartPrime 2 Prime2
+buildGohPrimePartition 3  = PartPrime 3 Prime3
+buildGohPrimePartition 4  = PartAdd 2 Prime2 (PartPrime 2 Prime2)
+buildGohPrimePartition 5  = PartAdd 2 Prime2 (PartPrime 3 Prime3)
+buildGohPrimePartition 6  = PartAdd 3 Prime3 (PartPrime 3 Prime3)
+buildGohPrimePartition 7  = PartAdd 2 Prime2 (PartPrime 5 Prime5)
+buildGohPrimePartition 8  = PartAdd 3 Prime3 (PartPrime 5 Prime5)
+buildGohPrimePartition 9  = PartAdd 2 Prime2 (PartPrime 7 Prime7)
+buildGohPrimePartition 10 = PartAdd 3 Prime3 (PartPrime 7 Prime7)
+buildGohPrimePartition 11 = PartPrime 11 Prime11
+buildGohPrimePartition 12 = PartAdd 5 Prime5 (PartPrime 7 Prime7)
+buildGohPrimePartition 13 = PartAdd 2 Prime2 (PartPrime 11 Prime11)
+buildGohPrimePartition 14 = PartAdd 3 Prime3 (PartPrime 11 Prime11)
+buildGohPrimePartition (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S k))))))))))))))) =
+  case recognizeGohPrimeSum (15 + k) of
+    Yes (MkHasGohPrimeSum p q prP prQ eqPrf) =>
+      rewrite sym eqPrf in PartAdd p prP (PartPrime q prQ)
+    No _ =>
+      PartAdd 13 Prime13 (buildGohPrimePartition (S (S k)))
+
+||| Generalized 13-smooth `GohPrime` partitioned fuel step count valid for all `n : Nat`.
+public export
+decomposedPrimeFuelNat : (n : Nat) -> Nat
+decomposedPrimeFuelNat n = gohSteps (partitionFuel (buildGohPrimePartition n))
+
+||| Evaluates `gohSteps` using certified 13-smooth `GohPrime` splitting for arbitrary `n : Nat`
+||| (`4 -> 8`, `8 -> 15`, `24 -> 39`, `210 -> 340`).
 public export
 primeSplitFuelNat : (n : Nat) -> Nat
-primeSplitFuelNat n =
-  case recognizeGohPrimeSum n of
-    Yes (MkHasGohPrimeSum p q prP prQ eqPrf) =>
-      gohSteps (primeSumGohFuel (MkGohPrimeSum prP prQ eqPrf))
-    No _ => gohFuelNat n
+primeSplitFuelNat = decomposedPrimeFuelNat
 
 --------------------------------------------------------------------------------
 -- 4. SUPPORT STATS ALIASES (UPGRADED STAGE 0 VS. LEGACY HEIGHT-ONLY)
@@ -399,19 +443,15 @@ statsForPolicy : MultisetWeight c => FuelPolicy -> HereditaryMSet c -> SupportSt
 statsForPolicy pol (MkHMSet b) =
   if pol.useRecursiveDeg then collectSupportStats b else legacyHeightOnlyStats b
 
-||| Evaluates `hyperOp level mA mB` polymorphically over any `MultisetWeight c`
-||| carrier under `InfFuel` sliced dynamically on demand into Idris 2 `Data.Fuel`.
-public export
-runHyperOpWithInfFuel : MultisetWeight c =>
-                        InfFuel ->
-                        (level : Nat) ->
-                        HereditaryMSet c ->
-                        HereditaryMSet c ->
-                        InfFuelSnapshot c
-runHyperOpWithInfFuel infFuel level mA@(MkHMSet bA) mB@(MkHMSet bB) =
-  let sA     = collectSupportStats bA
-      sB     = collectSupportStats bB
-      needed = S (S (sA.nnz * sB.nnz + 2 * (sA.nnz + sB.nnz) + 4))
+private
+runHyperOpWithInfFuelCached : MultisetWeight c =>
+                              InfFuel ->
+                              (level : Nat) ->
+                              (HereditaryMSet c, SupportStats) ->
+                              (HereditaryMSet c, SupportStats) ->
+                              InfFuelSnapshot c
+runHyperOpWithInfFuelCached infFuel level (mA, sA) (mB, sB) =
+  let needed = S (S (sA.nnz * sB.nnz + 2 * (sA.nnz + sB.nnz) + 4))
       df     = sliceInfToDataFuel needed infFuel
       insertTerm : (HereditaryMSet c, c) -> HereditaryMSet c -> HereditaryMSet c
       insertTerm (k, w) (MkHMSet acc) = MkHMSet (addAtKeyBox k w acc)
@@ -424,19 +464,31 @@ runHyperOpWithInfFuel infFuel level mA@(MkHMSet bA) mB@(MkHMSet bB) =
          let outStats = case outState of MkHMSet bOut => collectSupportStats bOut
          in MkInfFuelSnapshot 0 outState reason yUsed sUsed outStats
 
+||| Evaluates `hyperOp level mA mB` polymorphically over any `MultisetWeight c`
+||| carrier under `InfFuel` sliced dynamically on demand into Idris 2 `Data.Fuel`.
+public export
+runHyperOpWithInfFuel : MultisetWeight c =>
+                        InfFuel ->
+                        (level : Nat) ->
+                        HereditaryMSet c ->
+                        HereditaryMSet c ->
+                        InfFuelSnapshot c
+runHyperOpWithInfFuel infFuel level mA@(MkHMSet bA) mB@(MkHMSet bB) =
+  runHyperOpWithInfFuelCached infFuel level (mA, collectSupportStats bA) (mB, collectSupportStats bB)
+
 private
 stepInfIterate : MultisetWeight c =>
                  InfFuel ->
                  Nat ->
-                 HereditaryMSet c ->
+                 (HereditaryMSet c, SupportStats) ->
                  Nat ->
                  InfFuelSnapshot c ->
                  InfFuelSnapshot c
 stepInfIterate _ _ _ Z snap = snap
-stepInfIterate infFuel level kernel (S rem) snap =
-  let nextSnap = runHyperOpWithInfFuel infFuel level snap.state kernel
+stepInfIterate infFuel level kernelPair (S rem) snap =
+  let nextSnap = runHyperOpWithInfFuelCached infFuel level (snap.state, snap.stats) kernelPair
       stamped  = { tickIdx := S snap.tickIdx } nextSnap
-  in stepInfIterate infFuel level kernel rem stamped
+  in stepInfIterate infFuel level kernelPair rem stamped
 
 ||| Generates an unbounded causal `OnSeq (InfFuelSnapshot c)` driven purely by
 ||| `InfFuel` -> `Data.Fuel` (zero hardcoded static capacity caps).
@@ -448,28 +500,26 @@ evolveOnHMSetInfFuel : MultisetWeight c =>
                        (kernel : HereditaryMSet c) ->
                        OnSeq (InfFuelSnapshot c)
 evolveOnHMSetInfFuel infFuel level seed kernel =
-  let initStats = case seed of MkHMSet b => collectSupportStats b
-      snap0     = MkInfFuelSnapshot 0 seed NaturalCompletion 0 0 initStats
-  in MkOnSeq 0 (\t => stepInfIterate infFuel level kernel t snap0)
+  let initStats  = case seed of MkHMSet b => collectSupportStats b
+      kStats     = case kernel of MkHMSet bk => collectSupportStats bk
+      snap0      = MkInfFuelSnapshot 0 seed NaturalCompletion 0 0 initStats
+  in MkOnSeq 0 (\t => stepInfIterate infFuel level (kernel, kStats) t snap0)
 
 ||| Projects an `InfFuelSnapshot` trajectory down to a pure `OnHereditaryMSet c`.
 public export
 onInfStates : OnSeq (InfFuelSnapshot c) -> OnHereditaryMSet c
 onInfStates = Stage0.OnSeq.OnMSet.map (.state)
 
-||| Runs a single bounded `hyperOp level mA mB` evaluation governed by `FuelPolicy`.
-public export
-runFueledHyperOpWithPolicy : MultisetWeight c =>
-                             FuelPolicy ->
-                             (level : Nat) ->
-                             (cap : Nat) ->
-                             HereditaryMSet c ->
-                             HereditaryMSet c ->
-                             FuelStepSnapshot cap c
-runFueledHyperOpWithPolicy pol level cap mA@(MkHMSet bA) mB@(MkHMSet bB) =
-  let sA = statsForPolicy pol mA
-      sB = statsForPolicy pol mB
-      (yFuel, sBudget) = pol.sizeBinary (modeForLevel level) cap (boxHeight bA) (boxHeight bB) sA sB
+private
+runFueledHyperOpCached : MultisetWeight c =>
+                         FuelPolicy ->
+                         (level : Nat) ->
+                         (cap : Nat) ->
+                         (HereditaryMSet c, SupportStats) ->
+                         (HereditaryMSet c, SupportStats, Nat) ->
+                         FuelStepSnapshot cap c
+runFueledHyperOpCached pol level cap (mA@(MkHMSet bA), sA) (mB, sB, hB) =
+  let (yFuel, sBudget) = pol.sizeBinary (modeForLevel level) cap (boxHeight bA) hB sA sB
       allocY = gohSteps yFuel
       allocS = sBudget
       insertTerm : (HereditaryMSet c, c) -> HereditaryMSet c -> HereditaryMSet c
@@ -492,20 +542,34 @@ runFueledHyperOpWithPolicy pol level cap mA@(MkHMSet bA) mB@(MkHMSet bB) =
        , stats = outStats
        }
 
+||| Runs a single bounded `hyperOp level mA mB` evaluation governed by `FuelPolicy`.
+public export
+runFueledHyperOpWithPolicy : MultisetWeight c =>
+                             FuelPolicy ->
+                             (level : Nat) ->
+                             (cap : Nat) ->
+                             HereditaryMSet c ->
+                             HereditaryMSet c ->
+                             FuelStepSnapshot cap c
+runFueledHyperOpWithPolicy pol level cap mA mB@(MkHMSet bB) =
+  let sA = statsForPolicy pol mA
+      sB = statsForPolicy pol mB
+  in runFueledHyperOpCached pol level cap (mA, sA) (mB, sB, boxHeight bB)
+
 private
 stepIterate : MultisetWeight c =>
               FuelPolicy ->
               Nat ->
               (cap : Nat) ->
-              HereditaryMSet c ->
+              (HereditaryMSet c, SupportStats, Nat) ->
               Nat ->
               FuelStepSnapshot cap c ->
               FuelStepSnapshot cap c
 stepIterate _ _ _ _ Z snap = snap
-stepIterate pol level cap kernel (S rem) snap =
-  let nextSnap = runFueledHyperOpWithPolicy pol level cap snap.state kernel
+stepIterate pol level cap kernelTuple (S rem) snap =
+  let nextSnap = runFueledHyperOpCached pol level cap (snap.state, snap.stats) kernelTuple
       stamped  = { tickIdx := S snap.tickIdx } nextSnap
-  in stepIterate pol level cap kernel rem stamped
+  in stepIterate pol level cap kernelTuple rem stamped
 
 ||| Generates an unbounded causal `OnSeq (FuelStepSnapshot cap c)` trajectory
 ||| evolving `seed` by repeated `runFueledHyperOpWithPolicy policy level cap _ kernel`.
@@ -518,10 +582,12 @@ evolveOnHMSet : MultisetWeight c =>
                 (kernel : HereditaryMSet c) ->
                 OnSeq (FuelStepSnapshot cap c)
 evolveOnHMSet pol level cap seed kernel =
-  let initStats = statsForPolicy pol seed
-      (yInit, sInit) = pol.sizeSingle cap (case seed of MkHMSet b => boxHeight b) initStats
-      snap0 = MkFuelStepSnapshot 0 seed NaturalCompletion (gohSteps yInit) 0 sInit 0 initStats
-  in MkOnSeq 0 (\t => stepIterate pol level cap kernel t snap0)
+  let initStats      = statsForPolicy pol seed
+      kStats         = statsForPolicy pol kernel
+      hKer           = hmBoxHeight kernel
+      (yInit, sInit) = pol.sizeSingle cap (hmBoxHeight seed) initStats
+      snap0          = MkFuelStepSnapshot 0 seed NaturalCompletion (gohSteps yInit) 0 sInit 0 initStats
+  in MkOnSeq 0 (\t => stepIterate pol level cap (kernel, kStats, hKer) t snap0)
 
 ||| Projects a snapshot trajectory down to a pure `OnHereditaryMSet c`.
 public export
@@ -547,3 +613,9 @@ public export
   , Stage0.HereditaryMSet.gohFuelNat 8
   ) = (15, 13)
 prfPrimeSum3_5GainsTwoSteps = Refl
+
+||| Audit 3: Generalized 13-smooth prime-chunk partition scales cleanly to Primorial 210 (`340 > 316`).
+public export
+0 prfDecomposedPrime210 :
+  Stage0.OnSeq.OnHereditaryMSet.decomposedPrimeFuelNat 210 = 340
+prfDecomposedPrime210 = Refl

@@ -375,6 +375,92 @@ popNextNonZeroZipper (S fuel) stk =
       let nextStk = pushLeftBox r rest
       in if isZero w then popNextNonZeroZipper fuel nextStk else Just (k, w, nextStk)
 
+||| Counts active non-zero entries directly over `Box c k` without `List` allocation.
+public export
+countNonZeroBox : MultisetWeight c => Box c k -> Nat
+countNonZeroBox BoxLeaf             = Z
+countNonZeroBox (BoxNode _ l _ w r) =
+  countNonZeroBox l + (if isZero w then 0 else 1) + countNonZeroBox r
+
+||| Pushes the right spine of a `Box c k` onto a descending zipper stack (largest key on top).
+public export
+pushRightBox : Box c k -> BoxZipper c k -> BoxZipper c k
+pushRightBox BoxLeaf acc = acc
+pushRightBox (BoxNode _ l k w r) acc = pushRightBox r ((k, w, l) :: acc)
+
+||| Pops the next entry from a descending `BoxZipper c k` in O(log N) worst-case, O(1) amortized.
+public export
+stepRevBoxZipper : BoxZipper c k -> Maybe (k, c, BoxZipper c k)
+stepRevBoxZipper [] = Nothing
+stepRevBoxZipper ((k, w, l) :: rest) = Just (k, w, pushRightBox l rest)
+
+||| Pops the next active non-zero entry from a descending `BoxZipper c k`.
+public export
+popNextNonZeroRevZipper : MultisetWeight c => Nat -> BoxZipper c k -> Maybe (k, c, BoxZipper c k)
+popNextNonZeroRevZipper Z _ = Nothing
+popNextNonZeroRevZipper (S fuel) stk =
+  case stk of
+    [] => Nothing
+    ((k, w, l) :: rest) =>
+      let nextStk = pushRightBox l rest
+      in if isZero w then popNextNonZeroRevZipper fuel nextStk else Just (k, w, nextStk)
+
+||| Bidirectional McBride one-hole zipper centered around a pivot key, streaming
+||| descending (`< pivot`) and ascending (`> pivot`) entries outward in radial shells.
+public export
+record RadialBoxZipper (c : Type) (k : Type) where
+  constructor MkRadialZipper
+  originEntry : Maybe (k, c)
+  negDesc     : BoxZipper c k
+  posAsc      : BoxZipper c k
+
+||| Single O(log N) root-to-pivot descent splitting a `Box c k` into opposing outward spines.
+public export
+initRadialZipper : Ord k => k -> Box c k -> RadialBoxZipper c k
+initRadialZipper pivot root = descend root [] []
+  where
+    descend : Box c k -> BoxZipper c k -> BoxZipper c k -> RadialBoxZipper c k
+    descend BoxLeaf negStk posStk = MkRadialZipper Nothing negStk posStk
+    descend (BoxNode _ l k w r) negStk posStk =
+      case compare k pivot of
+        LT => descend r ((k, w, l) :: negStk) posStk
+        GT => descend l negStk ((k, w, r) :: posStk)
+        EQ => MkRadialZipper (Just (k, w)) (pushRightBox l negStk) (pushLeftBox r posStk)
+
+||| Single outward radial shell yielded by `stepRadialZipper`.
+public export
+data RadialShellStep : (c : Type) -> (k : Type) -> Type where
+  RadialDone   : RadialShellStep c k
+  RadialOrigin : (k, c) -> RadialBoxZipper c k -> RadialShellStep c k
+  RadialSingle : (k, c) -> RadialBoxZipper c k -> RadialShellStep c k
+  RadialPair   : (k, c) -> (k, c) -> RadialBoxZipper c k -> RadialShellStep c k
+
+private
+stepRadialOuter : MultisetWeight c =>
+                  Nat ->
+                  BoxZipper c k ->
+                  BoxZipper c k ->
+                  RadialShellStep c k
+stepRadialOuter fuel neg pos =
+  case (popNextNonZeroRevZipper fuel neg, popNextNonZeroZipper fuel pos) of
+    (Nothing, Nothing) => RadialDone
+    (Just (kn, wn, neg'), Nothing) =>
+      RadialSingle (kn, wn) (MkRadialZipper Nothing neg' [])
+    (Nothing, Just (kp, wp, pos')) =>
+      RadialSingle (kp, wp) (MkRadialZipper Nothing [] pos')
+    (Just (kn, wn, neg'), Just (kp, wp, pos')) =>
+      RadialPair (kn, wn) (kp, wp) (MkRadialZipper Nothing neg' pos')
+
+||| Steps outward by one symmetric shell from a `RadialBoxZipper c k` without list allocation.
+public export
+stepRadialZipper : MultisetWeight c => Nat -> RadialBoxZipper c k -> RadialShellStep c k
+stepRadialZipper fuel (MkRadialZipper (Just (k0, w0)) neg pos) =
+  if not (isZero w0)
+    then RadialOrigin (k0, w0) (MkRadialZipper Nothing neg pos)
+    else stepRadialOuter fuel neg pos
+stepRadialZipper fuel (MkRadialZipper Nothing neg pos) =
+  stepRadialOuter fuel neg pos
+
 ||| Fueled left-spine comparison on non-zero entries of two `Box c k` trees.
 public export
 compareBoxZipperFuel : (Ord k, MultisetWeight c) =>

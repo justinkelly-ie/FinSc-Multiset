@@ -261,7 +261,70 @@ probeScaleInvarianceAndTilt win steps =
   in MkScaleTiltReport win steps nonVac ctrlInv qCool0 qCool1 feBase feNext heat1 breaksFlat
 
 --------------------------------------------------------------------------------
--- 6. PROBE D: RECURSIVE `childDeg` CALIBRATION & 1D -> 2D -> 4D SPECTRAL FLOW
+-- 5B. CHROMOGEOMETRIC 3D SPACETIME METRIC OBSERVABLE (RED MINKOWSKI VS BLUE)
+--------------------------------------------------------------------------------
+
+public export
+record SpacetimeMetricReport where
+  constructor MkSpacetimeMetricReport
+  redTimelike            : BoxInt
+  blueTimelike           : BoxInt
+  redDilated             : BoxInt
+  blueDilated            : BoxInt
+  redNull                : BoxInt
+  blueNull               : BoxInt
+  redSpacelike           : BoxInt
+  blueSpacelike          : BoxInt
+  dilationRatioInvariant : Bool
+  nullConeExactZero      : Bool
+  spacelikeSignFlip      : Bool
+  causalPrecedenceSplit  : Bool
+  passesSpacetimeProbe   : Bool
+
+||| Evaluates `traceWith redMinkowskiLens` vs. `traceWith blueEuclideanLens` on
+||| genuine 3D `encodeVec3MSet [t, r, s]` carriers across timelike, dilated,
+||| null light-cone, and spacelike configurations.
+public export
+probeChromaticSpacetimeMetric : SpacetimeMetricReport
+probeChromaticSpacetimeMetric =
+  let timelike3D =
+        addHMSet
+          (MkHMSet (setBox (encodeVec3MSet [3, 1, 0]) (intToBoxInt 2) BoxLeaf))
+          (MkHMSet (setBox (encodeVec3MSet [4, 0, 1]) (intToBoxInt 1) BoxLeaf))
+      dilated3D =
+        addHMSet
+          (MkHMSet (setBox (encodeVec3MSet [6, 2, 0]) (intToBoxInt 2) BoxLeaf))
+          (MkHMSet (setBox (encodeVec3MSet [8, 0, 2]) (intToBoxInt 1) BoxLeaf))
+      null3D =
+        MkHMSet (setBox (encodeVec3MSet [5, 3, 4]) (intToBoxInt 1) BoxLeaf)
+      spacelike3D =
+        addHMSet
+          (MkHMSet (setBox (encodeVec3MSet [3, 3, 2]) (intToBoxInt 2) BoxLeaf))
+          (MkHMSet (setBox (encodeVec3MSet [4, 3, 2]) (intToBoxInt 1) BoxLeaf))
+
+      rTime = traceWith redMinkowskiLens  timelike3D  timelike3D
+      bTime = traceWith blueEuclideanLens timelike3D  timelike3D
+      rDil  = traceWith redMinkowskiLens  dilated3D   dilated3D
+      bDil  = traceWith blueEuclideanLens dilated3D   dilated3D
+      rNull = traceWith redMinkowskiLens  null3D      null3D
+      bNull = traceWith blueEuclideanLens null3D      null3D
+      rSpc  = traceWith redMinkowskiLens  spacelike3D spacelike3D
+      bSpc  = traceWith blueEuclideanLens spacelike3D spacelike3D
+
+      ratBase = mkMSF rTime (integerToNat (abs (unwrapBox bTime)))
+      ratDil  = mkMSF rDil  (integerToNat (abs (unwrapBox bDil)))
+      dilOk   = (unwrapBox rTime > 0) && (unwrapBox bTime > 0) && (ratBase == ratDil)
+      nullOk  = (rNull == intToBoxInt 0) && (unwrapBox bNull > 0)
+      spcOk   = (unwrapBox rSpc < 0) && (unwrapBox bSpc > 0)
+      evA     = encodeVec3MSet [1, 0, 0]
+      evB     = encodeVec3MSet [3, 1, 0]
+      precOk  = redMinkowskiLens.causallyPrecedes evA evB
+             && not (blueEuclideanLens.causallyPrecedes evA evB)
+      passOk  = dilOk && nullOk && spcOk && precOk
+  in MkSpacetimeMetricReport rTime bTime rDil bDil rNull bNull rSpc bSpc dilOk nullOk spcOk precOk passOk
+
+--------------------------------------------------------------------------------
+-- 6. PROBE D: RECURSIVE `childDeg`, DIRECT 1D/2D/4D WALKS, 1D->2D CROSSOVER & A_2 HEX
 --------------------------------------------------------------------------------
 
 ||| Exact 2D outer-product box helper on `(Integer, Integer)` exponent pairs.
@@ -285,25 +348,97 @@ returnRatioBox2D b =
       totM = foldBox (\_, (MkBoxInt w), acc => acc + integerToNat (abs w)) (the Nat 0) b
   in mkMSF w0 totM
 
+||| Single-axis 1D convolution shift along one of the 4 axes of `Box BoxInt (Integer, Integer, Integer, Integer)`.
+public export
+shiftAxis4D : Nat -> Box BoxInt (Integer, Integer, Integer, Integer) -> Box BoxInt (Integer, Integer, Integer, Integer)
+shiftAxis4D axis box =
+  foldBox (\(t, x, y, z), w, acc =>
+            if isZero w
+              then acc
+              else
+                let w2 = addBox w w
+                    addShift : Integer -> BoxInt -> Box BoxInt (Integer, Integer, Integer, Integer) -> Box BoxInt (Integer, Integer, Integer, Integer)
+                    addShift d coeff bAcc =
+                      let key = case axis of
+                                  0 => (t + d, x, y, z)
+                                  1 => (t, x + d, y, z)
+                                  2 => (t, x, y + d, z)
+                                  _ => (t, x, y, z + d)
+                      in addAtKeyBox key coeff bAcc
+                in addShift (-1) w (addShift 0 w2 (addShift 1 w acc)))
+          BoxLeaf
+          box
+
+||| Exact 4-axis isotropic Laplacian step on a 4D integer grid (`mass * 256` per step).
+public export
+stepWalk4D : Box BoxInt (Integer, Integer, Integer, Integer) -> Box BoxInt (Integer, Integer, Integer, Integer)
+stepWalk4D = shiftAxis4D 3 . shiftAxis4D 2 . shiftAxis4D 1 . shiftAxis4D 0
+
+public export
+returnRatioBox4D : Box BoxInt (Integer, Integer, Integer, Integer) -> MSetFraction
+returnRatioBox4D b =
+  let w0   = lookupBox (0, 0, 0, 0) b
+      totM = foldBox (\_, (MkBoxInt w), acc => acc + integerToNat (abs w)) (the Nat 0) b
+  in mkMSF w0 totM
+
+private
+countTransverseNodes2D : Box BoxInt (Integer, Integer) -> Nat
+countTransverseNodes2D =
+  foldBox (\(_, y), (MkBoxInt w), acc =>
+            if y /= 0 && w /= 0 then S acc else acc)
+          0
+
+||| Constant-mass (`16` per site) threshold-coupled walk on Wildberger's 2D `(alpha, beta)` grid:
+||| - `|w| < threshold` : 1D vertical `alpha`-diffusion `(-1, 0):4, (0, 0):8, (1, 0):4`
+||| - `|w| >= threshold`: full 2D `(alpha, beta)`-diffusion `(-1:1, 0:2, 1:1) x (-1:1, 0:2, 1:1)`
+public export
+stepAniso2D : Integer -> Box BoxInt (Integer, Integer) -> Box BoxInt (Integer, Integer)
+stepAniso2D threshold =
+  foldBox (\(x, y), (MkBoxInt w), acc =>
+            if w == 0
+              then acc
+              else if abs w < threshold
+                     then addAtKeyBox (x + 1, y) (intToBoxInt (w * 4))
+                            (addAtKeyBox (x, y) (intToBoxInt (w * 8))
+                              (addAtKeyBox (x - 1, y) (intToBoxInt (w * 4)) acc))
+                     else
+                       let w2 = w * 2
+                           w4 = w * 4
+                       in addAtKeyBox (x + 1, y + 1) (intToBoxInt w)
+                            (addAtKeyBox (x, y + 1) (intToBoxInt w2)
+                              (addAtKeyBox (x - 1, y + 1) (intToBoxInt w)
+                                (addAtKeyBox (x + 1, y) (intToBoxInt w2)
+                                  (addAtKeyBox (x, y) (intToBoxInt w4)
+                                    (addAtKeyBox (x - 1, y) (intToBoxInt w2)
+                                      (addAtKeyBox (x + 1, y - 1) (intToBoxInt w)
+                                        (addAtKeyBox (x, y - 1) (intToBoxInt w2)
+                                          (addAtKeyBox (x - 1, y - 1) (intToBoxInt w) acc)))))))))
+          BoxLeaf
+
 public export
 record SpectralDimReport where
   constructor MkSpectralDimReport
-  legacy3DDeg      : Nat
-  recursive3DDeg   : Nat
-  decay1D          : MSetFraction
-  decay2DObs       : MSetFraction
-  decay4D          : MSetFraction
-  monoAxes4        : Nat
-  primeAxes4       : Nat
-  monoAxes10       : Nat
-  decayMono4       : MSetFraction
-  decayPrime4      : MSetFraction
-  decayMacro10     : MSetFraction
-  dimFlowMonotonic : Bool
+  legacy3DDeg        : Nat
+  recursive3DDeg     : Nat
+  decay1D            : MSetFraction
+  decay2DObs         : MSetFraction
+  decay2DDirect      : MSetFraction
+  decay4DDirect      : MSetFraction
+  crossoverUvDecay   : MSetFraction
+  crossoverIrDecay   : MSetFraction
+  uvTransverseNodes  : Nat
+  irTransverseNodes  : Nat
+  a2HexDecay         : MSetFraction
+  a2HexWeylInvariant : Bool
+  dimFlowMonotonic   : Bool
 
 ||| Probe D: Compares `legacyHeightOnlyStats` (`2`) vs. upgraded `Stage0.HereditaryMSet.collectSupportStats`
-||| (`100`) on `encodeVec3MSet [100, 50, 25]`, drives the 1D baseline from `InfFuel` (`Data.Fuel`),
-||| cross-checks concrete 2D `convBox2D`, and demonstrates monotonic dimensional opening under `primeSplitFuelNat`.
+||| (`100`) on `encodeVec3MSet [100, 50, 25]`, then directly evolves:
+||| - 1D `InfFuel` walk (`d1(P8/P4)`),
+||| - 2D `convBox2D` walk (`P_2D(0,4)/P_2D(0,2)`),
+||| - 4D `stepWalk4D` walk (`P_4D(0,2)/P_4D(0,1)`),
+||| - threshold-coupled 1D -> 2D dynamical crossover on the `(alpha, beta)` grid (`stepAniso2D 32`),
+||| - 2D `A_2` hexagonal walk (`a2HexTick`) with `W(A_2)` reflection invariance.
 public export
 probeSpectralDimAndChildDeg : SpectralDimReport
 probeSpectralDimAndChildDeg =
@@ -316,51 +451,76 @@ probeSpectralDimAndChildDeg =
       decSeq      = spectralDecayOnSeq p1Seq
       d1_4to8     = fromMaybe zeroMSF (getTerm decSeq 4)
       d1_1to2     = fromMaybe zeroMSF (getTerm decSeq 1)
-      d4          = powMSF 4 d1_4to8
+      p1_2to4     = fromMaybe zeroMSF (getTerm decSeq 2)
 
       k2D         = outerBox2D symmetricMotionTick symmetricMotionTick
       k2D_2       = convBox2D k2D k2D
+      k2D_4       = convBox2D k2D_2 k2D_2
       d2Obs       = divMSF (returnRatioBox2D k2D_2) (returnRatioBox2D k2D)
+      d2Dir       = divMSF (returnRatioBox2D k2D_4) (returnRatioBox2D k2D_2)
 
-      activeAxes : Nat -> Nat
-      activeAxes stps = min 4 (max 1 (div4Nat stps))
+      seed4D      = setBox (the (Integer, Integer, Integer, Integer) (0, 0, 0, 0)) (intToBoxInt 1) BoxLeaf
+      w4_1        = stepWalk4D seed4D
+      w4_2        = stepWalk4D w4_1
+      d4Dir       = divMSF (returnRatioBox4D w4_2) (returnRatioBox4D w4_1)
 
-      mAxes4   = activeAxes (gohFuelNat 4)
-      pAxes4   = activeAxes (primeSplitFuelNat 4)
-      mAxes10  = activeAxes (gohFuelNat 10)
-      dMono4   = powMSF mAxes4 d1_4to8
-      dPrime4  = powMSF pAxes4 d1_4to8
-      dMacro10 = powMSF mAxes10 d1_4to8
+      seed2D      = setBox (the (Integer, Integer) (0, 0)) (intToBoxInt 1) BoxLeaf
+      a1          = stepAniso2D 32 seed2D
+      a2          = stepAniso2D 32 a1
+      a3          = stepAniso2D 32 a2
+      a4          = stepAniso2D 32 a3
+      uvDec       = divMSF (returnRatioBox2D a2) (returnRatioBox2D a1)
+      irDec       = divMSF (returnRatioBox2D a4) (returnRatioBox2D a2)
+      uvTrans     = countTransverseNodes2D a2
+      irTrans     = countTransverseNodes2D a4
+
+      h1          = a2HexTick
+      h2          = convBox2D h1 h1
+      h4          = convBox2D h2 h2
+      hDec        = divMSF (returnRatioBox2D h4) (returnRatioBox2D h2)
+      hInv        = isA2WeylInvariant h4
 
       okFlow = msfGT d1_4to8 (mkMSF 68 100)
             && msfLT d1_4to8 (mkMSF 76 100)
             && (d2Obs == powMSF 2 d1_1to2)
-            && msfGT d4 (mkMSF 24 100)
-            && msfLT d4 (mkMSF 29 100)
-            && msfGT dMono4 dPrime4
-            && msfGT dPrime4 dMacro10
-  in MkSpectralDimReport legDeg recDeg d1_4to8 d2Obs d4 mAxes4 pAxes4 mAxes10 dMono4 dPrime4 dMacro10 okFlow
+            && msfGT d1_4to8 d2Dir
+            && msfGT d2Dir d4Dir
+            && (uvTrans == 0)
+            && (irTrans > 0)
+            && msfGT uvDec irDec
+            && msfGT p1_2to4 irDec
+            && hInv
+            && msfGT hDec (mkMSF 45 100)
+            && msfLT hDec (mkMSF 60 100)
+  in MkSpectralDimReport legDeg recDeg d1_4to8 d2Obs d2Dir d4Dir uvDec irDec uvTrans irTrans hDec hInv okFlow
 
 --------------------------------------------------------------------------------
--- 7. PROBE E: MF 236 BABY WEYL COMPRESSION & `A_2` OCTET MULTISET CHECK
+-- 7. PROBE E: MF 236 BABY WEYL COMPRESSION, `S_n` ORBIT FAST-PATH & `210` SPLIT
 --------------------------------------------------------------------------------
 
 public export
 record WeylCompressionReport where
   constructor MkWeylCompressionReport
-  directYields    : Nat
-  weylYields      : Nat
-  weylQuotientOk  : Bool
-  decYesOk        : Bool
-  decNoOk         : Bool
-  a2OctetMass     : BoxInt
-  a2OctetOrigin   : BoxInt
-  a2OctetNodes    : Nat
-  passesWeylProbe : Bool
+  directYields        : Nat
+  weylYields          : Nat
+  weylQuotientOk      : Bool
+  decYesOk            : Bool
+  decNoOk             : Bool
+  a2OctetMass         : BoxInt
+  a2OctetOrigin       : BoxInt
+  a2OctetNodes        : Nat
+  orbitDirectYields6  : Nat
+  orbitFastYields6    : Nat
+  orbitMatchesInf6    : Bool
+  cachedParityOk      : Bool
+  decomposedFuel210   : Nat
+  monolithicFuel210   : Nat
+  passesWeylProbe     : Bool
 
-||| Probe E: Benchmarks direct `C_3 * C_4` (`20` yields) against Baby Weyl
-||| `A_4 * C_4` (`10` yields) + `weylDivideByA1`, verifies constructive `Dec`
-||| recognition (`recognizeWeylDivisibleByA1`), and audits `a2BaryonOctet` (`mass=8`, `origin=2`, `nodes=7`).
+||| Probe E: Benchmarks direct `C_3 * C_4` (`20` yields) against Baby Weyl (`10` yields),
+||| verifies `recognizeWeylDivisibleByA1` and `recognizeSymmetricLaurent`, benchmarks
+||| `evolveSymmetricOrbitFastPath` over 6 ticks (`108 -> 42` yields, exact `InfOracle` match),
+||| verifies `CachedHMSet` O(1) fuel parity, `decomposedPrimeFuelNat 210 == 340`, and `a2BaryonOctet`.
 public export
 probeWeylCompression : WeylCompressionReport
 probeWeylCompression =
@@ -386,6 +546,34 @@ probeWeylCompression =
                       Yes _ => False
                       No  _ => True
 
+      symY        = case recognizeSymmetricLaurent symmetricMotionTick of
+                      Yes _ => True
+                      No  _ => False
+      symN        = case recognizeSymmetricLaurent (mkLaurentPure [(1, 1)]) of
+                      Yes _ => False
+                      No  _ => True
+
+      seed1       = mkLaurentPure [(0, 1)]
+      infSeq6     = evolveOnHMSetInfFuel openInfFuel 1 seed1 symmetricMotionTick
+      infSnaps6   = (getClip infSeq6 1 6).elements
+      dirY6       = foldl (\acc, s => acc + s.usedYield) (the Nat 0) infSnaps6
+      infState6   = foldl (\_, s => s.state) emptyPureMSet infSnaps6
+      (orbY6, orbMatch) =
+        case evolveSymmetricOrbitFastPath 6 seed1 symmetricMotionTick of
+          Nothing        => (the Nat 0, False)
+          Just (st6, y6) => (y6, st6 == infState6)
+
+      cachedTick  = cacheHMSet symmetricMotionTick
+      cacheDecOk  = case recognizeCachedHMSet cachedTick of
+                      Yes _ => True
+                      No  _ => False
+      cacheOk     = cacheDecOk
+                 && (hyperOpFuelOfCachedHMSet 1 210 cachedTick cachedTick
+                       == hyperOpFuelOfHMSet 1 210 symmetricMotionTick symmetricMotionTick)
+
+      dec210      = decomposedPrimeFuelNat 210
+      mono210     = gohFuelNat 210
+
       octMass     = foldBox (\_, w, acc => addBox acc w) (intToBoxInt 0) a2BaryonOctet
       octOrigin   = lookupBox (0, 0) a2BaryonOctet
       octNodes    = boxNodeCount a2BaryonOctet
@@ -396,10 +584,21 @@ probeWeylCompression =
                  && qOk
                  && decY
                  && decN
+                 && symY
+                 && symN
+                 && orbMatch
+                 && (orbY6 > 0)
+                 && (orbY6 < dirY6)
+                 && cacheOk
+                 && (dec210 == 340)
+                 && (dec210 > mono210)
                  && (octMass == intToBoxInt 8)
                  && (octOrigin == intToBoxInt 2)
                  && (octNodes == 7)
-  in MkWeylCompressionReport usedDir usedWeyl qOk decY decN octMass octOrigin octNodes passOk
+  in MkWeylCompressionReport
+       usedDir usedWeyl qOk decY decN
+       octMass octOrigin octNodes
+       dirY6 orbY6 orbMatch cacheOk dec210 mono210 passOk
 
 --------------------------------------------------------------------------------
 -- 8. COMPILE-TIME QTT 0 `Refl` RE-AUDITS
@@ -414,3 +613,8 @@ public export
 0 prfFuelProbePrimeSplit8 :
   Stage0.OnSeq.OnHereditaryMSet.primeSplitFuelNat 8 = 15
 prfFuelProbePrimeSplit8 = Refl
+
+public export
+0 prfFuelProbeDecomposed210 :
+  Stage0.OnSeq.OnHereditaryMSet.decomposedPrimeFuelNat 210 = 340
+prfFuelProbeDecomposed210 = Refl
