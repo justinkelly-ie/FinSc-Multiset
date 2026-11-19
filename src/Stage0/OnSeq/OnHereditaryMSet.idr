@@ -595,6 +595,114 @@ onHMSetStates : OnSeq (FuelStepSnapshot cap c) -> OnHereditaryMSet c
 onHMSetStates = Stage0.OnSeq.OnMSet.map (.state)
 
 --------------------------------------------------------------------------------
+-- 6B. CAUSAL-DIAMOND HORIZON-AWARE EVOLVER & `Dec` RECOGNIZER (`BoundedHorizon T`)
+--------------------------------------------------------------------------------
+
+private
+halfNatDiamond : Nat -> Nat
+halfNatDiamond (S (S k)) = S (halfNatDiamond k)
+halfNatDiamond _         = Z
+
+||| Equator yield budget for a symmetric kernel (`kernelNnz` active sites, half-width
+||| `kernelRadius`) evolving over horizon `horizonT` to keep the origin exact.
+public export
+diamondEquatorYield : (horizonT : Nat) -> (kernelNnz : Nat) -> (kernelRadius : Nat) -> Nat
+diamondEquatorYield horizonT kernelNnz kernelRadius =
+  kernelNnz * (2 * kernelRadius * halfNatDiamond horizonT + 1)
+
+||| Per-tick causal-diamond yield budget at tick `tickS` (`0 <= tickS < horizonT`),
+||| shedding modes outside `|x| <= kernelRadius * (horizonT - tickS)` past the midpoint.
+public export
+diamondTickYield : (horizonT : Nat) -> (kernelNnz : Nat) -> (kernelRadius : Nat) -> (tickS : Nat) -> Nat
+diamondTickYield horizonT kernelNnz kernelRadius tickS =
+  kernelNnz * (2 * kernelRadius * min tickS (minus horizonT tickS) + 1)
+
+||| Constructive witness that a causal-diamond evolution `(horizonT, kernelNnz, kernelRadius)`
+||| fits within `maxPeakYield` at the diamond equator `floor(horizonT / 2)`.
+public export
+data FitsDiamondBudget : (horizonT : Nat) -> (kernelNnz : Nat) -> (kernelRadius : Nat) -> (maxPeakYield : Nat) -> Type where
+  MkFitsDiamondBudget : LTE (diamondEquatorYield horizonT kernelNnz kernelRadius) maxPeakYield
+                     -> FitsDiamondBudget horizonT kernelNnz kernelRadius maxPeakYield
+
+||| Total constructive `Dec` recognizer deciding whether a causal diamond horizon fits
+||| within `maxPeakYield`.
+public export
+recognizeDiamondHorizon : (horizonT, kernelNnz, kernelRadius, maxPeakYield : Nat) ->
+                          Dec (FitsDiamondBudget horizonT kernelNnz kernelRadius maxPeakYield)
+recognizeDiamondHorizon horizonT kernelNnz kernelRadius maxPeakYield =
+  case isLTE (diamondEquatorYield horizonT kernelNnz kernelRadius) maxPeakYield of
+    Yes ltePrf => Yes (MkFitsDiamondBudget ltePrf)
+    No  contra => No (\(MkFitsDiamondBudget ltePrf) => contra ltePrf)
+
+||| Solidified outcome of a finite-horizon causal-diamond or flat-equator evolution.
+public export
+record CausalDiamondOutcome (horizonT : Nat) (c : Type) where
+  constructor MkCausalDiamondOutcome
+  finalState     : HereditaryMSet c
+  totalUsedYield : Nat
+  peakTickYield  : Nat
+  finalStats     : SupportStats
+
+private
+runHorizonSchedule : MultisetWeight c =>
+                     (level : Nat) ->
+                     (horizonT : Nat) ->
+                     (budFn : Nat -> Nat) ->
+                     (seed : HereditaryMSet c) ->
+                     (kernel : HereditaryMSet c) ->
+                     CausalDiamondOutcome horizonT c
+runHorizonSchedule level horizonT budFn seed kernel = go 0 horizonT seed 0 0
+  where
+    insertTerm : (HereditaryMSet c, c) -> HereditaryMSet c -> HereditaryMSet c
+    insertTerm (k, w) (MkHMSet acc) = MkHMSet (addAtKeyBox k w acc)
+    stepOnce : Nat -> HereditaryMSet c -> SolidifiedCarrier horizonT (HereditaryMSet c)
+    stepOnce yBud st =
+      let yf = the (GohFuel horizonT) (MkGohFuel yBud)
+      in case level of
+           Z          => runDecoupledStream yf (yBud + 64) hyperOpStep insertTerm emptyHMSet (initHyperOpZipState 0 st kernel)
+           S innerLvl => runSymmetricRadialConv innerLvl yf (yBud + 64) st kernel
+    go : Nat -> Nat -> HereditaryMSet c -> Nat -> Nat -> CausalDiamondOutcome horizonT c
+    go _ Z st totY peakY =
+      let fStats = case st of MkHMSet b => collectSupportStats b
+      in MkCausalDiamondOutcome st totY peakY fStats
+    go s (S rem) st totY peakY =
+      let yBud  = budFn s
+          sol   = stepOnce yBud st
+          usedY = minus yBud (gohSteps sol.remainingYield)
+      in go (S s) rem sol.carrier (totY + usedY) (max peakY usedY)
+
+||| Evolves `seed` under `kernel` for `horizonT` ticks using the backward light-cone
+||| causal-diamond schedule (`diamondTickYield`), recovering the exact origin at `horizonT`
+||| while shedding outer modes past the midpoint `s > floor(horizonT / 2)`.
+public export
+evolveCausalDiamond : MultisetWeight c =>
+                      (level : Nat) ->
+                      (horizonT : Nat) ->
+                      (seed : HereditaryMSet c) ->
+                      (kernel : HereditaryMSet c) ->
+                      CausalDiamondOutcome horizonT c
+evolveCausalDiamond level horizonT seed kernel@(MkHMSet bKer) =
+  let kStats = collectSupportStats bKer
+      kNnz   = max 1 kStats.nnz
+      kRad   = max 1 kStats.maxDeg
+  in runHorizonSchedule level horizonT (diamondTickYield horizonT kNnz kRad) seed kernel
+
+||| Evolves `seed` under `kernel` for `horizonT` ticks using a constant flat-equator budget
+||| (`diamondEquatorYield`), keeping the origin exact without post-midpoint shedding.
+public export
+evolveFlatEquator : MultisetWeight c =>
+                    (level : Nat) ->
+                    (horizonT : Nat) ->
+                    (seed : HereditaryMSet c) ->
+                    (kernel : HereditaryMSet c) ->
+                    CausalDiamondOutcome horizonT c
+evolveFlatEquator level horizonT seed kernel@(MkHMSet bKer) =
+  let kStats = collectSupportStats bKer
+      kNnz   = max 1 kStats.nnz
+      kRad   = max 1 kStats.maxDeg
+  in runHorizonSchedule level horizonT (\_ => diamondEquatorYield horizonT kNnz kRad) seed kernel
+
+--------------------------------------------------------------------------------
 -- 7. PURE QTT 0 `Refl` AUDITS FOR PRIME FUEL SPLITS
 --------------------------------------------------------------------------------
 
@@ -619,3 +727,9 @@ public export
 0 prfDecomposedPrime210 :
   Stage0.OnSeq.OnHereditaryMSet.decomposedPrimeFuelNat 210 = 340
 prfDecomposedPrime210 = Refl
+
+||| Audit 4: Equator yield for `horizonT = 12` with `[1, 2, 1]` (`nnz=3, rad=1`) equals `39`.
+public export
+0 prfDiamondEquator12 :
+  Stage0.OnSeq.OnHereditaryMSet.diamondEquatorYield 12 3 1 = 39
+prfDiamondEquator12 = Refl
