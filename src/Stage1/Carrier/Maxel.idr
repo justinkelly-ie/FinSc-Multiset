@@ -5,7 +5,9 @@ import Data.Nat
 import Stage0.BoxInt
 import Stage0.Multiset
 import Stage0.IntPolynumber
+import public Stage0.StructuralFuel
 import Stage0.OnSeq.FusedStream
+import public Stage0.StreamPolynumber
 import Stage1.MultisetTree
 import Stage1.Basis.CoordCell
 import public Stage1.Carrier.CellMultiset
@@ -177,17 +179,85 @@ public export
 waterMoleculeBonds : Maxel
 waterMoleculeBonds = bipartiteTwoEdgeMaxel
 
-||| Converts a Stage 0 RLE bivariate IntPolynumber into an O(log N) AVL Maxel tree.
+||| Converts a Stage 1 Carrier bivariate IntPolynumber into an O(log N) AVL Maxel tree.
 public export
 intPolyToMaxel : IntPolynumber -> Maxel
 intPolyToMaxel p =
-  foldMultiset (\(degA, degB), w, acc => addCellTree (mkPixel degA degB) w acc) BoxLeaf p
+  foldBoxTreeL (\acc, ((degA, degB), w) => addCellTree (mkPixel degA degB) w acc) BoxLeaf p
 
-||| Converts an O(log N) AVL Maxel tree into a Stage 0 RLE bivariate IntPolynumber.
+||| Converts an O(log N) AVL Maxel tree into a Stage 0 Carrier bivariate IntPolynumber.
 public export
 maxelToIntPoly : Maxel -> IntPolynumber
 maxelToIntPoly m =
-  foldBoxTreeR (\px, w, acc => if boxIsNonZero w then AddM (pixelRow px, pixelCol px) w acc else acc) ZeroM m
+  foldBoxTreeL (\acc, (px, w) => if boxIsNonZero w then acc <+> singletonCarrier (pixelRow px, pixelCol px) w else acc) neutral m
+
+||| O(log N) traversal step bound for a Maxel derived from cached AVL height (`boxTreeCapacityBound`).
+public export
+maxelStreamStepBound : Maxel -> Nat
+maxelStreamStepBound m = boxTreeCapacityBound m * 4 + 16
+
+||| Translates a Maxel directly into a deforested bivariate StreamIntPolynumber without heap List allocation.
+public export
+maxelToStreamIntPoly : Maxel -> StreamIntPolynumber
+maxelToStreamIntPoly m =
+  filterMapStream
+    (\(px, w) => if boxIsNonZero w then Just ((pixelRow px, pixelCol px), w) else Nothing)
+    (streamBoxMultisetTree m)
+
+||| Extracts the active coordinate support of a Maxel as unit-coefficient bivariate StreamIntPolynumber terms.
+public export
+supportMaxelToStreamIntPoly : Maxel -> StreamIntPolynumber
+supportMaxelToStreamIntPoly m =
+  mapStream (\(degs, _) => (degs, intToBoxInt 1)) (maxelToStreamIntPoly m)
+
+||| Translates the active support of a Maxel into a univariate streaming integer polynumber
+||| `P_supp(x) = sum_{(r, c) in supp(M)} x^(r + c)` (so `P_supp(1) = |supp(M)|`).
+public export
+supportMaxelToStreamPoly : Maxel -> StreamPolynumber
+supportMaxelToStreamPoly m =
+  mapStream (\((r, c), _) => (r + c, intToBoxInt 1)) (maxelToStreamIntPoly m)
+
+||| Translates a weighted Maxel into a univariate total-degree StreamPolynumber `sum w * x^(r + c)`.
+public export
+weightedMaxelToStreamPoly : Maxel -> StreamPolynumber
+weightedMaxelToStreamPoly m =
+  mapStream (\((r, c), w) => (r + c, w)) (maxelToStreamIntPoly m)
+
+||| Summarizes a Maxel's support cardinality, absolute mass, and max degree in a single deforested pass.
+public export
+summarizeMaxelViaStreamPoly : Maxel -> PolySupportSummary
+summarizeMaxelViaStreamPoly m =
+  summarizeStreamIntPolyNat (maxelStreamStepBound m) (maxelToStreamIntPoly m)
+
+||| Translates a Maxel's support via its streaming integer polynumber into exact existential `GohFuel`.
+public export
+maxelSupportGohFuel : Maxel -> AnyGohFuel
+maxelSupportGohFuel m =
+  streamIntPolyToGohFuel (maxelStreamStepBound m) (supportMaxelToStreamIntPoly m)
+
+||| Packages a Maxel's active `(row, col)` support stream with derived `GohFuel` and `Skip` headroom.
+public export
+maxelToFueledFiniteSupport : Maxel -> AnyFueledFiniteStream (Nat, Nat)
+maxelToFueledFiniteSupport m =
+  let stepB = maxelStreamStepBound m
+      strm  = supportMaxelToStreamIntPoly m
+      summ  = summarizeStreamIntPolyNat stepB strm
+      cap   = summ.supportCardinality
+      slack = if stepB > cap then minus stepB cap else 4
+  in MkAnyFueledFiniteStream cap
+       (mkFueledFiniteStreamWithSkips (gohFuelForCapacity cap) slack (supportStreamIntPoly strm))
+
+||| Translates a Maxel via `supportMaxelToStreamPoly` into a `GohFuel`-powered finite polynumber stream.
+public export
+maxelSupportPolyToFueledStream : Maxel -> AnyFueledFiniteStream (Nat, BoxInt)
+maxelSupportPolyToFueledStream m =
+  streamPolyToFueledFinite (maxelStreamStepBound m) (supportMaxelToStreamPoly m)
+
+||| Packages a Maxel's bivariate `StreamIntPolynumber` into a `GohFuel`-powered `AnyFueledFiniteStream`.
+public export
+maxelToFueledFiniteIntPoly : Maxel -> AnyFueledFiniteStream ((Nat, Nat), BoxInt)
+maxelToFueledFiniteIntPoly m =
+  streamIntPolyToFueledFinite (maxelStreamStepBound m) (maxelToStreamIntPoly m)
 
 ------------------------------------------------------------------------
 -- 2. VERIFICATION AUDITS

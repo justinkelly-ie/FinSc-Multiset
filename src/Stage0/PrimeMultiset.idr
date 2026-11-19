@@ -383,7 +383,7 @@ toRLEMultiset m =
 
 ||| Converts a GohPrimeMultiset into a Box multiset container.
 public export
-toBoxMultiset : GohPrimeMultiset -> Box AnyGohPrime
+toBoxMultiset : GohPrimeMultiset -> Carrier AnyGohPrime
 toBoxMultiset m =
   let b1 = if m.exp2 > 0 then insertBox anyPrime2 (MkBoxInt (cast m.exp2)) emptyBox else emptyBox
       b2 = if m.exp3 > 0 then insertBox anyPrime3 (MkBoxInt (cast m.exp3)) b1 else b1
@@ -436,15 +436,29 @@ extractPrime fuel p n =
   let (k, remBox) = extractPrimeBox fuel (intToBoxInt p) (intToBoxInt n)
   in (k, unwrapBox remBox)
 
+||| Fast binary-log step upper bound: counts halvings of n in O(log n) steps via GMP division.
+public export
+binaryPrimeFuel : Nat -> Nat
+binaryPrimeFuel n =
+  if n < 256 then 9
+  else if n < 65536 then 17
+  else go n n
+  where
+    go : Nat -> Nat -> Nat
+    go Z _ = 2
+    go _ Z = 2
+    go (S f) k = if k <= 1 then 2 else S (go f (natDivFast k 2))
+
 ||| General trial division factorization across the Goh prime basis {2, 3, 5, 7, 11, 13}
-||| grounded entirely in BoxInt arithmetic.
+||| grounded entirely in BoxInt arithmetic using O(log n) binary division fuel.
 public export
 factorizeGohGeneral : Nat -> Maybe GohPrimeMultiset
 factorizeGohGeneral Z = Just emptyGohPrimeMultiset
 factorizeGohGeneral (S Z) = Just emptyGohPrimeMultiset
 factorizeGohGeneral (S k) =
-  let n0 = natToBoxInt (S k)
-      fuel = S k
+  let target = S k
+      n0 = natToBoxInt target
+      fuel = binaryPrimeFuel target
       (e2,  n1) = extractPrimeBox fuel (intToBoxInt 2) n0
       (e3,  n2) = extractPrimeBox fuel (intToBoxInt 3) n1
       (e5,  n3) = extractPrimeBox fuel (intToBoxInt 5) n2
@@ -478,6 +492,7 @@ factorizeGohSmooth 26  = Just (MkGohPrimeMultiset 1 0 0 0 0 1)
 factorizeGohSmooth 27  = Just (MkGohPrimeMultiset 0 3 0 0 0 0)
 factorizeGohSmooth 39  = Just (MkGohPrimeMultiset 0 1 0 0 0 1)
 factorizeGohSmooth 52  = Just (MkGohPrimeMultiset 2 0 0 0 0 1)
+factorizeGohSmooth 54  = Just (MkGohPrimeMultiset 1 3 0 0 0 0)
 factorizeGohSmooth 55  = Just (MkGohPrimeMultiset 0 0 1 0 1 0)
 factorizeGohSmooth 65  = Just (MkGohPrimeMultiset 0 0 1 0 0 1)
 factorizeGohSmooth 78  = Just (MkGohPrimeMultiset 1 1 0 0 0 1)
@@ -486,6 +501,7 @@ factorizeGohSmooth 104 = Just (MkGohPrimeMultiset 3 0 0 0 0 1)
 factorizeGohSmooth 117 = Just (MkGohPrimeMultiset 0 2 0 0 0 1)
 factorizeGohSmooth 128 = Just (MkGohPrimeMultiset 7 0 0 0 0 0)
 factorizeGohSmooth 130 = Just (MkGohPrimeMultiset 1 0 1 0 0 1)
+factorizeGohSmooth 137 = Nothing
 factorizeGohSmooth 143 = Just (MkGohPrimeMultiset 0 0 0 0 1 1)
 factorizeGohSmooth 156 = Just (MkGohPrimeMultiset 2 1 0 0 0 1)
 factorizeGohSmooth 169 = Just (MkGohPrimeMultiset 0 0 0 0 0 2)

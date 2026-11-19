@@ -21,12 +21,12 @@ natGcdFuel : Nat -> Nat -> Nat -> Nat
 natGcdFuel Z a b = 1
 natGcdFuel (S f) a Z = a
 natGcdFuel (S f) a (S b) =
-  let rem = a `mod` (S b)
+  let rem = natModFast a (S b)
   in natGcdFuel f (S b) rem
 
 public export
 natGcd : Nat -> Nat -> Nat
-natGcd a b = natGcdFuel (gohSteps (gohFuelForCapacity (S (a + b)))) a b
+natGcd a b = natGCDFast a b
 
 ||| A Balance Array represents a subtraction-free linear relation between n vectors (Vexels).
 ||| Positive side: sum posWeights_i * v_i
@@ -103,8 +103,8 @@ find2VexelBalance v1 v2 =
          let n1 = boxToNat m1
              n2 = boxToNat m2
              g = natGcd n1 n2
-             c1 = if g == 0 then 1 else n2 `div` g
-             c2 = if g == 0 then 1 else n1 `div` g
+             c1 = if g == 0 then 1 else natDivFast n2 g
+             c2 = if g == 0 then 1 else natDivFast n1 g
              b = MkBalanceArray [c1, 0] [0, c2]
          in if isBalanced [v1, v2] b
               then Just b

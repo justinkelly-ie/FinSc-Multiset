@@ -4,6 +4,10 @@ import public Stage0.BoxInt
 import public Stage0.BoxNat
 import public Stage0.DiffInt
 import public Stage0.SignedFraction
+import public Stage0.Box
+import public Stage0.HereditaryMSet
+import public Stage0.PureMultiset
+import public Stage0.SignedBit
 import public Stage0.Multiset
 import public Stage0.LMultiset
 import public Stage0.DepMultiset
@@ -31,6 +35,11 @@ import public Stage1.MultisetTree
 import public Stage1.MultisetTensor
 import public Stage1.MultisetDuality
 import public Stage1.Polynumber
+import public Stage1.Views
+import public Stage1.Lenses
+import public Stage1.Bridge.LaurentAntiMSetBridge
+import public Stage1.ConvolutionAdmissibility
+import public Stage1.PhaseGrid
 import public Stage1.Order.Preorder
 import public Stage1.TypeTheory.TwoLevel
 import public Stage1.TypeTheory.Staging

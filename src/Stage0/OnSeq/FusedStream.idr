@@ -44,7 +44,6 @@ data LinearStatePair : Type -> Type -> Type where
 
 ||| Evaluates a stateful linear step transducer with structural Nat fuel,
 ||| guaranteeing that the linear state is consumed and returned exactly once without leakage.
-%spec fn, step
 public export
 foldLinearStreamNat : (fuel : Nat) -> (fn : b -> a -> b) -> b -> (1 st : s) -> (step : (1 curr : s) -> StepLinear s a) -> LinearPair b s
 foldLinearStreamNat Z _ acc st _ = MkLPair acc st
@@ -82,13 +81,12 @@ public export
 stream : List a -> FusedStream a
 stream xs = MkStream listStep xs
 
-||| Constructs a deforested stream from a state transition step function (Anamorphism).
+||| Constructs a deforested stream from a state transition unfold stepper (`Stream Unfold`).
 public export
 unfoldStream : (s -> Step s a) -> s -> FusedStream a
 unfoldStream next seed = MkStream next seed
 
 ||| Evaluates a stream generator directly into an accumulator without intermediate allocations (Hylomorphism).
-%spec next, f
 public export
 fusedHylomorphism : Fuel -> (next : s -> Step s a) -> (f : a -> b -> b) -> b -> s -> b
 fusedHylomorphism Dry _ _ acc _ = acc
@@ -98,7 +96,6 @@ fusedHylomorphism (More f') next f acc st = case next st of
   Yield x st' => fusedHylomorphism f' next f (f x acc) st'
 
 ||| Total Nat fuel-bounded stream generator evaluation directly into an accumulator without intermediate allocations (Hylomorphism).
-%spec next, fStep
 public export
 fusedHylomorphismNat : (fuel : Nat) -> (next : s -> Step s a) -> (fStep : a -> b -> b) -> b -> s -> b
 fusedHylomorphismNat Z _ _ acc _ = acc
@@ -133,7 +130,6 @@ runFueledStreamNat fuel (MkStream {s} step s0) = loop fuel s0
 
 ||| Model-indexed GohFuel stream evaluation producing a List container.
 public export
-%inline
 runFueledStreamFuelModel : GohFuel cap -> FusedStream a -> List a
 runFueledStreamFuelModel fuel = runFueledStreamNat (gohSteps fuel)
 
@@ -260,7 +256,6 @@ zipWithStream {a, b, c} f (MkStream {s=sA} nextA seedA) (MkStream {s=sB} nextB s
       Yield y sb' => Yield (f x y) (sa, sb', Nothing)
 
 ||| Specialized top-level loop for Nat fuel-bounded stream left fold.
-%spec next, fn
 public export
 foldStreamLoopNat : (fuel : Nat) -> (next : s -> Step s a) -> (fn : b -> a -> b) -> s -> b -> b
 foldStreamLoopNat Z _ _ _ currentAcc = currentAcc
@@ -270,13 +265,11 @@ foldStreamLoopNat (S f') next fn st currentAcc = case next st of
   Yield x st' => foldStreamLoopNat f' next fn st' (fn currentAcc x)
 
 ||| Total Nat fuel-bounded stream left fold accumulator.
-%spec fn
 public export
 foldStreamNat : (fuel : Nat) -> (fn : b -> a -> b) -> b -> FusedStream a -> b
 foldStreamNat fuel fn acc0 (MkStream next seed) = foldStreamLoopNat fuel next fn seed acc0
 
 ||| Specialized top-level loop for Data.Fuel stream left fold.
-%spec next, fn
 public export
 foldStreamLoopFuel : Fuel -> (next : s -> Step s a) -> (fn : b -> a -> b) -> s -> b -> b
 foldStreamLoopFuel Dry _ _ _ currentAcc = currentAcc
@@ -286,7 +279,6 @@ foldStreamLoopFuel (More f') next fn st currentAcc = case next st of
   Yield x st' => foldStreamLoopFuel f' next fn st' (fn currentAcc x)
 
 ||| Total Data.Fuel stream left fold accumulator.
-%spec fn
 public export
 foldStreamFuel : Fuel -> (fn : b -> a -> b) -> b -> FusedStream a -> b
 foldStreamFuel fuel fn acc0 (MkStream next seed) = foldStreamLoopFuel fuel next fn seed acc0
@@ -523,40 +515,42 @@ public export
 fueLedFoldStreamNat : (fuel : Nat) -> (b -> a -> b) -> b -> FusedStream a -> b
 fueLedFoldStreamNat fuel f acc (MkStream next seed) = fusedHylomorphismNat fuel next (flip f) acc seed
 
-||| Converts a deforested FusedStream back into a Multiset BoxInt container (Fueled Fold).
+||| Converts a deforested `FusedStream (a, BoxInt)` back into an indexed `Carrier a` (Fueled Fold).
 public export
-streamToMultisetFuel : Fuel -> Eq a => FusedStream (a, BoxInt) -> Multiset BoxInt a
-streamToMultisetFuel f' strm = fueLedFoldStream f' (\acc, (k, v) => insertItemBox k v acc) ZeroM strm
+streamToCarrierFuel : Ord a => Fuel -> FusedStream (a, BoxInt) -> Carrier a
+streamToCarrierFuel f' strm =
+  fueLedFoldStream f' (\acc, (k, v) => addBoxTree k v acc) BoxLeaf strm
 
-||| Converts a deforested FusedStream back into a Multiset BoxInt container bounded by canonical Primorial 210 capacity (Rule 03).
+||| Converts a deforested `FusedStream (a, BoxInt)` into an indexed `Carrier a` bounded by `substrateFuel`.
 public export
-streamToMultiset : Eq a => FusedStream (a, BoxInt) -> Multiset BoxInt a
-streamToMultiset strm = streamToMultisetFuel substrateFuel strm
+streamToCarrier : Ord a => FusedStream (a, BoxInt) -> Carrier a
+streamToCarrier = streamToCarrierFuel substrateFuel
 
-||| Converts an algebraic multiset into a deforested stream of atomic individual tokens.
-||| Emits single tokens in O(1) auxiliary registers without intermediate heap allocation (Rule 04 §8).
+||| Streams an indexed `Carrier a` as individual atomic tokens using an $O(\log N)$ left-spine zipper
+||| without intermediate `List` allocation.
 public export
-streamTokens : Multiset BoxInt a -> FusedStream (Token a)
-streamTokens m =
-  MkStream {s = (Multiset BoxInt a, Nat)}
+streamCarrierTokens : Carrier a -> FusedStream (Token a)
+streamCarrierTokens m =
+  MkStream {s = (BoxZipper BoxInt a, Maybe (a, Nat))}
     (\case
-       (ZeroM, _) => Done
-       (AddM x (MkBoxInt w) rest, 0) =>
-         let count = boxToNat (absBox (MkBoxInt w))
-         in case count of
-              Z   => Skip (rest, 0)
-              S Z => Yield (MkToken x) (rest, 0)
-              S k => Yield (MkToken x) (AddM x (MkBoxInt w) rest, k)
-       (AddM x w rest, S k) =>
-         Yield (MkToken x) (if k == 0 then (rest, 0) else (AddM x w rest, k))
-    )
-    (m, 0)
+       (stk, Just (x, S k)) => Yield (MkToken x) (stk, if k == 0 then Nothing else Just (x, k))
+       (stk, Just (_, Z))   => Skip (stk, Nothing)
+       (stk, Nothing) =>
+         case stepBoxZipper stk of
+           Nothing => Done
+           Just (x, w, nextStk) =>
+             let count = boxToNat (absBox w)
+             in case count of
+                  Z   => Skip (nextStk, Nothing)
+                  S Z => Yield (MkToken x) (nextStk, Nothing)
+                  S k => Yield (MkToken x) (nextStk, Just (x, k)))
+    (pushLeftBox m [], Nothing)
 
-||| Folds a deforested stream of tokens back into an algebraic multiset with unit weights.
+||| Folds a deforested stream of tokens back into a canonical `Carrier a` with unit weights.
 public export
-streamTokensToMultiset : Eq a => FusedStream (Token a) -> Multiset BoxInt a
-streamTokensToMultiset strm =
-  foldStream (\acc, tok => addMultiset (tokenToBox tok) acc) ZeroM strm
+streamTokensToCarrier : Ord a => FusedStream (Token a) -> Carrier a
+streamTokensToCarrier strm =
+  foldStream (\acc, tok => acc <+> tokenToCarrier tok) BoxLeaf strm
 
 ------------------------------------------------------------------------
 -- STREAMING MULTISET ALGEBRA (MODULE SCALING, DIFFERENCE & REDUCTIONS)
@@ -669,16 +663,11 @@ multiplyGeometricPixels (MkStream {s=sL} nextL seedL) (MkStream {s=sR} nextR see
           then Yield (MkGeometricPixel (source ml) (target mr) (geometry ml)) (sl, sr', Just ml)
           else Skip (sl, sr', Just ml) -- Deforests non-matching cross-terms to Skip!
 
-||| Folds a deforested stream of GeometricPixels into a consolidated Multiset with explicit Fuel.
+||| Folds a deforested stream of `GeometricPixel`s into a consolidated `Carrier GeometricPixel` with explicit `Fuel`.
 public export
-unstreamToMultiset : Fuel -> FusedStream GeometricPixel -> Multiset BoxInt GeometricPixel
-unstreamToMultiset f strm =
-  foldStreamFuel f (\acc, px => insertItemBox px (intToBoxInt 1) acc) ZeroM strm
-
-||| Compatibility alias for `unstreamToMultiset`.
-public export
-unstreamToMap : Fuel -> FusedStream GeometricPixel -> Multiset BoxInt GeometricPixel
-unstreamToMap = unstreamToMultiset
+unstreamToCarrier : Fuel -> FusedStream GeometricPixel -> Carrier GeometricPixel
+unstreamToCarrier f strm =
+  foldStreamFuel f (\acc, px => addBoxTree px (intToBoxInt 1) acc) BoxLeaf strm
 
 ------------------------------------------------------------------------
 -- 4. CONSTRUCTIVIST TERNARY MATRIX BOOTSTRAP {-1, 0, 1}^3
@@ -788,23 +777,23 @@ public export
 splitStreamHalf : List a -> (FusedStream a, FusedStream a)
 splitStreamHalf xs =
   let len = length xs
-      mid = len `div` 2
+      mid = natDivFast len 2
       (leftList, rightList) = (take mid xs, drop mid xs)
   in (stream leftList, stream rightList)
 
-||| Evaluates a stream catamorphism fold over a FusedStream directly without intermediate allocations.
+||| Evaluates a stream fold consumer over a FusedStream directly without intermediate allocations.
 public export
 evalStreamHylomorphism : Fuel -> (a -> b -> b) -> b -> FusedStream a -> b
 evalStreamHylomorphism f stepAcc acc0 (MkStream next seed) =
   fusedHylomorphism f next stepAcc acc0 seed
 
-||| Evaluates a stream catamorphism fold over a FusedStream over Nat fuel.
+||| Evaluates a stream fold consumer over a FusedStream over Nat fuel.
 public export
 evalStreamHylomorphismNat : Nat -> (a -> b -> b) -> b -> FusedStream a -> b
 evalStreamHylomorphismNat fuel stepAcc acc0 (MkStream next seed) =
   fusedHylomorphismNat fuel next stepAcc acc0 seed
 
-||| Evaluates a stream catamorphism fold in parallel over left and right stream partitions.
+||| Evaluates a stream fold consumer in parallel over left and right stream partitions.
 public export
 fusedParallelStreamFold : Fuel -> (a -> b -> b) -> b -> (b -> b -> b) -> List a -> b
 fusedParallelStreamFold f stepAcc acc0 combineBin items =
@@ -813,7 +802,7 @@ fusedParallelStreamFold f stepAcc acc0 combineBin items =
       rightRes = evalStreamHylomorphism f stepAcc acc0 rightStrm
   in combineBin leftRes rightRes
 
-||| Evaluates a stream catamorphism fold in parallel over left and right stream partitions over Nat fuel.
+||| Evaluates a stream fold consumer in parallel over left and right stream partitions over Nat fuel.
 public export
 fusedParallelStreamFoldNat : Nat -> (a -> b -> b) -> b -> (b -> b -> b) -> List a -> b
 fusedParallelStreamFoldNat fuel stepAcc acc0 combineBin items =
@@ -822,7 +811,7 @@ fusedParallelStreamFoldNat fuel stepAcc acc0 combineBin items =
       rightRes = evalStreamHylomorphismNat fuel stepAcc acc0 rightStrm
   in combineBin leftRes rightRes
 
-||| Evaluates a stream catamorphism fold in parallel over model-indexed GohFuel.
+||| Evaluates a stream fold consumer in parallel over model-indexed GohFuel.
 public export
 fusedParallelStreamFoldFuelModel : GohFuel cap -> (a -> b -> b) -> b -> (b -> b -> b) -> List a -> b
 fusedParallelStreamFoldFuelModel fuel = fusedParallelStreamFoldNat (gohSteps fuel)
@@ -837,60 +826,213 @@ auditParallelStreamPartitionProof =
   in seqRes == parRes
 
 ------------------------------------------------------------------------
+-- 6B. FUELED FINITE STREAMS (DECOUPLED YIELD CAPACITY & SKIP BUDGET)
+------------------------------------------------------------------------
+
+||| A bounded finite stream pairing an existential FusedStream with model-indexed
+||| GohFuel (`yieldFuel : GohFuel cap`) and an explicit Skip-safe `stepBudget`.
+||| Decouples `Yield` count (`cap`) from `Skip` headroom so `filterMapStream` and
+||| `flatMapStream` transitions cannot starve valid yielded items.
+public export
+record FueledFiniteStream (cap : Nat) (a : Type) where
+  constructor MkFueledFiniteStream
+  yieldFuel  : GohFuel cap
+  stepBudget : Nat
+  rawStream  : FusedStream a
+
+||| Existential wrapper for a fueled finite stream whose capacity `cap` is derived
+||| dynamically (e.g., from a Maxel's support or streaming integer polynumber).
+public export
+data AnyFueledFiniteStream : Type -> Type where
+  MkAnyFueledFiniteStream : (cap : Nat) -> FueledFiniteStream cap a -> AnyFueledFiniteStream a
+
+||| Constructs a FueledFiniteStream from model-indexed GohFuel using its built-in step budget.
+public export
+mkFueledFiniteStream : {cap : Nat} -> GohFuel cap -> FusedStream a -> FueledFiniteStream cap a
+mkFueledFiniteStream yf strm = MkFueledFiniteStream yf (gohSteps yf) strm
+
+||| Constructs a FueledFiniteStream with explicit Skip headroom (`maxSkips`) beyond yield capacity `cap`.
+public export
+mkFueledFiniteStreamWithSkips : {cap : Nat} -> GohFuel cap -> (maxSkips : Nat) -> FusedStream a -> FueledFiniteStream cap a
+mkFueledFiniteStreamWithSkips {cap} yf maxSkips strm =
+  let minNeeded = S (cap + maxSkips)
+      baseSteps = gohSteps yf
+      totalBudget = if baseSteps >= minNeeded then baseSteps else minNeeded
+  in MkFueledFiniteStream yf totalBudget strm
+
+||| Wraps a finite List into an exact-length FueledFiniteStream.
+public export
+fromListFueledFinite : (xs : List a) -> FueledFiniteStream (length xs) a
+fromListFueledFinite xs =
+  mkFueledFiniteStream (gohFuelForCapacity (length xs)) (stream xs)
+
+||| Maps a function over a FueledFiniteStream, preserving capacity and Skip budget.
+public export
+mapFueledFiniteStream : (a -> b) -> FueledFiniteStream cap a -> FueledFiniteStream cap b
+mapFueledFiniteStream f (MkFueledFiniteStream yf budget strm) =
+  MkFueledFiniteStream yf budget (mapStream f strm)
+
+public export
+Functor (FueledFiniteStream cap) where
+  map = mapFueledFiniteStream
+
+||| Fuses filtering and mapping over a FueledFiniteStream without shrinking the stepBudget
+||| needed to absorb filtered Skip steps.
+public export
+filterMapFueledFiniteStream : (a -> Maybe b) -> FueledFiniteStream cap a -> FueledFiniteStream cap b
+filterMapFueledFiniteStream f (MkFueledFiniteStream yf budget strm) =
+  MkFueledFiniteStream yf budget (filterMapStream f strm)
+
+||| Appends two FueledFiniteStreams algebraically via `sequentialFuel`.
+public export
+appendFueledFiniteStream : FueledFiniteStream c1 a -> FueledFiniteStream c2 a -> FueledFiniteStream (c1 + c2) a
+appendFueledFiniteStream (MkFueledFiniteStream yf1 b1 s1) (MkFueledFiniteStream yf2 b2 s2) =
+  MkFueledFiniteStream (sequentialFuel yf1 yf2) (b1 + b2 + 1) (appendStream s1 s2)
+
+||| Zips two FueledFiniteStreams elementwise under `joinFuel`.
+public export
+zipWithFueledFiniteStream : (a -> b -> c) -> FueledFiniteStream c1 a -> FueledFiniteStream c2 b -> FueledFiniteStream (fuelMax c1 c2) c
+zipWithFueledFiniteStream f (MkFueledFiniteStream yf1 b1 s1) (MkFueledFiniteStream yf2 b2 s2) =
+  MkFueledFiniteStream (joinFuel yf1 yf2) (b1 + b2 + 1) (zipWithStream f s1 s2)
+
+||| Flattens nested FueledFiniteStreams using `multiStreamFuelNat` Skip headroom.
+public export
+flatMapFueledFiniteStream : {cOuter, cInner : Nat} ->
+                            GohFuel cInner ->
+                            (a -> FueledFiniteStream cInner b) ->
+                            FueledFiniteStream cOuter a ->
+                            FueledFiniteStream (cOuter * cInner) b
+flatMapFueledFiniteStream {cOuter} {cInner} innerFuel f (MkFueledFiniteStream _ outerSteps strm) =
+  let innerBudget = gohSteps innerFuel * 2 + 4
+      stepCap = outerSteps * (innerBudget + 2) + outerSteps + 2
+  in MkFueledFiniteStream (gohFuelForCapacity (cOuter * cInner)) stepCap (flatMapStream (\x => (f x).rawStream) strm)
+
+||| Executes a Skip-safe left fold over a FueledFiniteStream.
+||| `Skip` consumes only `stepBudget`; `Yield` consumes both `stepBudget` and `yieldRemaining`.
+public export
+foldFueledFiniteStream : {cap : Nat} -> (b -> a -> b) -> b -> FueledFiniteStream cap a -> b
+foldFueledFiniteStream {cap} fn acc0 (MkFueledFiniteStream _ budget (MkStream next seed)) =
+  loop budget cap next seed acc0
+  where
+    loop : {0 stTy : Type} -> Nat -> Nat -> (stTy -> Step stTy a) -> stTy -> b -> b
+    loop Z _ _ _ acc = acc
+    loop _ Z _ _ acc = acc
+    loop (S sb) (S yr) stepFn st acc = case stepFn st of
+      Done => acc
+      Skip st' => loop sb (S yr) stepFn st' acc
+      Yield x st' => loop sb yr stepFn st' (fn acc x)
+
+||| Materializes a FueledFiniteStream to an in-order List in O(N) time.
+public export
+toListFueledFiniteStream : {cap : Nat} -> FueledFiniteStream cap a -> List a
+toListFueledFiniteStream ffs =
+  reverse (foldFueledFiniteStream (\acc, x => x :: acc) (the (List a) []) ffs)
+
+||| Projects the underlying `GohFuel cap` yield budget of a FueledFiniteStream.
+public export
+fueledFiniteStreamToGohFuel : FueledFiniteStream cap a -> GohFuel cap
+fueledFiniteStreamToGohFuel = yieldFuel
+
+------------------------------------------------------------------------
 -- 10. DEFORESTED DIVISOR STREAMS & CYCLOTOMIC TOTIENT ACCOUNTING
 ------------------------------------------------------------------------
 
-||| Structural modulo for natural numbers under fuel.
+||| Integer-backed modulo for natural numbers.
 public export
 natModFuel : Nat -> Nat -> Nat -> Nat
-natModFuel Z a b = 0
-natModFuel (S f) a b = if a < b then a else natModFuel f (minus a b) b
+natModFuel _ a b = natModFast a b
 
-||| Fuel-bounded greatest common divisor for natural numbers.
+||| Integer-backed greatest common divisor for natural numbers.
 public export
 natGCDFuel : Nat -> Nat -> Nat -> Nat
-natGCDFuel Z _ b = b
-natGCDFuel (S f) a Z = a
-natGCDFuel (S f) a (S b) = natGCDFuel f (S b) (natModFuel a a (S b))
+natGCDFuel _ a b = natGCDFast a b
 
 ||| Greatest common divisor for natural numbers.
 public export
 natGCD : Nat -> Nat -> Nat
-natGCD a b = natGCDFuel (a + b) a b
+natGCD = natGCDFast
 
 ||| Structural countdown accumulator for Euler's totient function.
 public export
-totientCount : Nat -> Nat -> Nat -> Nat
-totientCount Z _ acc = acc
-totientCount (S d) k acc =
-  totientCount d k (if natGCD k (S d) == 1 then S acc else acc)
+divOutPrime : Nat -> Nat -> Nat -> Nat
+divOutPrime Z _ m = m
+divOutPrime (S f) p m = if natModFast m p == 0 then divOutPrime f p (natDivFast m p) else m
+
+public export
+totientGo : Nat -> Nat -> Nat -> Nat -> Nat
+totientGo Z _ _ res = res
+totientGo (S f) p m res =
+  if p * p > m then
+    if m > 1 then natDivFast res m * minus m 1 else res
+  else if natModFast m p == 0 then
+    let m' = divOutPrime (S f) p m
+        res' = natDivFast res p * minus p 1
+    in totientGo f (S p) m' res'
+  else
+    totientGo f (S p) m res
 
 ||| Euler's totient function phi(n) tracking algebraic degree and multiset support cardinality.
-||| Evaluates definitionally at compile time in O(1) auxiliary memory without heap List allocation.
+||| Evaluates in O(sqrt(n)) trial divisions using Integer-backed division/mod with zero heap allocation.
 public export
 totientNat : Nat -> Nat
 totientNat Z = Z
-totientNat (S n) = totientCount (S n) (S n) 0
+totientNat (S Z) = S Z
+totientNat (S n) = totientGo (S n) 2 (S n) (S n)
 
 ||| Compile-time proof witness: phi(39) = 24 definitionally reduces in the core unifier.
 public export
 0 prfTotient39Definitional : totientNat 39 = 24
 prfTotient39Definitional = Refl
 
-||| Deforested stream of all divisors d | n (from 1 up to n).
-||| Zero intermediate heap List allocation via stream fusion Skip/Yield.
+||| Deforested ascending stream of all divisors d | n (from 1 up to n) in O(sqrt(n)) steps.
+||| Zero intermediate List allocation for non-divisors; stacks only upper cofactors > sqrt(n).
 public export
 divisorStream : Nat -> FusedStream Nat
 divisorStream Z = stream []
-divisorStream (S n) = unfoldStream nextStep (1, S n)
+divisorStream (S n) = unfoldStream nextStep (Left (1, S n, the (List Nat) []))
   where
-    nextStep : (Nat, Nat) -> Step (Nat, Nat) Nat
-    nextStep (cand, target) =
-      if cand > target then Done
-      else if target `mod` cand == Z then
-        Yield cand (S cand, target)
-      else
-        Skip (S cand, target)
+    nextStep : Either (Nat, Nat, List Nat) (List Nat)
+            -> Step (Either (Nat, Nat, List Nat) (List Nat)) Nat
+    nextStep (Right []) = Done
+    nextStep (Right (q :: qs)) = Yield q (Right qs)
+    nextStep (Left (Z, _, stack)) =
+      case stack of
+        [] => Done
+        (q :: qs) => Yield q (Right qs)
+    nextStep (Left (S c', target, stack)) =
+      let cand = S c'
+      in if cand * cand > target then
+           case stack of
+             [] => Done
+             (q :: qs) => Yield q (Right qs)
+         else if natModFast target (S c') == Z then
+           let q = natDivFast target (S c')
+               stack' = if q == cand then stack else q :: stack
+           in Yield cand (Left (S cand, target, stack'))
+         else
+           Skip (Left (S cand, target, stack))
+
+||| Zero-allocation O(sqrt(n)) divisor stream in O(1) registers (paired yield order)
+||| for associative/commutative folds that do not depend on ascending divisor order.
+public export
+divisorStreamUnordered : Nat -> FusedStream Nat
+divisorStreamUnordered Z = stream []
+divisorStreamUnordered (S n) = unfoldStream nextStep (1, S n, Nothing)
+  where
+    nextStep : (Nat, Nat, Maybe Nat) -> Step (Nat, Nat, Maybe Nat) Nat
+    nextStep (cand, target, Just q) = Yield q (S cand, target, Nothing)
+    nextStep (Z, _, Nothing) = Done
+    nextStep (S c', target, Nothing) =
+      let cand = S c'
+      in if cand * cand > target then Done
+         else if natModFast target (S c') == Z then
+           let q = natDivFast target (S c')
+               pending = if q == cand then Nothing else Just q
+           in case pending of
+                Nothing => Yield cand (S cand, target, Nothing)
+                Just q' => Yield cand (cand, target, Just q')
+         else
+           Skip (S cand, target, Nothing)
 
 ||| Audits Gauss's totient sum identity: sum_{d | n} phi(d) == n
 public export
@@ -940,6 +1082,363 @@ verifyPipelineEquivalence n =
   let seq = generateSequence n
   in listPipeline seq == fusedStreamPipeline seq
 
+------------------------------------------------------------------------
+-- 11. DECOUPLED YIELD/STEP FUEL & TYPED FREEZE-OUT CERTIFICATES
+------------------------------------------------------------------------
 
+||| Classifies the exact physical/computational reason a fueled stream halted:
+||| - `YieldExhausted`     : Energy/yield quota (`yieldBudget`) reached `0` (ordered crystal / chemical freeze-out)
+||| - `StepHorizonReached` : Causal search horizon (`stepBudget`) reached `0` while yield remained (kinematic decoupling)
+||| - `NaturalCompletion`  : Stream emitted `Done` before exhausting either budget (exact ground-state relaxation)
+public export
+data FreezeReason : Type where
+  YieldExhausted     : FreezeReason
+  StepHorizonReached : FreezeReason
+  NaturalCompletion  : FreezeReason
 
+public export
+Eq FreezeReason where
+  YieldExhausted     == YieldExhausted     = True
+  StepHorizonReached == StepHorizonReached = True
+  NaturalCompletion  == NaturalCompletion  = True
+  _                  == _                  = False
 
+public export
+Show FreezeReason where
+  show YieldExhausted     = "YieldExhausted"
+  show StepHorizonReached = "StepHorizonReached"
+  show NaturalCompletion  = "NaturalCompletion"
+
+||| Typed freeze-out witness returned when a fueled stream halts, carrying:
+||| - `carrier`        : The solidified state/multiset relic
+||| - `freezeReason`   : Why evolution stopped (`YieldExhausted`, `StepHorizonReached`, `NaturalCompletion`)
+||| - `remainingYield` : Unspent `GohFuel cap` steps
+||| - `remainingSteps` : Unspent causal search steps
+public export
+record SolidifiedCarrier (cap : Nat) (a : Type) where
+  constructor MkSolidifiedCarrier
+  carrier        : a
+  freezeReason   : FreezeReason
+  remainingYield : GohFuel cap
+  remainingSteps : Nat
+
+||| Decoupled Yield/Step Evaluator over `Step s a`:
+||| - `Skip s'` consumes ONLY `stepBudget` (`S sRem`), never draining `yieldBudget` (`yRem`)!
+||| - `Yield x s'` consumes BOTH 1 unit of `yieldBudget` and 1 unit of `stepBudget`,
+|||   updating the state/accumulator `acc` via `combineFn`.
+||| - Emits a `SolidifiedCarrier cap b` witness recording the exact `FreezeReason`.
+public export
+runDecoupledStream : (yieldFuel  : GohFuel cap) ->
+                     (stepBudget : Nat) ->
+                     (stepFn     : s -> Step s a) ->
+                     (combineFn  : a -> b -> b) ->
+                     (initAcc    : b) ->
+                     (seed       : s) ->
+                     SolidifiedCarrier cap b
+runDecoupledStream yieldFuel stepBudget stepFn combineFn initAcc seed =
+  loop (gohSteps yieldFuel) stepBudget initAcc seed
+  where
+    loop : Nat -> Nat -> b -> s -> SolidifiedCarrier cap b
+    loop Z sRem acc _ =
+      MkSolidifiedCarrier acc YieldExhausted (MkGohFuel 0) sRem
+    loop yRem Z acc _ =
+      MkSolidifiedCarrier acc StepHorizonReached (MkGohFuel yRem) 0
+    loop (S yRem) (S sRem) acc st =
+      case stepFn st of
+        Done =>
+          MkSolidifiedCarrier acc NaturalCompletion (MkGohFuel (S yRem)) (S sRem)
+        Skip st' =>
+          -- `Skip` deducts only from `sRem`, protecting `S yRem` from sparse-filter starvation
+          loop (S yRem) sRem acc st'
+        Yield x st' =>
+          loop yRem sRem (combineFn x acc) st'
+
+||| Linear (`QTT 1`) Decoupled Stream Evaluator over `StepLinear s a`:
+||| Threads a `1`-quantity linear state (`UniverseContainer`, `LinBuf`, or `PingPongGrid`)
+||| under decoupled `(yieldFuel, stepBudget)` bounds, returning both the final linear state
+||| and the `SolidifiedCarrier` freeze-out certificate inside a `LinearStatePair`.
+public export
+runDecoupledLinearStream : (yieldFuel  : GohFuel cap) ->
+                           (stepBudget : Nat) ->
+                           (1 seed     : s) ->
+                           (stepFn     : (1 curr : s) -> StepLinear s a) ->
+                           (combineFn  : a -> b -> b) ->
+                           (initAcc    : b) ->
+                           LinearStatePair s (SolidifiedCarrier cap b)
+runDecoupledLinearStream yieldFuel stepBudget seed stepFn combineFn initAcc =
+  loop (gohSteps yieldFuel) stepBudget initAcc seed
+  where
+    loop : Nat -> Nat -> b -> (1 curr : s) -> LinearStatePair s (SolidifiedCarrier cap b)
+    loop Z sRem acc st =
+      MkLStatePair st (MkSolidifiedCarrier acc YieldExhausted (MkGohFuel 0) sRem)
+    loop yRem Z acc st =
+      MkLStatePair st (MkSolidifiedCarrier acc StepHorizonReached (MkGohFuel yRem) 0)
+    loop (S yRem) (S sRem) acc st =
+      case stepFn st of
+        DoneL st' =>
+          MkLStatePair st' (MkSolidifiedCarrier acc NaturalCompletion (MkGohFuel (S yRem)) (S sRem))
+        SkipL st' =>
+          loop (S yRem) sRem acc st'
+        YieldL x st' =>
+          loop yRem sRem (combineFn x acc) st'
+
+------------------------------------------------------------------------
+-- 12. FUELED `Step` / `Yield` `hyperOp` TRANSDUCER (`runFueledHyperOp`)
+------------------------------------------------------------------------
+
+||| Incremental zipper transducer state for fueled `hyperOp` evaluation over `HereditaryMSet c`:
+||| - `AddZipState`  : Lockstep ascending zipper merge (`level = 0`, annihilating pairs emit `Skip`).
+||| - `ConvZipState` : Nested outer/inner zipper pairing (`level = S innerLevel`).
+public export
+data HyperOpZipState : (c : Type) -> Type where
+  AddZipState  : BoxZipper c (HereditaryMSet c) -> BoxZipper c (HereditaryMSet c) -> HyperOpZipState c
+  ConvZipState : (innerLevel : Nat) ->
+                 (fullB2 : Stage0.Box.Box c (HereditaryMSet c)) ->
+                 BoxZipper c (HereditaryMSet c) ->
+                 BoxZipper c (HereditaryMSet c) ->
+                 HyperOpZipState c
+
+||| Initializes a `HyperOpZipState c` at `level` without intermediate list allocations.
+public export
+initHyperOpZipState : (level : Nat) ->
+                      HereditaryMSet c ->
+                      HereditaryMSet c ->
+                      HyperOpZipState c
+initHyperOpZipState Z (MkHMSet b1) (MkHMSet b2) =
+  AddZipState (pushLeftBox b1 []) (pushLeftBox b2 [])
+initHyperOpZipState (S innerLevel) (MkHMSet b1) (MkHMSet BoxLeaf) =
+  ConvZipState innerLevel BoxLeaf [] []
+initHyperOpZipState (S innerLevel) (MkHMSet b1) (MkHMSet b2) =
+  ConvZipState innerLevel b2 (pushLeftBox b1 []) (pushLeftBox b2 [])
+
+||| Single `Step` transition for fueled `hyperOp` evaluation:
+||| - Surviving non-zero terms emit `Yield (kOut, wOut)` (consuming `GohFuel` + `stepBudget`).
+||| - Zero-pruned annihilations (`[x, x^a] = []`) and AVL inner resets emit `Skip`
+|||   (consuming only `stepBudget` while sparing `GohFuel`).
+public export
+hyperOpStep : MultisetWeight c =>
+              HyperOpZipState c ->
+              Step (HyperOpZipState c) (HereditaryMSet c, c)
+hyperOpStep (AddZipState [] []) = Done
+hyperOpStep (AddZipState [] ((k2, w2, r2) :: ys)) =
+  let nextZ2 = pushLeftBox r2 ys
+  in if isZero w2
+       then Skip (AddZipState [] nextZ2)
+       else Yield (k2, w2) (AddZipState [] nextZ2)
+hyperOpStep (AddZipState ((k1, w1, r1) :: xs) []) =
+  let nextZ1 = pushLeftBox r1 xs
+  in if isZero w1
+       then Skip (AddZipState nextZ1 [])
+       else Yield (k1, w1) (AddZipState nextZ1 [])
+hyperOpStep (AddZipState z1@((k1, w1, r1) :: xs) z2@((k2, w2, r2) :: ys)) =
+  case compare k1 k2 of
+    LT =>
+      let nextZ1 = pushLeftBox r1 xs
+      in if isZero w1
+           then Skip (AddZipState nextZ1 z2)
+           else Yield (k1, w1) (AddZipState nextZ1 z2)
+    GT =>
+      let nextZ2 = pushLeftBox r2 ys
+      in if isZero w2
+           then Skip (AddZipState z1 nextZ2)
+           else Yield (k2, w2) (AddZipState z1 nextZ2)
+    EQ =>
+      let nextZ1 = pushLeftBox r1 xs
+          nextZ2 = pushLeftBox r2 ys
+          wSum   = addWeight w1 w2
+      in if isZero wSum
+           then Skip (AddZipState nextZ1 nextZ2)
+           else Yield (k1, wSum) (AddZipState nextZ1 nextZ2)
+hyperOpStep (ConvZipState _ _ [] _) = Done
+hyperOpStep (ConvZipState innerLevel fullB2 ((k1, w1, r1) :: xs) []) =
+  Skip (ConvZipState innerLevel fullB2 (pushLeftBox r1 xs) (pushLeftBox fullB2 []))
+hyperOpStep (ConvZipState innerLevel fullB2 z1@((k1, w1, r1) :: xs) ((k2, w2, r2) :: ys)) =
+  if isZero w1
+    then Skip (ConvZipState innerLevel fullB2 (pushLeftBox r1 xs) (pushLeftBox fullB2 []))
+    else
+      let nextZ2 = pushLeftBox r2 ys
+          wProd  = mulWeight w1 w2
+      in if isZero wProd
+           then Skip (ConvZipState innerLevel fullB2 z1 nextZ2)
+           else Yield (hyperOp innerLevel k1 k2, wProd) (ConvZipState innerLevel fullB2 z1 nextZ2)
+
+private
+zipShells : List a -> List a -> List (List a)
+zipShells []        []        = []
+zipShells (x :: xs) []        = [x] :: zipShells xs []
+zipShells []        (y :: ys) = [y] :: zipShells [] ys
+zipShells (x :: xs) (y :: ys) = [x, y] :: zipShells xs ys
+
+||| Groups non-zero entries of `HereditaryMSet c` into symmetric radial shells outward
+||| from `emptyHMSet`: `[[origin], [neg_1, pos_1], [neg_2, pos_2], ...]`.
+public export
+buildRadialShells : MultisetWeight c => HereditaryMSet c -> List (List (HereditaryMSet c, c))
+buildRadialShells (MkHMSet box) =
+  let zeroKey = emptyHMSet {c}
+      splitStep : (List (HereditaryMSet c, c), List (HereditaryMSet c, c), List (HereditaryMSet c, c)) ->
+                  (HereditaryMSet c, c) ->
+                  (List (HereditaryMSet c, c), List (HereditaryMSet c, c), List (HereditaryMSet c, c))
+      splitStep (negDesc, zeros, posRev) (k, w) =
+        if isZero w
+          then (negDesc, zeros, posRev)
+          else case compare k zeroKey of
+                 LT => ((k, w) :: negDesc, zeros, posRev)
+                 EQ => (negDesc, (k, w) :: zeros, posRev)
+                 GT => (negDesc, zeros, (k, w) :: posRev)
+      part     = foldBoxTreeL splitStep ([], [], []) box
+      negDesc  = fst part
+      zeros    = fst (snd part)
+      posRev   = snd (snd part)
+      headZero : List (List (HereditaryMSet c, c))
+      headZero = case zeros of
+                   [] => []
+                   _  => [zeros]
+  in headZero ++ zipShells negDesc (reverse posRev)
+
+private
+toEntriesList : MultisetWeight c => HereditaryMSet c -> List (HereditaryMSet c, c)
+toEntriesList (MkHMSet box) =
+  reverse $ foldBoxTreeL (\acc, (k, w) => if isZero w then acc else (k, w) :: acc) [] box
+
+private
+insertShellPairs : MultisetWeight c =>
+                   Nat ->
+                   List (HereditaryMSet c, c) ->
+                   List (HereditaryMSet c, c) ->
+                   Box c (HereditaryMSet c) ->
+                   Box c (HereditaryMSet c)
+insertShellPairs _ [] _ acc = acc
+insertShellPairs innerLevel ((k1, w1) :: rest1) entriesB acc =
+  let acc1 = foldl (\bAcc, (k2, w2) =>
+                     let wProd = mulWeight w1 w2
+                     in if isZero wProd
+                          then bAcc
+                          else addAtKeyBox (hyperOp innerLevel k1 k2) wProd bAcc)
+                   acc
+                   entriesB
+  in insertShellPairs innerLevel rest1 entriesB acc1
+
+||| Consume `n` steps of Idris 2's `Data.Fuel`, returning `Nothing` on `Dry`.
+public export
+consumeDataFuel : Nat -> Fuel -> Maybe Fuel
+consumeDataFuel Z     f        = Just f
+consumeDataFuel (S k) (More f) = consumeDataFuel k f
+consumeDataFuel (S _) Dry      = Nothing
+
+||| Decoupled yield/step runner directly driven by Idris 2 `Data.Fuel`.
+||| Returns `(result, freezeReason, usedYields, usedSteps)`.
+public export
+runDecoupledDataFuel : (yieldFuel : Fuel) ->
+                       (stepFuel  : Fuel) ->
+                       (stepFn    : s -> Step s a) ->
+                       (combineFn : a -> b -> b) ->
+                       (initAcc   : b) ->
+                       (seed      : s) ->
+                       (b, FreezeReason, Nat, Nat)
+runDecoupledDataFuel yFuel sFuel stepFn combineFn initAcc seed =
+  loop yFuel sFuel 0 0 initAcc seed
+  where
+    loop : Fuel -> Fuel -> Nat -> Nat -> b -> s -> (b, FreezeReason, Nat, Nat)
+    loop Dry _ yU sU acc _ = (acc, YieldExhausted, yU, sU)
+    loop _ Dry yU sU acc _ = (acc, StepHorizonReached, yU, sU)
+    loop (More yNext) (More sNext) yU sU acc st =
+      case stepFn st of
+        Done       => (acc, NaturalCompletion, yU, sU)
+        Skip st'   => loop (More yNext) sNext yU (S sU) acc st'
+        Yield x st' => loop yNext sNext (S yU) (S sU) (combineFn x acc) st'
+
+||| Symmetric radial shell convolution driven directly by Idris 2 `Data.Fuel`.
+public export
+runSymmetricRadialConvDataFuel : MultisetWeight c =>
+                                 (innerLevel : Nat) ->
+                                 (yieldFuel  : Fuel) ->
+                                 (stepFuel   : Fuel) ->
+                                 HereditaryMSet c ->
+                                 HereditaryMSet c ->
+                                 (HereditaryMSet c, FreezeReason, Nat, Nat)
+runSymmetricRadialConvDataFuel innerLevel yFuel sFuel mA mB =
+  let shells   = buildRadialShells mA
+      entriesB = toEntriesList mB
+      nnzB     = length entriesB
+  in loopShells shells yFuel sFuel 0 0 entriesB nnzB BoxLeaf
+  where
+    loopShells : List (List (HereditaryMSet c, c)) ->
+                 Fuel -> Fuel -> Nat -> Nat ->
+                 List (HereditaryMSet c, c) -> Nat ->
+                 Box c (HereditaryMSet c) ->
+                 (HereditaryMSet c, FreezeReason, Nat, Nat)
+    loopShells [] _ _ yU sU _ _ acc =
+      (MkHMSet acc, NaturalCompletion, yU, sU)
+    loopShells (sh :: rest) yRem sRem yU sU entriesB nnzB acc =
+      let need = length sh * nnzB
+      in case consumeDataFuel need sRem of
+           Nothing => (MkHMSet acc, StepHorizonReached, yU, sU)
+           Just sRem' =>
+             case consumeDataFuel need yRem of
+               Nothing => (MkHMSet acc, YieldExhausted, yU, sU)
+               Just yRem' =>
+                 let acc' = insertShellPairs innerLevel sh entriesB acc
+                 in loopShells rest yRem' sRem' (yU + need) (sU + need) entriesB nnzB acc'
+
+||| Symmetric radial shell convolution bounded by `GohFuel cap`, halting cleanly
+||| before an outer shell exceeds remaining yields (`YieldExhausted`).
+public export
+runSymmetricRadialConv : MultisetWeight c =>
+                         (innerLevel : Nat) ->
+                         GohFuel cap ->
+                         Nat ->
+                         HereditaryMSet c ->
+                         HereditaryMSet c ->
+                         SolidifiedCarrier cap (HereditaryMSet c)
+runSymmetricRadialConv innerLevel yFuel stepBudget mA mB =
+  let shells   = buildRadialShells mA
+      entriesB = toEntriesList mB
+      nnzB     = length entriesB
+  in loopShells shells (gohSteps yFuel) stepBudget entriesB nnzB BoxLeaf
+  where
+    loopShells : List (List (HereditaryMSet c, c)) ->
+                 Nat -> Nat ->
+                 List (HereditaryMSet c, c) -> Nat ->
+                 Box c (HereditaryMSet c) ->
+                 SolidifiedCarrier cap (HereditaryMSet c)
+    loopShells [] yRem sRem _ _ acc =
+      MkSolidifiedCarrier (MkHMSet acc) NaturalCompletion (MkGohFuel yRem) sRem
+    loopShells (sh :: rest) yRem sRem entriesB nnzB acc =
+      let need = length sh * nnzB
+      in if need > sRem
+           then MkSolidifiedCarrier (MkHMSet acc) StepHorizonReached (MkGohFuel yRem) sRem
+         else if need > yRem
+           then MkSolidifiedCarrier (MkHMSet acc) YieldExhausted (MkGohFuel yRem) sRem
+         else
+           let acc' = insertShellPairs innerLevel sh entriesB acc
+           in loopShells rest (minus yRem need) (minus sRem need) entriesB nnzB acc'
+
+||| Legacy left-to-right zipper `hyperOp` evaluator (kept for regression control).
+public export
+runFueledHyperOpZipper : MultisetWeight c =>
+                         (level : Nat) ->
+                         (cap : Nat) ->
+                         HereditaryMSet c ->
+                         HereditaryMSet c ->
+                         SolidifiedCarrier cap (HereditaryMSet c)
+runFueledHyperOpZipper level cap mA mB =
+  let (yFuel, sBudget) = hyperOpFuelOfHMSet level cap mA mB
+      insertTerm : (HereditaryMSet c, c) -> HereditaryMSet c -> HereditaryMSet c
+      insertTerm (k, w) (MkHMSet acc) = MkHMSet (addAtKeyBox k w acc)
+  in runDecoupledStream yFuel sBudget hyperOpStep insertTerm emptyHMSet (initHyperOpZipState level mA mB)
+
+||| Evaluates `hyperOp level mA mB` polymorphically over any `MultisetWeight c`
+||| carrier under support-derived `hyperOpFuelOfHMSet level cap mA mB`:
+||| - Level `0` (`+`): `AddZipState` via `runDecoupledStream` (preserving zero-yield annihilation `Skip`s)
+||| - Level `1+` (`*`, `^`, ...): `runSymmetricRadialConv` preserving UV-IR shell symmetry on freeze-out.
+public export
+runFueledHyperOp : MultisetWeight c =>
+                   (level : Nat) ->
+                   (cap : Nat) ->
+                   HereditaryMSet c ->
+                   HereditaryMSet c ->
+                   SolidifiedCarrier cap (HereditaryMSet c)
+runFueledHyperOp Z cap mA mB = runFueledHyperOpZipper Z cap mA mB
+runFueledHyperOp (S innerLevel) cap mA mB =
+  let (yFuel, sBudget) = hyperOpFuelOfHMSet (S innerLevel) cap mA mB
+  in runSymmetricRadialConv innerLevel yFuel sBudget mA mB

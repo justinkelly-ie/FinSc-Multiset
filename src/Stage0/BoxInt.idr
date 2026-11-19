@@ -2,6 +2,7 @@ module Stage0.BoxInt
 
 import Data.Nat
 import Data.Linear
+import public Data.DPair
 
 %default total
 
@@ -174,13 +175,43 @@ boxMul = mulBox
 natToBox : Nat -> BoxInt
 natToBox = natToBoxInt
 
-public export
-record NonZeroBoxInt where
-  constructor MkNonZeroBoxInt
-  val : BoxInt
+------------------------------------------------------------------------
+-- 2. LATTICE MEET/JOIN & CONSTRUCTIVE NON-ZERO RECOGNIZER (`Dec`)
+------------------------------------------------------------------------
 
+||| Pointwise lattice meet (`min`) for tropical `/\` envelopes.
+%inline public export
+minBox : BoxInt -> BoxInt -> BoxInt
+minBox a b = if a <= b then a else b
+
+||| Pointwise lattice join (`max`) for tropical `\/` envelopes.
+%inline public export
+maxBox : BoxInt -> BoxInt -> BoxInt
+maxBox a b = if a >= b then a else b
+
+||| Constructive predicate witnessing that a `BoxInt` is non-zero.
 public export
-toNonZeroBoxInt : BoxInt -> Maybe NonZeroBoxInt
+data IsNonZeroBox : BoxInt -> Type where
+  MkIsNonZero : {v : Integer} -> (0 prf : (v == 0) = False) -> IsNonZeroBox (MkBoxInt v)
+
+||| Constructive `Dec` recognizer replacing `Maybe`-returning `toNonZeroBoxInt`
+||| (per `recognition-rule.md`), yielding `Yes prf` or `No contra`.
+public export
+recognizeNonZeroBox : (b : BoxInt) -> Dec (IsNonZeroBox b)
+recognizeNonZeroBox (MkBoxInt v) with (v == 0) proof eq
+  recognizeNonZeroBox (MkBoxInt v) | False = Yes (MkIsNonZero eq)
+  recognizeNonZeroBox (MkBoxInt v) | True  =
+    No (\(MkIsNonZero prf) => absurd (trans (sym eq) prf))
+
+||| Erased-proof `Subset` alias for zero-overhead runtime storage of non-zero scalars.
+public export
+NonZeroBoxInt : Type
+NonZeroBoxInt = Subset BoxInt IsNonZeroBox
+
+||| Smart constructor returning `Maybe NonZeroBoxInt` backed by the `Dec` witness.
+public export
+toNonZeroBoxInt : (b : BoxInt) -> Maybe NonZeroBoxInt
 toNonZeroBoxInt b =
-  if boxIsZero b then Nothing
-  else Just (MkNonZeroBoxInt b)
+  case recognizeNonZeroBox b of
+    Yes prf => Just (Element b prf)
+    No _    => Nothing

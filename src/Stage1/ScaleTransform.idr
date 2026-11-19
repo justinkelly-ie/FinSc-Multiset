@@ -4,7 +4,7 @@ import public Stage1.TypeTheory.Smoothness
 
 %default total
 
-||| Open algebraic interface for functorial scale transformations between domains
+||| Open algebraic interface for coordinate and Maxel scale transformations between domains
 public export
 interface ScaleTransform domainA domainB where
   scaleTransform : domainA -> domainB
@@ -14,7 +14,7 @@ public export
 ScaleTransform a a where
   scaleTransform x = x
 
-||| Functorial composition of scale transformations: T_total = T_BC . T_AB
+||| Sequential composition of scale transformations: T_total = T_BC . T_AB
 public export
 composeScaleTransform : ScaleTransform a b => ScaleTransform b c => a -> c
 composeScaleTransform {a} {b} {c} x =
@@ -22,7 +22,7 @@ composeScaleTransform {a} {b} {c} x =
       step2 : c = scaleTransform step1
   in step2
 
-||| Open algebraic interface for bidirectional invertible scale transformations (Galois adjunction duality f_* ⊣ f^*)
+||| Open algebraic interface for bidirectional invertible scale transformations (pushforward f_* / pullback f^*)
 public export
 interface ScaleTransform domainA domainB => InvertibleScaleTransform domainA domainB where
   invertScaleTransform : domainB -> domainA
@@ -41,10 +41,10 @@ composeInvertibleScaleTransform {a} {b} {c} z =
   in step2
 
 ------------------------------------------------------------------------
--- DEPENDENT TERM-INDEXED SCALE TRANSFORM FUNCTOR (RULE 03)
+-- DEPENDENT TERM-INDEXED SCALE TRANSFORM (RULE 03)
 ------------------------------------------------------------------------
 
-||| Term-indexed scale transform functor between validated CosmicDimensions.
+||| Term-indexed scale transform between validated CosmicDimensions.
 ||| Constrains scale transformations to lawful transitions between certified dimensions.
 public export
 interface DepScaleTransform (0 sourceDim : CosmicDimension) (0 targetDim : CosmicDimension) domainA domainB where
@@ -55,7 +55,7 @@ public export
 DepScaleTransform dim dim a a where
   depScaleTransform x = x
 
-||| Functorial composition of dependent scale transformations along certified dimension paths:
+||| Sequential composition of dependent scale transformations along certified dimension paths:
 ||| (d1 -> d2) and (d2 -> d3) ==> (d1 -> d3).
 public export
 composeDepScaleTransform :

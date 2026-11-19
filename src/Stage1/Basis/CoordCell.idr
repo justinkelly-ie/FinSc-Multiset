@@ -180,11 +180,11 @@ public export
 Nullexel : Type
 Nullexel = CoordCell Dim0
 
-%inline public export
+public export
 mkNullexel : Nullexel
 mkNullexel = ZeroCell
 
-%inline public export
+public export
 MkNullexel : Nullexel
 MkNullexel = ZeroCell
 
@@ -197,23 +197,23 @@ public export
 Unixel : Type
 Unixel = CoordCell Dim1
 
-%inline public export
+public export
 mkUnixel : Nat -> Unixel
 mkUnixel = mkCell1
 
-%inline public export
+public export
 MkUnixel : Nat -> Unixel
 MkUnixel = mkUnixel
 
-%inline public export
+public export
 mkUnixelToken : Token Nat -> Unixel
 mkUnixelToken tok = ConsCell tok ZeroCell
 
-%inline public export
+public export
 unixelToken : Unixel -> Token Nat
 unixelToken (ConsCell tok ZeroCell) = tok
 
-%inline public export
+public export
 unwrapUnixel : Unixel -> Nat
 unwrapUnixel (ConsCell (MkToken x) ZeroCell) = x
 
@@ -234,35 +234,35 @@ public export
 CellPixel : Type
 CellPixel = Pixel
 
-%inline public export
+public export
 mkPixel : Nat -> Nat -> Pixel
 mkPixel = mkCell2
 
-%inline public export
+public export
 MkPixel : Nat -> Nat -> Pixel
 MkPixel = mkPixel
 
-%inline public export
+public export
 mkPixelTokens : Token Nat -> Token Nat -> Pixel
 mkPixelTokens tokR tokC = ConsCell tokR (ConsCell tokC ZeroCell)
 
-%inline public export
+public export
 pixelRowToken : Pixel -> Token Nat
 pixelRowToken (ConsCell tokR _) = tokR
 
-%inline public export
+public export
 pixelColToken : Pixel -> Token Nat
 pixelColToken (ConsCell _ (ConsCell tokC _)) = tokC
 
-%inline public export
+public export
 pixelTokens : Pixel -> (Token Nat, Token Nat)
 pixelTokens p = (pixelRowToken p, pixelColToken p)
 
-%inline public export
+public export
 pixelRow : Pixel -> Nat
 pixelRow (ConsCell (MkToken r) (ConsCell _ ZeroCell)) = r
 
-%inline public export
+public export
 pixelCol : Pixel -> Nat
 pixelCol (ConsCell _ (ConsCell (MkToken c) ZeroCell)) = c
 
@@ -280,7 +280,7 @@ public export
 pixelSplitUnixels : Pixel -> (Unixel, Unixel)
 pixelSplitUnixels (ConsCell t1 (ConsCell t2 ZeroCell)) = (ConsCell t1 ZeroCell, ConsCell t2 ZeroCell)
 
-||| Categorical dagger / adjoint functor swapping row and column tokens in O(1).
+||| Maxel transpose involutory coordinate swap: exchanges row and column tokens in O(1).
 public export
 transposePixel : Pixel -> Pixel
 transposePixel (ConsCell tr (ConsCell tc ZeroCell)) = ConsCell tc (ConsCell tr ZeroCell)
@@ -361,7 +361,7 @@ mulPixelMultiToken _ _ = Nothing
 
 ||| Canonical discrete matrix basis multiplication:
 ||| [i, j] * [k, l] = [i, l] if j == k, otherwise Nothing.
-%inline public export
+public export
 mulPixel : Pixel -> Pixel -> Maybe Pixel
 mulPixel = mulPixelMultiToken
 
@@ -372,7 +372,7 @@ mulPixelTokens = mulPixel
 
 ||| Multiplies a Pixel on the left by a Unixel: [i, j] * [j] = [i] (matrix-vector contraction).
 ||| Evaluates as a zero-unwrapping stoichiometric token collision in O(1) registers (Rule 03 §6).
-%inline public export
+public export
 mulPixelUnixel : Pixel -> Unixel -> Maybe Unixel
 mulPixelUnixel (ConsCell tr (ConsCell (MkToken c) ZeroCell))
                (ConsCell (MkToken u) ZeroCell) =
@@ -383,7 +383,7 @@ mulPixelUnixel _ _ = Nothing
 
 ||| Multiplies a Unixel on the left by a Pixel: [i] * [i, j] = [j] (covector-matrix contraction).
 ||| Evaluates as a zero-unwrapping stoichiometric token collision in O(1) registers (Rule 03 §6).
-%inline public export
+public export
 mulUnixelPixel : Unixel -> Pixel -> Maybe Unixel
 mulUnixelPixel (ConsCell (MkToken u) ZeroCell)
                (ConsCell (MkToken r) (ConsCell tc ZeroCell)) =
@@ -397,23 +397,23 @@ public export
 Voxel : Type
 Voxel = CoordCell Dim3
 
-%inline public export
+public export
 mkVoxel : Nat -> Nat -> Nat -> Voxel
 mkVoxel = mkCell3
 
-%inline public export
+public export
 MkVoxel : Nat -> Nat -> Nat -> Voxel
 MkVoxel = mkVoxel
 
-%inline public export
+public export
 voxelX : Voxel -> Nat
 voxelX (ConsCell (MkToken x) _) = x
 
-%inline public export
+public export
 voxelY : Voxel -> Nat
 voxelY (ConsCell _ (ConsCell (MkToken y) _)) = y
 
-%inline public export
+public export
 voxelZ : Voxel -> Nat
 voxelZ (ConsCell _ (ConsCell _ (ConsCell (MkToken z) _))) = z
 
@@ -430,27 +430,27 @@ public export
 Cell : Type
 Cell = Tesseract
 
-%inline public export
+public export
 mkTesseract : Nat -> Nat -> Nat -> Nat -> Tesseract
 mkTesseract = mkCell4
 
-%inline public export
+public export
 MkTesseract : Nat -> Nat -> Nat -> Nat -> Tesseract
 MkTesseract = mkTesseract
 
-%inline public export
+public export
 tesseractX : Tesseract -> Nat
 tesseractX (ConsCell (MkToken x) _) = x
 
-%inline public export
+public export
 tesseractY : Tesseract -> Nat
 tesseractY (ConsCell _ (ConsCell (MkToken y) _)) = y
 
-%inline public export
+public export
 tesseractZ : Tesseract -> Nat
 tesseractZ (ConsCell _ (ConsCell _ (ConsCell (MkToken z) _))) = z
 
-%inline public export
+public export
 tesseractT : Tesseract -> Nat
 tesseractT (ConsCell _ (ConsCell _ (ConsCell _ (ConsCell (MkToken t) _)))) = t
 
@@ -495,7 +495,7 @@ tesseractSplit (ConsCell tx (ConsCell ty (ConsCell tz (ConsCell tt ZeroCell)))) 
   (ConsCell tx (ConsCell ty (ConsCell tz ZeroCell)), ConsCell tt ZeroCell)
 
 ||| Evaluates 2D symmetric matrix determinant: det([a b; b c]) = a*c - b^2.
-%inline public export
+public export
 detSymmetricMatrix2D : BoxInt -> BoxInt -> BoxInt -> BoxInt
 detSymmetricMatrix2D a b c = subBox (a * c) (b * b)
 

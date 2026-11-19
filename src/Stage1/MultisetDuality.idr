@@ -10,57 +10,56 @@ import Data.Fuel
 %default total
 
 --------------------------------------------------------------------------------
--- 1. MULTISET DUALITY / ADJUNCTION INTERFACE
+-- 1. MULTISET DUALITY INTERFACE (WILDBERGER PUSHFORWARD ⇋ PULLBACK)
 --------------------------------------------------------------------------------
 
 ||| Discrete Multiset Duality (Push ⇋ Pull) between multiset scale representations.
-||| Replaces abstract category-theoretic adjunctions with concrete, syntax-directed
-||| token pushforward and pullback operations.
-||| Preserves exact BoxInt proof witnesses and multiplicities via a natural
-||| isomorphism between hom-tensors:
-||| MultisetTensor (L a) b ≅ MultisetTensor a (R b)
+||| Formulated directly in Wildberger's Finitist Hereditary Multiset & Maxel Algebra
+||| via syntax-directed token pushforward and pullback operations.
+||| Preserves exact BoxInt proof witnesses and multiplicities across pair-basis tensors:
+||| MultisetTensor (l a) b ≅ MultisetTensor a (r b)
 public export
-interface MultisetAdjunction (0 L : Type -> Type) (0 R : Type -> Type) where
-  ||| Left pushforward functor mapping: a -> L a
-  leftAdjoint  : a -> L a
+interface MultisetDuality (0 l : Type -> Type) (0 r : Type -> Type) where
+  ||| Forward pushforward map: a -> l a
+  leftAdjoint  : a -> l a
 
-  ||| Right pullback functor mapping: L a -> a
-  rightAdjoint : L a -> a
+  ||| Reverse pullback map: l a -> a
+  rightAdjoint : l a -> a
 
-  ||| Natural hom-tensor forward isomorphism
-  homTensorIso : (Eq a, Eq b) => MultisetTensor (L a) b -> MultisetTensor a (R b)
+  ||| Pair-basis tensor forward re-indexing
+  homTensorIso : (Eq a, Eq b) => MultisetTensor (l a) b -> MultisetTensor a (r b)
 
-  ||| Natural hom-tensor inverse isomorphism
-  homTensorInv : (Eq a, Eq b) => MultisetTensor a (R b) -> MultisetTensor (L a) b
+  ||| Pair-basis tensor reverse re-indexing
+  homTensorInv : (Eq a, Eq b) => MultisetTensor a (r b) -> MultisetTensor (l a) b
 
-  ||| Verification of forward inverse round-trip isomorphism identity
-  0 verifyHomIso : (Eq a, Eq b) => (t : MultisetTensor (L a) b) -> homTensorInv (homTensorIso t) = t
+  ||| Verification of forward-inverse round-trip identity
+  0 verifyHomIso : (Eq a, Eq b) => (t : MultisetTensor (l a) b) -> homTensorInv (homTensorIso t) = t
 
-  ||| Verification of reverse inverse round-trip isomorphism identity
-  0 verifyHomInv : (Eq a, Eq b) => (u : MultisetTensor a (R b)) -> homTensorIso (homTensorInv u) = u
+  ||| Verification of reverse-forward round-trip identity
+  0 verifyHomInv : (Eq a, Eq b) => (u : MultisetTensor a (r b)) -> homTensorIso (homTensorInv u) = u
 
-||| Canonical 2LTT Discrete Multiset Duality alias for MultisetAdjunction.
+||| Deprecated compatibility alias for `MultisetDuality`.
 public export
-MultisetDuality : (Type -> Type) -> (Type -> Type) -> Type
-MultisetDuality = MultisetAdjunction
+MultisetAdjunction : (Type -> Type) -> (Type -> Type) -> Type
+MultisetAdjunction = MultisetDuality
 
 ||| Forward token pushforward mapping: a -> Push a
-%inline public export
+public export
 pushToken : {0 pull : Type -> Type} -> (adj : MultisetDuality push pull) => a -> push a
 pushToken @{adj} x = leftAdjoint @{adj} x
 
 ||| Reverse token pullback mapping: Push a -> a
-%inline public export
+public export
 pullToken : {0 push : Type -> Type} -> (adj : MultisetDuality push pull) => push a -> a
 pullToken @{adj} x = rightAdjoint @{adj} x
 
 ||| Natural hom-tensor forward isomorphism
-%inline public export
+public export
 dualTensorIso : (adj : MultisetDuality push pull) => (Eq a, Eq b) => MultisetTensor (push a) b -> MultisetTensor a (pull b)
 dualTensorIso @{adj} t = homTensorIso @{adj} t
 
 ||| Natural hom-tensor reverse isomorphism
-%inline public export
+public export
 dualTensorInv : (adj : MultisetDuality push pull) => (Eq a, Eq b) => MultisetTensor a (pull b) -> MultisetTensor (push a) b
 dualTensorInv @{adj} u = homTensorInv @{adj} u
 
@@ -168,50 +167,50 @@ evalPipelinePull = evalChainPull
 -- 4. DUAL STREAM HYLOMORPHISM (O(1) Deforested Stream Processing)
 --------------------------------------------------------------------------------
 
-||| Adjoint / Dual Stream Transducer linking push producer (L) and pull consumer (R).
+||| Dual Stream Transducer linking push producer (`l`) and pull consumer (`r`).
 public export
-interface MultisetDuality l r => AdjointStreamTransducer (0 l : Type -> Type) (0 r : Type -> Type) where
-  streamAdjunction : MultisetDuality l r
+interface MultisetDuality l r => DualStreamTransducer (0 l : Type -> Type) (0 r : Type -> Type) where
+  streamDuality : MultisetDuality l r
 
-||| Canonical 2LTT Dual Stream Transducer alias
+||| Compatibility alias for `DualStreamTransducer`.
 public export
-DualStreamTransducer : (Type -> Type) -> (Type -> Type) -> Type
-DualStreamTransducer = AdjointStreamTransducer
+AdjointStreamTransducer : (Type -> Type) -> (Type -> Type) -> Type
+AdjointStreamTransducer = DualStreamTransducer
 
-||| Canonical stream duality accessor
+||| Compatibility accessor for `streamDuality`.
 public export
-streamDuality : DualStreamTransducer l r => MultisetDuality l r
-streamDuality @{dst} = streamAdjunction @{dst}
+streamAdjunction : DualStreamTransducer l r => MultisetDuality l r
+streamAdjunction @{dst} = streamDuality @{dst}
 
-||| Deforested push stream transducer pushforward mapping FusedStream (a, BoxInt) -> FusedStream (l a, BoxInt)
-public export
-streamLeftAdjoint : (adj : MultisetDuality l r) => FusedStream (a, BoxInt) -> FusedStream (l a, BoxInt)
-streamLeftAdjoint @{adj} strm = mapStream (\(x, v) => (leftAdjoint @{adj} x, v)) strm
-
-||| Deforested pull stream transducer pullback mapping FusedStream (l a, BoxInt) -> FusedStream (a, BoxInt)
-public export
-streamRightAdjoint : (adj : MultisetDuality l r) => FusedStream (l a, BoxInt) -> FusedStream (a, BoxInt)
-streamRightAdjoint @{adj} strm = mapStream (\(lx, v) => (rightAdjoint @{adj} lx, v)) strm
-
-||| Canonical push alias
+||| Deforested push stream transducer pushforward mapping `FusedStream (a, BoxInt) -> FusedStream (l a, BoxInt)`.
 public export
 streamPush : (dual : MultisetDuality l r) => FusedStream (a, BoxInt) -> FusedStream (l a, BoxInt)
-streamPush @{dual} strm = streamLeftAdjoint @{dual} strm
+streamPush @{dual} strm = mapStream (\(x, v) => (leftAdjoint @{dual} x, v)) strm
 
-||| Canonical pull alias
+||| Deforested pull stream transducer pullback mapping `FusedStream (l a, BoxInt) -> FusedStream (a, BoxInt)`.
 public export
 streamPull : (dual : MultisetDuality l r) => FusedStream (l a, BoxInt) -> FusedStream (a, BoxInt)
-streamPull @{dual} strm = streamRightAdjoint @{dual} strm
+streamPull @{dual} strm = mapStream (\(lx, v) => (rightAdjoint @{dual} lx, v)) strm
+
+||| Compatibility alias for `streamPush`.
+public export
+streamLeftAdjoint : (adj : MultisetDuality l r) => FusedStream (a, BoxInt) -> FusedStream (l a, BoxInt)
+streamLeftAdjoint @{adj} = streamPush @{adj}
+
+||| Compatibility alias for `streamPull`.
+public export
+streamRightAdjoint : (adj : MultisetDuality l r) => FusedStream (l a, BoxInt) -> FusedStream (a, BoxInt)
+streamRightAdjoint @{adj} = streamPull @{adj}
 
 ||| Evaluates an allocation-free deforested stream generator under push producer step
-||| and pull consumer fold (Adjoint / Dual Hylomorphism).
+||| and pull consumer fold (Dual Hylomorphism).
 public export
-fusedAdjointHylomorphism : Fuel -> 
-                           MultisetDuality l r -> 
-                           (s -> Step s (l a)) -> 
-                           (a -> b -> b) -> 
-                           b -> s -> b
-fusedAdjointHylomorphism fuel adj next consumerFold acc seed =
+fusedDualHylomorphism : Fuel ->
+                        MultisetDuality l r ->
+                        (s -> Step s (l a)) ->
+                        (a -> b -> b) ->
+                        b -> s -> b
+fusedDualHylomorphism fuel adj next consumerFold acc seed =
   fusedConjugateHylo fuel next
     (\case
         Done => acc
@@ -220,119 +219,152 @@ fusedAdjointHylomorphism fuel adj next consumerFold acc seed =
     (rightAdjoint @{adj})
     acc seed
 
-||| Canonical 2LTT dual hylomorphism alias
+||| Compatibility alias for `fusedDualHylomorphism`.
 public export
-fusedDualHylomorphism : Fuel -> 
-                        MultisetDuality l r -> 
-                        (s -> Step s (l a)) -> 
-                        (a -> b -> b) -> 
-                        b -> s -> b
-fusedDualHylomorphism = fusedAdjointHylomorphism
+fusedAdjointHylomorphism : Fuel ->
+                           MultisetDuality l r ->
+                           (s -> Step s (l a)) ->
+                           (a -> b -> b) ->
+                           b -> s -> b
+fusedAdjointHylomorphism = fusedDualHylomorphism
 
 --------------------------------------------------------------------------------
--- 5. HETEROGENEOUS MULTISET SCALE DUALITY (f_* ⇋ f^*)
+-- 5. HETEROGENEOUS MULTISET SCALE DUALITY (f_* vs f^*)
 --------------------------------------------------------------------------------
 
-||| Heterogeneous Multiset Scale Adjunction / Duality between concrete multiset domain `c` and abstract domain `a`.
-||| Provides zero-overhead compiler proof witnesses for Scale Monad M(x) = f^* (f_* x) well-formedness.
+||| Heterogeneous Multiset Scale Duality between concrete multiset domain `c` and abstract domain `a`.
+||| Provides zero-overhead compiler proof witnesses for reconstruction `M(x) = f^* (f_* x)` well-formedness.
 public export
-interface MultisetScaleAdjunction c a where
+interface MultisetScaleDuality c a where
   f_pushforward : c -> a
   f_pullback    : a -> c
-  ||| Idempotency witness for the unit round-trip: f_pullback (f_pushforward x) maps identically.
+  ||| Idempotency witness for the unit round-trip: `f_pullback (f_pushforward x)` stabilizes.
   0 verifyUnit   : (x : c) -> f_pullback (f_pushforward x) = f_pullback (f_pushforward x)
-  ||| Idempotency witness for the counit round-trip: f_pushforward (f_pullback y) maps identically.
+  ||| Idempotency witness for the counit round-trip: `f_pushforward (f_pullback y)` stabilizes.
   0 verifyCounit : (y : a) -> f_pushforward (f_pullback y) = f_pushforward (f_pullback y)
 
-||| Canonical 2LTT Scale Duality alias
+||| Compatibility alias for `MultisetScaleDuality`.
 public export
-MultisetScaleDuality : Type -> Type -> Type
-MultisetScaleDuality = MultisetScaleAdjunction
+MultisetScaleAdjunction : Type -> Type -> Type
+MultisetScaleAdjunction = MultisetScaleDuality
 
-||| Intuitive zoomOut operator coarse-graining micro-state representation to macro-state.
+||| Intuitive `zoomOutScale` operator coarse-graining micro-state representation to macro-state.
 public export
 zoomOutScale : MultisetScaleDuality c a => c -> a
 zoomOutScale = f_pushforward
 
-||| Intuitive zoomIn operator expanding macro-state representation to reconstructed micro-state.
+||| Intuitive `zoomInScale` operator expanding macro-state representation to reconstructed micro-state.
 public export
 zoomInScale : MultisetScaleDuality c a => a -> c
 zoomInScale = f_pullback
 
-||| Abstraction map alpha for any functorial envelope via MultisetScaleDuality zoomOut.
+||| Coarse-graining map `alpha` for any container envelope via `MultisetScaleDuality` `zoomOutScale`.
 public export
 alphaEnvelope : (Functor f, MultisetScaleDuality c a) => f c -> f a
 alphaEnvelope = map zoomOutScale
 
-||| Concretization map gamma for any functorial envelope via MultisetScaleDuality zoomIn.
+||| Fine-graining map `gamma` for any container envelope via `MultisetScaleDuality` `zoomInScale`.
 public export
 gammaEnvelope : (Functor f, MultisetScaleDuality c a) => f a -> f c
 gammaEnvelope = map zoomInScale
 
 --------------------------------------------------------------------------------
--- 6. DUALITY-INDUCED RECONSTRUCTION TRANSFORMER (M = f^* ∘ f_*)
+-- 6. DUALITY-INDUCED RECONSTRUCTION ENVELOPE (M = f^* . f_*)
 --------------------------------------------------------------------------------
 
-||| Reconstruction type M(x) = f^* (f_* (x)) induced by MultisetScaleDuality c a (f_* ⇋ f^*).
+||| Reconstruction envelope `M(x) = f^* (f_* x)` induced by `MultisetScaleDuality c a`.
 ||| Represents coarse-graining followed by reverse-causal reconstruction.
 public export
-record ScaleMonad (c : Type) (a : Type) (x : Type) where
-  constructor MkScaleMonad
-  unwrapScaleMonad : x
+record ScaleReconstruction (c : Type) (a : Type) (x : Type) where
+  constructor MkScaleRecon
+  unwrapScaleRecon : x
+
+||| Compatibility alias for `ScaleReconstruction`.
+public export
+ScaleMonad : Type -> Type -> Type -> Type
+ScaleMonad = ScaleReconstruction
+
+||| Compatibility constructor alias for `MkScaleRecon`.
+public export
+MkScaleMonad : x -> ScaleReconstruction c a x
+MkScaleMonad = MkScaleRecon
+
+||| Compatibility extractor alias for `unwrapScaleRecon`.
+public export
+unwrapScaleMonad : ScaleReconstruction c a x -> x
+unwrapScaleMonad = unwrapScaleRecon
 
 public export
-Functor (ScaleMonad c a) where
-  map f (MkScaleMonad x) = MkScaleMonad (f x)
+Functor (ScaleReconstruction c a) where
+  map f (MkScaleRecon x) = MkScaleRecon (f x)
 
 public export
-Applicative (ScaleMonad c a) where
-  pure x = MkScaleMonad x
-  (MkScaleMonad f) <*> (MkScaleMonad x) = MkScaleMonad (f x)
+Applicative (ScaleReconstruction c a) where
+  pure x = MkScaleRecon x
+  (MkScaleRecon f) <*> (MkScaleRecon x) = MkScaleRecon (f x)
 
 public export
-Monad (ScaleMonad c a) where
-  (MkScaleMonad x) >>= k = k x
+Monad (ScaleReconstruction c a) where
+  (MkScaleRecon x) >>= k = k x
 
-||| Unit (eta) of the Duality-Induced Reconstruction: maps concrete state x to f^* (f_* x).
+||| Reconstruction round-trip unit mapping concrete state `x` to `f^* (f_* x)`.
 public export
-scaleMonadUnit : (dual : MultisetScaleDuality c a) => c -> c
-scaleMonadUnit @{dual} x = f_pullback @{dual} (f_pushforward @{dual} x)
+scaleReconUnit : {0 c, a : Type} -> (dual : MultisetScaleDuality c a) => c -> c
+scaleReconUnit @{dual} x = f_pullback @{dual} (f_pushforward @{dual} x)
 
-||| Multiplication (mu) of the Duality-Induced Reconstruction.
+||| Compatibility alias for `scaleReconUnit`.
 public export
-scaleMonadMult : (dual : MultisetScaleDuality c a) => c -> c
-scaleMonadMult @{dual} x = f_pullback @{dual} (f_pushforward @{dual} x)
+scaleMonadUnit : {0 c, a : Type} -> (dual : MultisetScaleDuality c a) => c -> c
+scaleMonadUnit @{dual} x = scaleReconUnit @{dual} x
 
-||| Verifies Galois / Adjunction triangle coherence on the pushforward side:
-||| f_* (f^* (f_* x)) == f_* x.
+||| Reconstruction collapse idempotence `M(M(x)) -> M(x)` (`f^* (f_* x)`).
+public export
+scaleReconMult : {0 c, a : Type} -> (dual : MultisetScaleDuality c a) => c -> c
+scaleReconMult @{dual} x = f_pullback @{dual} (f_pushforward @{dual} x)
+
+||| Compatibility alias for `scaleReconMult`.
+public export
+scaleMonadMult : {0 c, a : Type} -> (dual : MultisetScaleDuality c a) => c -> c
+scaleMonadMult @{dual} x = scaleReconMult @{dual} x
+
+||| Verifies Galois coherence on the pushforward side: `f_* (f^* (f_* x)) == f_* x`.
 public export
 verifyPushPullPush : (dual : MultisetScaleDuality c a) => Eq a => c -> Bool
 verifyPushPullPush @{dual} x =
   f_pushforward @{dual} (f_pullback @{dual} (f_pushforward @{dual} x)) == f_pushforward @{dual} x
 
-||| Verifies Galois / Adjunction triangle coherence on the pullback side:
-||| f^* (f_* (f^* y)) == f^* y.
+||| Verifies Galois coherence on the pullback side: `f^* (f_* (f^* y)) == f^* y`.
 public export
 verifyPullPushPull : (dual : MultisetScaleDuality c a) => Eq c => a -> Bool
 verifyPullPushPull @{dual} y =
   f_pullback @{dual} (f_pushforward @{dual} (f_pullback @{dual} y)) == f_pullback @{dual} y
 
-||| Verifies idempotence of the Duality-Induced Reconstruction Monad M(M(x)) == M(x).
+||| Verifies idempotence of the duality-induced reconstruction `M(M(x)) == M(x)`.
 public export
-scaleMonadIdempotent : (dual : MultisetScaleDuality c a) => Eq c => c -> Bool
-scaleMonadIdempotent @{dual} x =
-  scaleMonadUnit @{dual} (scaleMonadUnit @{dual} x) == scaleMonadUnit @{dual} x
+scaleReconIdempotent : {0 c, a : Type} -> (dual : MultisetScaleDuality c a) => Eq c => c -> Bool
+scaleReconIdempotent @{dual} x =
+  scaleReconUnit @{dual} (scaleReconUnit @{dual} x) == scaleReconUnit @{dual} x
 
-||| Evaluates Active Inference Helmholtz Free Energy Surprise F_surprise = S(f^* (f_* x)) - S(x)
-||| induced by ScaleMonad M(x) = f^* (f_* x) under an entropy measure.
+||| Compatibility alias for `scaleReconIdempotent`.
 public export
-scaleMonadVariationalSurprise : (dual : MultisetScaleDuality c a) => (c -> BoxInt) -> c -> BoxInt
-scaleMonadVariationalSurprise @{dual} entropyMeasure x =
-  let reconstructed = scaleMonadUnit @{dual} x
+scaleMonadIdempotent : {0 c, a : Type} -> (dual : MultisetScaleDuality c a) => Eq c => c -> Bool
+scaleMonadIdempotent @{dual} x = scaleReconIdempotent @{dual} x
+
+||| Evaluates Helmholtz Free Energy Surprise `F_surprise = S(f^* (f_* x)) - S(x)`
+||| induced by `ScaleReconstruction` `M(x) = f^* (f_* x)` under an entropy measure.
+public export
+scaleReconVariationalSurprise : {0 c, a : Type} -> (dual : MultisetScaleDuality c a) => (c -> BoxInt) -> c -> BoxInt
+scaleReconVariationalSurprise @{dual} entropyMeasure x =
+  let reconstructed = scaleReconUnit @{dual} x
   in subBox (entropyMeasure reconstructed) (entropyMeasure x)
 
+||| Compatibility alias for `scaleReconVariationalSurprise`.
+public export
+scaleMonadVariationalSurprise : {0 c, a : Type} -> (dual : MultisetScaleDuality c a) => (c -> BoxInt) -> c -> BoxInt
+scaleMonadVariationalSurprise @{dual} entropyFn x = scaleReconVariationalSurprise @{dual} entropyFn x
+
 --------------------------------------------------------------------------------
--- 7. AFFINE-TO-MONOID DUALITY (F_Affine ⇋ U_Monoid)
+-- 7. AFFINE-TO-MONOID DUALITY (F_Affine vs U_Monoid)
 --------------------------------------------------------------------------------
 
 ||| Affine Translation Vector representing step index and law signature offset in discrete space.
@@ -347,33 +379,43 @@ Show AffineVector where
   show (MkAffineVector step lawId) =
     "AffineVector [step=" ++ show step ++ ", lawId=" ++ show lawId ++ "]"
 
-||| Affine-to-Monoid Duality interface (F_Affine ⇋ U_Monoid):
+||| Affine-to-Monoid Duality interface:
 ||| Freely constructs a linear multiset monoid term from an affine shift vector.
 public export
-interface AffineMonoidAdjunction (0 m : Type) where
+interface AffineMonoidDuality (0 m : Type) where
   freeMonoidFromAffine : AffineVector -> m -> m
   forgetMonoidToAffine : m -> AffineVector
 
-||| Canonical 2LTT Affine-Monoid Duality alias
+||| Compatibility alias for `AffineMonoidDuality`.
 public export
-AffineMonoidDuality : Type -> Type
-AffineMonoidDuality = AffineMonoidAdjunction
+AffineMonoidAdjunction : Type -> Type
+AffineMonoidAdjunction = AffineMonoidDuality
 
 --------------------------------------------------------------------------------
 -- 8. CONSTRUCTIVE FORMAL AUDIT PROOFS
 --------------------------------------------------------------------------------
 
 public export
-MultisetScaleAdjunction BoxInt BoxInt where
+MultisetScaleDuality BoxInt BoxInt where
   f_pushforward x = x
   f_pullback x = x
   verifyUnit x = Refl
   verifyCounit y = Refl
 
-||| Audits multiset scale adjunction unit, counit, and idempotent monad invariants.
+||| Audits multiset scale duality unit, counit, and idempotent reconstruction invariants.
+public export
+auditMultisetDualityProof : Bool
+auditMultisetDualityProof =
+  let x = intToBoxInt 42
+  in verifyPushPullPush {a = BoxInt} x && verifyPullPushPull {c = BoxInt} x && scaleReconIdempotent {a = BoxInt} x
+
+||| Compatibility alias for `auditMultisetDualityProof`.
 public export
 auditMultisetAdjunctionProof : Bool
-auditMultisetAdjunctionProof =
-  let x = intToBoxInt 42
-  in verifyPushPullPush {a = BoxInt} x && verifyPullPushPull {c = BoxInt} x && scaleMonadIdempotent {a = BoxInt} x
+auditMultisetAdjunctionProof = auditMultisetDualityProof
+
+-- Reference for Category Theory Readers:
+-- `MultisetDuality` corresponds to an adjunction `L -| R` with Hom-Tensor natural isomorphism,
+-- `MultisetScaleDuality` corresponds to a Galois connection / adjunction `f_* -| f^*`,
+-- and `ScaleReconstruction` corresponds to the adjunction-induced idempotent monad `M = R . L`.
 

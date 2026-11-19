@@ -2,6 +2,7 @@ module Stage0.DiffInt
 
 import Data.Nat
 import Syntax.PreorderReasoning
+import Stage0.Interfaces
 import Stage0.BoxNat
 import Stage0.BoxInt
 
@@ -87,6 +88,27 @@ boxIntToDiffInt (MkBoxInt v) =
   if v >= 0
     then MkDiffInt (MkBoxNat (integerToNat v)) (MkBoxNat 0)
     else MkDiffInt (MkBoxNat 0) (MkBoxNat (integerToNat (-v)))
+
+||| Converts a canonical `SignedCoord` to a difference pair `[p, n]`.
+public export
+signedToDiffInt : SignedCoord -> DiffInt
+signedToDiffInt ZeroZ    = MkDiffInt (MkBoxNat 0) (MkBoxNat 0)
+signedToDiffInt (PosZ k) = MkDiffInt (MkBoxNat (S k)) (MkBoxNat 0)
+signedToDiffInt (NegZ k) = MkDiffInt (MkBoxNat 0) (MkBoxNat (S k))
+
+||| Converts a difference pair `[p, n]` to its unique canonical `SignedCoord`.
+public export
+diffIntToSigned : DiffInt -> SignedCoord
+diffIntToSigned (MkDiffInt (MkBoxNat Z)     (MkBoxNat Z))     = ZeroZ
+diffIntToSigned (MkDiffInt (MkBoxNat (S p)) (MkBoxNat Z))     = PosZ p
+diffIntToSigned (MkDiffInt (MkBoxNat Z)     (MkBoxNat (S n))) = NegZ n
+diffIntToSigned (MkDiffInt (MkBoxNat (S p)) (MkBoxNat (S n))) = subS p n
+
+public export
+0 signedDiffRoundtrip : (s : SignedCoord) -> diffIntToSigned (signedToDiffInt s) = s
+signedDiffRoundtrip ZeroZ    = Refl
+signedDiffRoundtrip (PosZ _) = Refl
+signedDiffRoundtrip (NegZ _) = Refl
 
 ------------------------------------------------------------------------
 -- 2. EXACT CONSTRUCTIVE RING ARITHMETIC

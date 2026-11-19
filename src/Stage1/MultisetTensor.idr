@@ -95,20 +95,20 @@ auditTensorMultOrdMatches =
   in (multisetTensorMult tA tB == multisetTensorMultOrd tA tB)
 
 ||| Monomorphic 2D Determinant over MultisetTensor: det([a b; c d]) = a*d - b*c
-%inline public export
+public export
 detTensor2D : BoxInt -> BoxInt -> BoxInt -> BoxInt -> BoxInt
 detTensor2D a b c d = subBox (a * d) (b * c)
 
 ||| Monomorphic 2D Trace over MultisetTensor: tr([a b; c d]) = a + d
-%inline public export
+public export
 traceTensor2D : BoxInt -> BoxInt -> BoxInt
 traceTensor2D a d = addBox a d
 
 ------------------------------------------------------------------------
--- GALOIS 4GEOMETRIES PUSHFORWARD STREAMS (f_* ⊣ f^*)
+-- GALOIS 4GEOMETRIES PUSHFORWARD STREAMS (f_* vs f^*)
 ------------------------------------------------------------------------
 
-||| Galois Fiber Pushforward (f_*) computing exact chromogeometric quadrance
+||| Fiber Pushforward (`f_*`) computing exact chromogeometric quadrance
 ||| Q(v) = v^T * g_Sector * v directly over multiset tensor streams.
 public export
 chromometricQuadrance : Geometry -> BoxInt -> BoxInt -> BoxInt -> BoxInt
@@ -123,20 +123,35 @@ chromometricQuadrance Substrate  _  _  _  = 1
 
 ||| Erased compile-time proof witness verifying multiset tensor dimension rank bound (dim <= 27).
 public export
-0 TensorAdjunctionWitness : (dim : Nat) -> Type
-TensorAdjunctionWitness dim = natLTE dim 27 = True
+0 TensorRankWitness : (dim : Nat) -> Type
+TensorRankWitness dim = natLTE dim 27 = True
 
 ||| Static compile-time witness for 27-element triadic tensor rank (27 <= 27).
 public export
-0 prfMultisetTensorAdjunctionRank27 : TensorAdjunctionWitness 27
-prfMultisetTensorAdjunctionRank27 = Refl
+0 prfMultisetTensorRank27 : TensorRankWitness 27
+prfMultisetTensorRank27 = Refl
 
 ||| Verified multiset tensor carrying compile-time erased rank witness.
 public export
-record VerifiedTensorAdjunction (dim : Nat) (a : Type) (b : Type) where
+record VerifiedRankTensor (dim : Nat) (a : Type) (b : Type) where
   constructor MkVerifiedTensor
   tensor : MultisetTensor a b
-  0 rankPrf : TensorAdjunctionWitness dim
+  0 rankPrf : TensorRankWitness dim
+
+||| Compatibility alias for `TensorRankWitness`.
+public export
+0 TensorAdjunctionWitness : (dim : Nat) -> Type
+TensorAdjunctionWitness = TensorRankWitness
+
+||| Compatibility alias for `prfMultisetTensorRank27`.
+public export
+0 prfMultisetTensorAdjunctionRank27 : TensorRankWitness 27
+prfMultisetTensorAdjunctionRank27 = prfMultisetTensorRank27
+
+||| Compatibility alias for `VerifiedRankTensor`.
+public export
+VerifiedTensorAdjunction : (dim : Nat) -> (a : Type) -> (b : Type) -> Type
+VerifiedTensorAdjunction = VerifiedRankTensor
 
 ------------------------------------------------------------------------
 -- 2. DEFORESTED MULTISET TENSOR STREAM TRANSDUCERS

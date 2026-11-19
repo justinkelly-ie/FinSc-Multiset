@@ -286,12 +286,28 @@ stepPythagoreanCompanionSpread = stepCompanionSpread (intToBoxInt 0)
 ||| Direct 0-allocation balanced builder for 2x2 SquareMaxel:
 ||| Constructs the 4-node AVL tree in a single pass without intermediate rebalances.
 public export
+pixel2_00 : Pixel
+pixel2_00 = mkPixel 0 0
+
+public export
+pixel2_01 : Pixel
+pixel2_01 = mkPixel 0 1
+
+public export
+pixel2_10 : Pixel
+pixel2_10 = mkPixel 1 0
+
+public export
+pixel2_11 : Pixel
+pixel2_11 = mkPixel 1 1
+
+public export
 mkSquareMaxel2x2Direct : BoxInt -> BoxInt -> BoxInt -> BoxInt -> SquareMaxel 2
 mkSquareMaxel2x2Direct c00 c01 c10 c11 =
-  let n00 = BoxNode 1 BoxLeaf (mkPixel 0 0) c00 BoxLeaf
-      n11 = BoxNode 1 BoxLeaf (mkPixel 1 1) c11 BoxLeaf
-      n10 = BoxNode 2 BoxLeaf (mkPixel 1 0) c10 n11
-      root = BoxNode 3 n00 (mkPixel 0 1) c01 n10
+  let n00 = BoxNode 1 BoxLeaf pixel2_00 c00 BoxLeaf
+      n11 = BoxNode 1 BoxLeaf pixel2_11 c11 BoxLeaf
+      n10 = BoxNode 2 BoxLeaf pixel2_10 c10 n11
+      root = BoxNode 3 n00 pixel2_01 c01 n10
   in MkSquareMaxel root
 
 ||| Direct projection of component (0, 0) in O(1) time:
@@ -356,10 +372,9 @@ fastSquareMaxelPower {dim} fuel exp m =
     loop (S f) e base acc =
       if e == 0 then acc
       else
-        let isOdd = (cast {to = Integer} e `mod` 2) == 1
+        let (nextE, isOdd) = natHalfAndOdd e
             acc' = if isOdd then compressSquareMaxel (mulSquareMaxel acc base) else acc
             base' = compressSquareMaxel (mulSquareMaxel base base)
-            nextE = e `div` 2
         in loop f nextE base' acc'
 
 ||| Canonical fast exponentiation using model-derived Goh Fuel (Rule 04 §4).
@@ -384,4 +399,11 @@ auditFastSquareMaxelPowerProof =
      boxEq c01 (intToBoxInt 4) &&
      boxEq c10 (intToBoxInt 0) &&
      boxEq c11 (intToBoxInt 1)
+
+||| Builds the 2x2 Pythagorean companion SquareMaxel directly from precomputed
+||| chromogeometric quadrances (Q_Blue, Q_Red) without redundant squaring or a zero (1,1) node.
+public export
+pythagoreanCompanionFromQuad : (qBlue : BoxInt) -> (qRed : BoxInt) -> SquareMaxel 2
+pythagoreanCompanionFromQuad qBlue qRed =
+  MkSquareMaxel (mkSortedBox3 pixel2_00 (mulBox (intToBoxInt 2) qRed) pixel2_01 (negBox qBlue) pixel2_10 qBlue)
 

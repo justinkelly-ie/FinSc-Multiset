@@ -42,123 +42,113 @@ Eq s => Eq (TransitionChannel s) where
   (MkChannel id1 d1 p1) == (MkChannel id2 d2 p2) = id1 == id2 && d1 == d2 && p1 == p2
 
 ------------------------------------------------------------------------
--- 2. UNIVERSAL MULTISET STATE TRANSDUCERS
+-- 2. INDEXED CARRIER TRANSITION NETWORKS
 ------------------------------------------------------------------------
 
-||| Discrete state: multiset tally of species populations.
+||| Canonical indexed transition state carrier.
 public export
-0 TransitionState : Type -> Type
-TransitionState s = Multiset BoxInt s
+0 TransitionCarrier : Type -> Type
+TransitionCarrier s = Carrier s
 
-||| Applies a single stoichiometric delta to the state multiset.
+||| Applies a single stoichiometric delta to an indexed transition carrier, clamping at zero.
 public export
-applyDelta : Eq s => TransitionState s -> StoichiometryDelta s -> TransitionState s
-applyDelta state (MkDelta sp ch) =
-  let cur = multiplicity sp state
+applyDeltaCarrier : DiscreteCoord s => TransitionCarrier s -> StoichiometryDelta s -> TransitionCarrier s
+applyDeltaCarrier state (MkDelta sp ch) =
+  let cur = lookupCarrier sp state
       newVal = cur + ch
       clamped = if newVal < intToBoxInt 0 then intToBoxInt 0 else newVal
-  in update sp clamped state
-  where
-    update : s -> BoxInt -> Multiset BoxInt s -> Multiset BoxInt s
-    update x v ZeroM = AddM x v ZeroM
-    update x v (AddM k m rest) =
-      if k == x then AddM x v rest
-      else AddM k m (update x v rest)
+  in setBoxTree sp clamped state
 
-||| Strictly conservative stoichiometric delta application:
-||| Succeeds with Just (new state) iff the species population does not become negative;
-||| returns Nothing otherwise, guaranteeing exact non-negative token conservation.
+||| Strictly conservative delta application over `TransitionCarrier s`:
+||| returns `Just` the updated carrier iff the resulting multiplicity is non-negative.
 public export
-applyDeltaSafe : Eq s => TransitionState s -> StoichiometryDelta s -> Maybe (TransitionState s)
-applyDeltaSafe state (MkDelta sp ch) =
-  let cur = multiplicity sp state
+applyDeltaCarrierSafe : DiscreteCoord s => TransitionCarrier s -> StoichiometryDelta s -> Maybe (TransitionCarrier s)
+applyDeltaCarrierSafe state (MkDelta sp ch) =
+  let cur = lookupCarrier sp state
       newVal = cur + ch
   in if newVal < intToBoxInt 0 then Nothing
-     else Just (update sp newVal state)
-  where
-    update : s -> BoxInt -> Multiset BoxInt s -> Multiset BoxInt s
-    update x v ZeroM = AddM x v ZeroM
-    update x v (AddM k m rest) =
-      if k == x then AddM x v rest
-      else AddM k m (update x v rest)
+     else Just (setBoxTree sp newVal state)
 
-||| Strictly conservative sequence of delta applications without intermediate list allocation.
+||| Strictly conservative sequence of stoichiometric delta updates on a `TransitionCarrier s`.
 public export
-foldDeltasSafe : Eq s => List (StoichiometryDelta s) -> TransitionState s -> Maybe (TransitionState s)
-foldDeltasSafe [] st = Just st
-foldDeltasSafe (d :: ds) st =
-  case applyDeltaSafe st d of
-    Just st' => foldDeltasSafe ds st'
+foldDeltasCarrierSafe : DiscreteCoord s => List (StoichiometryDelta s) -> TransitionCarrier s -> Maybe (TransitionCarrier s)
+foldDeltasCarrierSafe [] st = Just st
+foldDeltasCarrierSafe (d :: ds) st =
+  case applyDeltaCarrierSafe st d of
+    Just st' => foldDeltasCarrierSafe ds st'
     Nothing  => Nothing
 
-||| Fires a transition channel safely, succeeding iff all species deltas remain non-negative.
+||| Fires a transition channel safely over `TransitionCarrier s`.
 public export
-fireChannelSafe : Eq s => TransitionChannel s -> TransitionState s -> Maybe (TransitionState s)
-fireChannelSafe (MkChannel _ dList _) state =
-  foldDeltasSafe dList state
+fireChannelCarrierSafe : DiscreteCoord s => TransitionChannel s -> TransitionCarrier s -> Maybe (TransitionCarrier s)
+fireChannelCarrierSafe (MkChannel _ dList _) state =
+  foldDeltasCarrierSafe dList state
 
-||| Fires a transition channel, updating all participating species deltas in sequence.
+||| Fires a transition channel, clamping any negative balance at zero.
 public export
-fireChannel : Eq s => TransitionChannel s -> TransitionState s -> TransitionState s
-fireChannel (MkChannel _ dList _) state =
-  foldl applyDelta state dList
+fireChannelCarrier : DiscreteCoord s => TransitionChannel s -> TransitionCarrier s -> TransitionCarrier s
+fireChannelCarrier (MkChannel _ dList _) state =
+  foldl applyDeltaCarrier state dList
 
-||| Fires a certified token transition: consumes an existing token witnessed by (IsToken sp state)
-||| and applies the resulting delta, guaranteeing at compile time that the species is present.
+||| Fires a certified carrier token transition backed by a QTT-0 positivity witness.
 public export
-fireCertifiedTokenTransition : Eq s =>
+fireCertifiedCarrierTransition : DiscreteCoord s =>
   (sp : s) ->
-  (0 prf : IsToken sp state) ->
+  (0 prf : (lookupCarrier sp state > intToBoxInt 0) = True) ->
   (delta : BoxInt) ->
-  (state : TransitionState s) ->
-  TransitionState s
-fireCertifiedTokenTransition sp _ delta state =
-  applyDelta state (MkDelta sp delta)
+  (state : TransitionCarrier s) ->
+  TransitionCarrier s
+fireCertifiedCarrierTransition sp _ delta state =
+  applyDeltaCarrier state (MkDelta sp delta)
 
-||| General multi-token stoichiometric firing rule consuming k tokens and producing j tokens:
+||| Multi-token stoichiometric firing rule over `TransitionCarrier s` consuming `k` tokens and producing `j` tokens.
 public export
-fireMultiTokenTransition : {k, j : Nat} -> Eq s =>
-                           (consumed : Vect k (Token s)) ->
-                           (produced : Vect j (Token s)) ->
-                           TransitionState s -> Maybe (TransitionState s)
-fireMultiTokenTransition [] prods st =
-  Just (foldl (\acc, tok => addMultiset (tokenToBox tok) acc) st prods)
-fireMultiTokenTransition ((MkToken req) :: rest) prods st =
-  if multiplicity req st >= intToBoxInt 1
-    then fireMultiTokenTransition rest prods (applyDelta st (MkDelta req (intToBoxInt (-1))))
+fireMultiTokenCarrier : {k, j : Nat} -> DiscreteCoord s =>
+                        (consumed : Vect k (Token s)) ->
+                        (produced : Vect j (Token s)) ->
+                        TransitionCarrier s -> Maybe (TransitionCarrier s)
+fireMultiTokenCarrier [] prods st =
+  Just (foldl (\acc, (MkToken p) => addCarrier acc (singletonCarrier p (intToBoxInt 1))) st prods)
+fireMultiTokenCarrier ((MkToken req) :: rest) prods st =
+  if lookupCarrier req st >= intToBoxInt 1
+    then fireMultiTokenCarrier rest prods (applyDeltaCarrier st (MkDelta req (intToBoxInt (-1))))
     else Nothing
 
-||| Deforested stream generator simulating transition network trajectory over consecutive steps:
-||| Generates state trajectory without intermediate list allocations.
+||| Deforested stream stepper generating a `TransitionCarrier s` trajectory.
 public export
-streamTransitionTrajectory : Eq s => TransitionChannel s -> TransitionState s -> FusedStream (TransitionState s)
-streamTransitionTrajectory channel initState =
-  unfoldStream (\st => let nextSt = fireChannel channel st in Yield nextSt nextSt) initState
+streamTransitionTrajectoryCarrier : DiscreteCoord s => TransitionChannel s -> TransitionCarrier s -> FusedStream (TransitionCarrier s)
+streamTransitionTrajectoryCarrier channel initState =
+  unfoldStream (\st => let nextSt = fireChannelCarrier channel st in Yield nextSt nextSt) initState
 
-||| Runs a fueled transition trajectory using stream fold.
+||| Runs a fueled `TransitionCarrier s` trajectory using `foldStreamFuel`.
 public export
-runTransitionTrajectory : Eq s => Fuel -> TransitionChannel s -> TransitionState s -> TransitionState s
-runTransitionTrajectory f channel initState =
-  foldStreamFuel f (\_, nextSt => nextSt) initState (streamTransitionTrajectory channel initState)
+runTransitionTrajectoryCarrier : DiscreteCoord s => Fuel -> TransitionChannel s -> TransitionCarrier s -> TransitionCarrier s
+runTransitionTrajectoryCarrier f channel initState =
+  foldStreamFuel f (\_, nextSt => nextSt) initState (streamTransitionTrajectoryCarrier channel initState)
 
-||| Runs a transition trajectory using stream fold over Nat fuel.
+||| Runs a `TransitionCarrier s` trajectory over bounded `Nat` fuel.
 public export
-runTransitionTrajectoryNat : Eq s => Nat -> TransitionChannel s -> TransitionState s -> TransitionState s
-runTransitionTrajectoryNat fuelSteps channel initState =
-  foldStreamNat fuelSteps (\_, nextSt => nextSt) initState (streamTransitionTrajectory channel initState)
+runTransitionTrajectoryCarrierNat : DiscreteCoord s => Nat -> TransitionChannel s -> TransitionCarrier s -> TransitionCarrier s
+runTransitionTrajectoryCarrierNat fuelSteps channel initState =
+  foldStreamNat fuelSteps (\_, nextSt => nextSt) initState (streamTransitionTrajectoryCarrier channel initState)
+
+||| Evaluates total weighted conserved quantity `sum_i c_i * count(S_i)` over a `TransitionCarrier s`.
+public export
+evaluateConservedQuantityCarrier : DiscreteCoord s => List (s, BoxInt) -> TransitionCarrier s -> BoxInt
+evaluateConservedQuantityCarrier [] _ = intToBoxInt 0
+evaluateConservedQuantityCarrier ((sp, weight) :: rest) state =
+  (weight * lookupCarrier sp state) + evaluateConservedQuantityCarrier rest state
+
+||| Linear basis extension for carrier reaction states.
+public export
+liftCarrierReaction : DiscreteCoord s => (Token s -> TransitionCarrier s) -> TransitionCarrier s -> TransitionCarrier s
+liftCarrierReaction = liftCarrier
 
 ------------------------------------------------------------------------
--- 3. LINEAR CONSERVATION LAW WITNESSES
+-- 3. LINEAR CONSERVATION LAW WITNESSES ON `TransitionCarrier`
 ------------------------------------------------------------------------
 
-||| Evaluates total weighted conserved quantity: Q = sum_i c_i * count(S_i).
-public export
-evaluateConservedQuantity : Eq s => List (s, BoxInt) -> TransitionState s -> BoxInt
-evaluateConservedQuantity [] _ = intToBoxInt 0
-evaluateConservedQuantity ((sp, weight) :: rest) state =
-  (weight * multiplicity sp state) + evaluateConservedQuantity rest state
-
-||| Static check whether a stoichiometric delta preserves a conserved weight vector: sum_i c_i * delta_i == 0.
+||| Static check whether a stoichiometric delta preserves a conserved weight vector: `sum_i c_i * delta_i == 0`.
 public export
 isConservativeDelta : Eq s => List (s, BoxInt) -> List (StoichiometryDelta s) -> Bool
 isConservativeDelta weights deltas =
@@ -168,58 +158,51 @@ isConservativeDelta weights deltas =
                               Nothing => acc) (intToBoxInt 0) deltas
   in boxIsZero totalDelta
 
-||| Compile-time audit witness verifying universal transition network preservation.
+||| Compile-time audit witness verifying universal transition carrier conservation.
 public export
 auditTransitionNetworkProof : Bool
 auditTransitionNetworkProof =
-  let initSt : TransitionState Nat = AddM 1 (intToBoxInt 10) (AddM 2 (intToBoxInt 0) ZeroM)
-      rxn : TransitionChannel Nat = MkChannel 1 [MkDelta 1 (intToBoxInt (-1)), MkDelta 2 (intToBoxInt 1)] (intToBoxInt 1)
-      finalSt = runTransitionTrajectoryNat 5 rxn initSt
-      c1 = multiplicity 1 finalSt
-      c2 = multiplicity 2 finalSt
+  let initSt : TransitionCarrier Nat
+      initSt = singletonCarrier 1 (intToBoxInt 10)
+      rxn : TransitionChannel Nat
+      rxn = MkChannel 1 [MkDelta 1 (intToBoxInt (-1)), MkDelta 2 (intToBoxInt 1)] (intToBoxInt 1)
+      finalSt = runTransitionTrajectoryCarrierNat 5 rxn initSt
+      c1 = lookupCarrier 1 finalSt
+      c2 = lookupCarrier 2 finalSt
       tot = c1 + c2
   in c1 == intToBoxInt 5 && c2 == intToBoxInt 5 && tot == intToBoxInt 10
 
-||| Audits multi-token transition firing definitionally:
+||| Audits multi-token transition firing definitionally on `TransitionCarrier Nat`:
 ||| Consumes 2x species 1 and produces 1x species 2.
 public export
 auditMultiTokenFiringProof : Bool
 auditMultiTokenFiringProof =
-  let initSt : TransitionState Nat = AddM 1 (intToBoxInt 3) (AddM 2 (intToBoxInt 0) ZeroM)
-      res = fireMultiTokenTransition [MkToken 1, MkToken 1] [MkToken 2] initSt
+  let initSt : TransitionCarrier Nat
+      initSt = singletonCarrier 1 (intToBoxInt 3)
+      res = fireMultiTokenCarrier [MkToken 1, MkToken 1] [MkToken 2] initSt
   in case res of
        Just finalSt =>
-         (multiplicity 1 finalSt == intToBoxInt 1) &&
-         (multiplicity 2 finalSt == intToBoxInt 1)
+         (lookupCarrier 1 finalSt == intToBoxInt 1) &&
+         (lookupCarrier 2 finalSt == intToBoxInt 1)
        Nothing => False
-
-------------------------------------------------------------------------
--- 4. STOICHIOMETRIC HOMOMORPHISMS VIA FREE MONOID ADJUNCTION
-------------------------------------------------------------------------
-
-||| Lifts an elementary token reaction rule to a unique multiset homomorphism
-||| by the universal property of free commutative monoids (F ⊣ U).
-public export
-liftTokenReaction : (Token s -> TransitionState s) -> TransitionState s -> TransitionState s
-liftTokenReaction = liftToken
 
 ||| Audit: Universal reaction homomorphism preserves total mass under balanced token rules.
 public export
 auditReactionMassConservationProof : Bool
 auditReactionMassConservationProof =
-  let -- Rule: A -> B + C (species 1 -> species 2 + species 3)
-      rule : Token Nat -> TransitionState Nat
-      rule (MkToken 1) = AddM 2 (intToBoxInt 1) (AddM 3 (intToBoxInt 1) ZeroM)
-      rule (MkToken x) = AddM x (intToBoxInt 1) ZeroM
-      init = the (TransitionState Nat) (AddM 1 (intToBoxInt 2) ZeroM)
-      res = liftTokenReaction rule init
+  let rule : Token Nat -> TransitionCarrier Nat
+      rule (MkToken 1) = singletonCarrier 2 (intToBoxInt 1) <+> singletonCarrier 3 (intToBoxInt 1)
+      rule (MkToken x) = singletonCarrier x (intToBoxInt 1)
+      init : TransitionCarrier Nat
+      init = singletonCarrier 1 (intToBoxInt 2)
+      res = liftCarrierReaction rule init
       massOf : Nat -> BoxInt
       massOf 1 = intToBoxInt 2
       massOf 2 = intToBoxInt 1
       massOf 3 = intToBoxInt 1
       massOf _ = intToBoxInt 0
-      initMass = foldMultiset (\s, w, acc => acc + (massOf s * w)) (intToBoxInt 0) init
-      resMass = foldMultiset (\s, w, acc => acc + (massOf s * w)) (intToBoxInt 0) res
+      initMass = foldBoxTreeL (\acc, (s, w) => acc + (massOf s * w)) (intToBoxInt 0) init
+      resMass = foldBoxTreeL (\acc, (s, w) => acc + (massOf s * w)) (intToBoxInt 0) res
   in initMass == resMass && initMass == intToBoxInt 4
 
 

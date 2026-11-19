@@ -52,6 +52,9 @@ Ord a => Ord (Token a) where
   compare (MkToken x) (MkToken y) = compare x y
 
 public export
+DiscreteCoord a => DiscreteCoord (Token a) where
+
+public export
 Show a => Show (Token a) where
   show (MkToken x) = "Token(" ++ show x ++ ")"
 
@@ -163,30 +166,28 @@ LComonoid a => LComonoid (LToken a) where
     in (MkLToken x1 # MkLToken x2)
 
 ------------------------------------------------------------------------
--- 4. ADJUNCTION UNIT: INJECTION INTO MULTISET CARRIERS
+-- 4. CANONICAL TOKEN INJECTION INTO MULTISET CARRIERS
 ------------------------------------------------------------------------
 
-||| Unit of the Free Commutative Monoid Adjunction (F ⊣ U):
-||| η_X : X -> U(M(X)), x |-> [x]
-||| Injects an atomic token into an algebraic multiset with unit multiplicity 1.
+||| Unit basis injection `x |-> [x]` into an algebraic `Multiset c a`.
 public export
 tokenToMultiset : Num c => Token a -> Multiset c a
 tokenToMultiset (MkToken x) = AddM x 1 ZeroM
 
-||| Injects an atomic token into a BoxInt multiset with exact unit weight (MkBoxInt 1).
+||| Injects an atomic token into a `Carrier a` with exact unit weight `1`.
 public export
-tokenToBox : Token a -> Multiset BoxInt a
-tokenToBox (MkToken x) = AddM x (intToBoxInt 1) ZeroM
+tokenToCarrier : Token a -> Carrier a
+tokenToCarrier (MkToken x) = singletonCarrier x (intToBoxInt 1)
 
 ||| Injects an atomic token into a multiset with specified scalar count.
 public export
 tokenToMultisetCount : Num c => Token a -> c -> Multiset c a
 tokenToMultisetCount (MkToken x) cnt = AddM x cnt ZeroM
 
-||| Injects an atomic token into a BoxInt multiset with specified BoxInt count.
+||| Injects an atomic token into a `Carrier a` with specified `BoxInt` count.
 public export
-tokenToBoxCount : Token a -> BoxInt -> Multiset BoxInt a
-tokenToBoxCount (MkToken x) cnt = AddM x cnt ZeroM
+tokenToCarrierCount : Token a -> BoxInt -> Carrier a
+tokenToCarrierCount (MkToken x) cnt = singletonCarrier x cnt
 
 ||| Wraps a raw element into an atomic token.
 public export
@@ -220,7 +221,7 @@ depTokenToBox : DepToken a x -> (m : Multiset BoxInt a ** IsToken x m)
 depTokenToBox (MkDepToken x) = (AddM x (intToBoxInt 1) ZeroM ** HereToken)
 
 ------------------------------------------------------------------------
--- 6. UNIVERSAL FREE ADJUNCTION EXTENSION (liftToken)
+-- 6. UNIVERSAL LINEAR BASIS EXTENSION (liftToken)
 ------------------------------------------------------------------------
 
 ||| Scales a BoxInt multiset by an integer factor.
@@ -231,8 +232,8 @@ scaleMultisetInt 1 m = m
 scaleMultisetInt k (AddM y (MkBoxInt v) xs) =
   AddM y (MkBoxInt (k * v)) (scaleMultisetInt k xs)
 
-||| Universal Monoid Extension (Free Adjunction F ⊣ U):
-||| Lifts a transformation defined on atomic tokens to a unique homomorphism over entire multisets.
+||| Universal Monoid Extension (Pushforward Homomorphism):
+||| Lifts a transformation defined on atomic tokens to a unique linear sum over entire multisets.
 ||| By the universal property of free commutative monoids, this uniquely determines
 ||| the linear multiset pushforward from its action on single basis tokens.
 public export
@@ -249,6 +250,22 @@ public export
 liftTokenZeroProof : (f : Token a -> Multiset BoxInt b) -> liftToken f ZeroM = ZeroM
 liftTokenZeroProof _ = Refl
 
+||| Linear Basis Extension over Indexed Carriers:
+||| Extends a transformation on single coordinate tokens to the full `Carrier a` module
+||| by scaling and summing image carriers across positive-weight entries.
+public export
+liftCarrier : DiscreteCoord b => (Token a -> Carrier b) -> Carrier a -> Carrier b
+liftCarrier f m =
+  foldBoxTreeL (\acc, (x, w) =>
+    if w <= intToBoxInt 0
+      then acc
+      else addCarrier acc (scaleCarrier w (f (MkToken x)))) BoxLeaf m
+
+||| Identity Proof: Lifting on the empty `BoxLeaf` carrier definitionally yields `BoxLeaf`.
+public export
+0 liftCarrierNeutralProof : DiscreteCoord b => (f : Token a -> Carrier b) -> liftCarrier f BoxLeaf = BoxLeaf
+liftCarrierNeutralProof _ = Refl
+
 ------------------------------------------------------------------------
 -- 7. SUBSTRATE CAUSAL ACTION TOKEN GENERATOR (Delta S = 1)
 ------------------------------------------------------------------------
@@ -264,6 +281,13 @@ Eq SubstrateActionToken where
   (MkActionToken q1) == (MkActionToken q2) = q1 == q2
 
 public export
+Ord SubstrateActionToken where
+  compare (MkActionToken q1) (MkActionToken q2) = compare q1 q2
+
+public export
+DiscreteCoord SubstrateActionToken where
+
+public export
 Show SubstrateActionToken where
   show (MkActionToken q) = "ActionToken(q=" ++ show (unwrapBox q) ++ ")"
 
@@ -272,8 +296,8 @@ public export
 unitActionToken : SubstrateActionToken
 unitActionToken = MkActionToken (intToBoxInt 1)
 
-||| Injects an atomic action token into a multiset carrier for element `geom`.
+||| Injects an atomic action token into a `Carrier a` at element `geom`.
 public export
-actionTokenToBox : Token SubstrateActionToken -> a -> Multiset BoxInt a
-actionTokenToBox (MkToken (MkActionToken q)) geom = AddM geom q ZeroM
+actionTokenToCarrier : Token SubstrateActionToken -> a -> Carrier a
+actionTokenToCarrier (MkToken (MkActionToken q)) geom = singletonCarrier geom q
 

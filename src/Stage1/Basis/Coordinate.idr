@@ -24,14 +24,9 @@ import public Stage1.Carrier.ChromogeometricMetric
 -- 1. CANONICAL COORDINATE INSTANCES (07-coordinate-systems.md)
 ------------------------------------------------------------------------
 
-public export
-DiscreteCoord BoxNat where
-
-public export
-DiscreteCoord Bit where
-
-public export
-DiscreteCoord a => DiscreteCoord (Token a) where
+-- `DiscreteCoord BoxNat`, `MonoidCoord BoxNat`, `DiscreteCoord Bit`, and
+-- `DiscreteCoord a => DiscreteCoord (Token a)` live canonically in `Stage0.BoxNat`,
+-- `Stage0.Bit`, and `Stage0.Token`.
 
 public export
 DiscreteCoord a => DiscreteCoord (SingRelation a) where

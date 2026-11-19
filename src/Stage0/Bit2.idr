@@ -115,6 +115,16 @@ Eq Bit2 where
   (Bit2One  _) == (Bit2One  _) = True
   _            == _             = False
 
+public export
+Ord Bit2 where
+  compare (Bit2Zero _) (Bit2Zero _) = EQ
+  compare (Bit2Zero _) (Bit2One  _) = LT
+  compare (Bit2One  _) (Bit2Zero _) = GT
+  compare (Bit2One  _) (Bit2One  _) = EQ
+
+public export
+DiscreteCoord Bit2 where
+
 -----------------------------------------------------------------------
 -- B₂ ARITHMETIC (mod 2)
 -----------------------------------------------------------------------

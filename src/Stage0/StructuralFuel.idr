@@ -3,24 +3,28 @@ module Stage0.StructuralFuel
 import public Data.Fuel
 import Data.Nat
 import public Stage0.BoxNat
+import public Stage0.BoxInt
+import public Stage0.HereditaryMSet
+import public Stage0.SignedBit
+import public Stage0.Box
 
 %default total
 
 --------------------------------------------------------------------------------
--- 1. ARITHMETIC SCALING GENERATORS
+-- 1. GENERATIVE MOTION ALIASES & ARITHMETIC SCALING GENERATORS
 --------------------------------------------------------------------------------
+
+||| Canonical signed exponent key helper for Stage 0 Laurent bootstrap:
+||| Alias for `Stage0.HereditaryMSet.scalarKeyHMSet`.
+public export
+stage0SignedKey : Integer -> HereditaryMSet BoxInt
+stage0SignedKey = scalarKeyHMSet
 
 ||| Relational scaling function for 3D spatial field lattice cells.
 ||| Grid dimension k produces k^3 active spatial slots (1 -> 1, 2 -> 8, 3 -> 27).
 public export
 computeVMSize : (gridDim : Nat) -> Nat
 computeVMSize dim = dim * (dim * dim)
-
-||| Helper to calculate 2^n for Nat buffer depth.
-public export
-fastNatPower2 : Nat -> Nat
-fastNatPower2 Z = 1
-fastNatPower2 (S k) = 2 * fastNatPower2 k
 
 ||| Relational scaling function for Dark Energy binary ROM buffer depth.
 ||| Binary depth b produces 2^b conserved archival capacity slots (e.g. 7 -> 128).
@@ -35,60 +39,45 @@ triangularSum Z = Z
 triangularSum (S k) = S k + triangularSum k
 
 --------------------------------------------------------------------------------
--- 2. CONSTRUCTIVIST GOH FUEL GENERATOR & CAPACITY BOUNDS (RULE 03 & 04)
+-- 2. PRIMORIAL-210 CAPACITIES & COMPOSITIONAL `GohFuel` COMBINATORS
 --------------------------------------------------------------------------------
 
-||| Division by 2 via structural recursion.
+||| Derived Elliptic (27), Hyperbolic (128), and Parabolic (55) sector capacities:
 public export
-half : Nat -> Nat
-half Z = Z
-half (S Z) = Z
-half (S (S k)) = S (half k)
-
-||| Canonical Goh factorisation formula computing exact fuel steps natively in Nat:
-||| Fuel(N) = N + floor(N/2) + 2
-public export
-gohFuelNat : Nat -> Nat
-gohFuelNat Z = 1
-gohFuelNat (S k) = S (S k + S (half k))
-
-||| First-class constructivist Goh Fuel indexed directly by model capacity.
-||| Guaranteed zero-allocation Peano integer carrier for recursive evaluators.
-public export
-record GohFuel (capacity : Nat) where
-  constructor MkGohFuel
-  fuelSteps : Nat
+EllipticCapacity : Nat
+EllipticCapacity = computeVMSize spatialAxisCount
 
 public export
-Eq (GohFuel cap) where
-  (MkGohFuel s1) == (MkGohFuel s2) = s1 == s2
+HyperbolicCapacity : Nat
+HyperbolicCapacity = computeDESize (spatialAxisCount + boundaryBracketOverhead + boundaryBracketOverhead)
 
 public export
-Show (GohFuel cap) where
-  show (MkGohFuel s) = "GohFuel(" ++ show s ++ " steps)"
+ParabolicCapacity : Nat
+ParabolicCapacity = triangularSum (elementaryPolarityCount * (spatialAxisCount + boundaryBracketOverhead))
 
-||| Canonical smart constructor generating exact fuel from capacity:
-%inline public export
-gohFuelForCapacity : (capacity : Nat) -> GohFuel capacity
-gohFuelForCapacity cap = MkGohFuel (gohFuelNat cap)
-
-||| Zero-cost projection to raw steps for loop pattern-matching (Z and S f):
-%inline public export
-gohSteps : GohFuel cap -> Nat
-gohSteps f = f.fuelSteps
-
-||| Canonical default capacity budget for constructivist stream evaluation.
-||| Accommodates up to 210 discrete items (316 structural Goh fuel steps).
-%inline public export
+||| Canonical default capacity budget derived from the three geometric sectors (27 + 128 + 55 = 210):
+public export
 DefaultStreamCapacity : Nat
-DefaultStreamCapacity = 210
+DefaultStreamCapacity = EllipticCapacity + HyperbolicCapacity + ParabolicCapacity
 
+||| Backward-compatible lowercase alias for `DefaultStreamCapacity` (`210`).
 public export
 defaultStreamCapacity : Nat
 defaultStreamCapacity = DefaultStreamCapacity
 
+||| Compile-time proof that `boundaryBracketOverhead` is 2 and `DefaultStreamCapacity` is Primorial 210:
+public export
+0 prfBoundaryOverheadTwo : Stage0.HereditaryMSet.boundaryBracketOverhead = 2
+prfBoundaryOverheadTwo = Refl
+
+||| ToDo: Replace hardcoded values with `primorial` or `primorial210` definitions from `Data.Primorial`.
+public export
+0 prfDerivedCapacityEqualsPrimorial210 :
+  Stage0.StructuralFuel.DefaultStreamCapacity = (2 * 3 * 5 * 7)
+prfDerivedCapacityEqualsPrimorial210 = Refl
+
 ||| Canonical default GohFuel for total stream folds and equality comparisons.
-%inline public export
+public export
 defaultStreamGohFuel : GohFuel DefaultStreamCapacity
 defaultStreamGohFuel = gohFuelForCapacity DefaultStreamCapacity
 
@@ -96,26 +85,6 @@ defaultStreamGohFuel = gohFuelForCapacity DefaultStreamCapacity
 public export
 0 prfDefaultStreamGohFuelSteps : Stage0.StructuralFuel.defaultStreamGohFuel.fuelSteps = 316
 prfDefaultStreamGohFuelSteps = Refl
-
---------------------------------------------------------------------------------
--- 2. GOH FUEL ALGEBRA (SEQUENTIAL, ENVELOPE JOIN & MULTI-STREAM COMPOSITION)
---------------------------------------------------------------------------------
-
-||| Monomorphic less-than-or-equal test on inductive Peano Nat for fuel budgets.
-||| Definitionally reducible in the unifier for compile-time reflection audits (Rule 01).
-public export
-fuelLTE : Nat -> Nat -> Bool
-fuelLTE Z _ = True
-fuelLTE (S _) Z = False
-fuelLTE (S k) (S j) = fuelLTE k j
-
-||| Monomorphic maximum on inductive Peano Nat for fuel envelopes.
-||| Definitionally reducible in the unifier for compile-time reflection audits (Rule 01).
-public export
-fuelMax : Nat -> Nat -> Nat
-fuelMax Z b = b
-fuelMax a Z = a
-fuelMax (S a) (S b) = S (fuelMax a b)
 
 ||| Additive fuel combination for sequential execution pipelines.
 ||| Running two sequential stages with capacities c1 and c2 requires additive fuel steps.
@@ -134,7 +103,7 @@ joinFuel (MkGohFuel s1) (MkGohFuel s2) = MkGohFuel (fuelMax s1 s2)
 ||| Accounts for N * (M + 2) + 1 steps (Skip entering inner, inner Yields, Skip exiting inner, Done).
 public export
 multiStreamFuelNat : (outerSteps : Nat) -> (innerSteps : Nat) -> Nat
-multiStreamFuelNat outer inner = (outer * (inner + 2)) + 1
+multiStreamFuelNat outer inner = (outer * (inner + boundaryBracketOverhead)) + S Z
 
 ||| Model-indexed multi-stream fuel combinator for nested FusedStream pipelines.
 public export
@@ -146,22 +115,22 @@ multiStreamGohFuel (MkGohFuel sOuter) (MkGohFuel sInner) = multiStreamFuelNat sO
 --------------------------------------------------------------------------------
 
 ||| Backward-compatible alias for the master ground state capacity (Rule 03):
-%inline public export
+public export
 masterSubstrateGohFuelModel : GohFuel DefaultStreamCapacity
 masterSubstrateGohFuelModel = defaultStreamGohFuel
 
 ||| Backward-compatible alias for Elliptic capacity fuel (27 items):
-%inline public export
+public export
 ellipticGohFuelModel : GohFuel 27
 ellipticGohFuelModel = gohFuelForCapacity 27
 
 ||| Backward-compatible alias for Hyperbolic capacity fuel (128 items):
-%inline public export
+public export
 hyperbolicGohFuelModel : GohFuel 128
 hyperbolicGohFuelModel = gohFuelForCapacity 128
 
 ||| Backward-compatible alias for Parabolic capacity fuel (55 items):
-%inline public export
+public export
 parabolicGohFuelModel : GohFuel 55
 parabolicGohFuelModel = gohFuelForCapacity 55
 
@@ -256,3 +225,61 @@ gohDegreeFuel (S k) = limit (S k)
 public export
 rationalFlowFuel : (p : Nat) -> (q : Nat) -> Fuel
 rationalFlowFuel p q = limit (p + q + 10)
+
+--------------------------------------------------------------------------------
+-- 5. MODEL-INDEXED GOH FACTOR/DEGREE FUEL & EXISTENTIAL ENVELOPE
+--------------------------------------------------------------------------------
+
+||| Model-indexed structural fuel derived from total factor / active support count.
+public export
+gohFactorGohFuel : (factorCount : Nat) -> GohFuel factorCount
+gohFactorGohFuel factorCount = gohFuelForCapacity factorCount
+
+||| Model-indexed structural fuel derived from polynomial degree / span capacity.
+public export
+gohDegreeGohFuel : (degSum : Nat) -> GohFuel degSum
+gohDegreeGohFuel degSum = gohFuelForCapacity degSum
+
+||| Sequential additive combination over existential GohFuel envelopes.
+public export
+seqAnyGohFuel : AnyGohFuel -> AnyGohFuel -> AnyGohFuel
+seqAnyGohFuel (MkAnyGohFuel c1 f1) (MkAnyGohFuel c2 f2) =
+  MkAnyGohFuel (c1 + c2) (sequentialFuel f1 f2)
+
+||| Parallel envelope join over existential GohFuel envelopes.
+public export
+joinAnyGohFuel : AnyGohFuel -> AnyGohFuel -> AnyGohFuel
+joinAnyGohFuel (MkAnyGohFuel c1 f1) (MkAnyGohFuel c2 f2) =
+  MkAnyGohFuel (fuelMax c1 c2) (joinFuel f1 f2)
+
+--------------------------------------------------------------------------------
+-- 6. SUPPORT-DRIVEN `GohFuel` ALIASES (`fuelOfM`, `fuelFromSupport`, `hyperOpFuelOfM`)
+--------------------------------------------------------------------------------
+
+||| Single-pass `fuelOfM` extractor (`BoxInt` specialization of `HereditaryMSet.fuelOfHMSet`).
+public export
+fuelOfM : (cap : Nat) -> HereditaryMSet BoxInt -> (GohFuel cap, Nat)
+fuelOfM = fuelOfHMSet
+
+||| Single-pass `GohFuel` sizer over unsigned support multisets (`HereditaryMSet MultisetBit`).
+public export
+fuelFromSupport : (cap : Nat) -> HereditaryMSet MultisetBit -> (GohFuel cap, Nat)
+fuelFromSupport = fuelOfHMSet
+
+||| Binary multi-stream fuel combiner (`BoxInt` specialization of `multiStreamFuelOfHMSet`).
+public export
+multiStreamFuelOfM : (cap : Nat) ->
+                     InteractionMode ->
+                     HereditaryMSet BoxInt ->
+                     HereditaryMSet BoxInt ->
+                     (GohFuel cap, Nat)
+multiStreamFuelOfM = multiStreamFuelOfHMSet
+
+||| Level-aware `hyperOp` fuel sizer (`BoxInt` specialization of `hyperOpFuelOfHMSet`).
+public export
+hyperOpFuelOfM : (level : Nat) ->
+                 (cap : Nat) ->
+                 HereditaryMSet BoxInt ->
+                 HereditaryMSet BoxInt ->
+                 (GohFuel cap, Nat)
+hyperOpFuelOfM = hyperOpFuelOfHMSet

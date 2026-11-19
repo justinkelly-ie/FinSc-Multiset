@@ -62,14 +62,6 @@ public export
 spliceOnSeqToStream : LiftOnSeq a -> (idx : Nat) -> (len : Nat) -> FusedStream a
 spliceOnSeqToStream seq idx len = stream (elements (getClip seq idx len))
 
-||| 2LTT Monoid Splicing (~seq ↦ Monoid): Splices a Stage 1 static OnSeq directly down
-||| into a Stage 0 consolidated Multiset Monoid payload without Ord dictionary constraints.
-public export
-spliceOnSeqToMonoid : Eq a => LiftOnSeq a -> (idx : Nat) -> (len : Nat) -> Multiset BoxInt a
-spliceOnSeqToMonoid seq idx len =
-  let strm = spliceOnSeqToStream seq idx len
-  in foldStreamNat len (\acc, x => insertItemBox x (intToBoxInt 1) acc) ZeroM strm
-
 ||| Quotes a raw multiset sequence generator function into a Stage 1 static OnSeq payload.
 public export
 quoteOnSeqMultiset : Nat -> (Nat -> Multiset BoxInt a) -> LiftOnSeq (Multiset BoxInt a)
@@ -77,7 +69,7 @@ quoteOnSeqMultiset start f = MkOnSeq start f
 
 ||| Splices a Stage 1 static OnSeq multiset sequence directly down into a Stage 0 consolidated Box multiset monoid.
 public export
-spliceOnSeqToBox : Ord a => LiftOnSeq (Multiset BoxInt a) -> (idx : Nat) -> (len : Nat) -> Box a
+spliceOnSeqToBox : Ord a => LiftOnSeq (Multiset BoxInt a) -> (idx : Nat) -> (len : Nat) -> Carrier a
 spliceOnSeqToBox seq idx len =
   let strm = spliceOnSeqToStream seq idx len
   in foldStreamNat len (\acc, m => foldMultiset (\k, w, innerAcc => insertBox k w innerAcc) acc m)

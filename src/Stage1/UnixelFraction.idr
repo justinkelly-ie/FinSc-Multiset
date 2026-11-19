@@ -1,6 +1,7 @@
 module Stage1.UnixelFraction
 
 import Stage0.BoxInt
+import Stage0.BoxNat
 import Stage0.SignedFraction
 import Stage0.StructuralFuel
 import public Stage1.Basis.Coordinate
@@ -248,13 +249,11 @@ fromMSetFraction (MkMSF n d) = MkUnixelFraction n (mkUnixel d)
 
 ||| Constructive state capacity of an exact rational: |n| + d.
 public export
-%inline
 fractionCapacity : UnixelFraction -> Nat
 fractionCapacity (MkUnixelFraction n u) = boxToNat (absBox n) + unwrapUnixel u
 
 ||| Model-indexed Goh fuel derived directly from the fraction's state capacity.
 public export
-%inline
 fractionGohFuel : (q : UnixelFraction) -> GohFuel (fractionCapacity q)
 fractionGohFuel q = gohFuelForCapacity (fractionCapacity q)
 
@@ -336,7 +335,7 @@ reduceUnixelFraction : UnixelFraction -> UnixelFraction
 reduceUnixelFraction (MkUnixelFraction n u) =
   let d = unwrapUnixel u
       nNat = boxToNat (absBox n)
-      g = gcdNat (nNat + d) nNat d
+      g = natGCDFast nNat d
       g' = if g == 0 then 1 else g
       newNum = n `div` intToBoxInt (natToInteger g')
       newDen = integerToNat (natToInteger d `div` natToInteger g')
@@ -666,7 +665,7 @@ auditHehnerScaleConversionProof =
 ||| Evaluates the exact multiset chance of an event / item target inside a total ensemble Omega:
 ||| c(target, Omega) = lookupBox(target, Omega) / [ totalMass(Omega) ]
 public export
-multisetChance : Ord a => a -> Box a -> UnixelFraction
+multisetChance : Ord a => a -> Carrier a -> UnixelFraction
 multisetChance target omega =
   let w = lookupBox target omega
       d = boxIntToPositiveNat (totalMassBox omega)
@@ -686,7 +685,7 @@ multisetBornRule target v =
 ||| Decision bit-bag for a Stern-Brocot path:
 ||| Counts occurrences of Right (1) vs Left (0) turns.
 public export
-hehnerMultisetBitBag : List SternBrocotBranch -> Box SternBrocotBranch
+hehnerMultisetBitBag : List SternBrocotBranch -> Carrier SternBrocotBranch
 hehnerMultisetBitBag path =
   let rCount = foldl (\acc, b => case b of BranchR => acc + 1; BranchL => acc) (the Nat 0) path
       lCount = foldl (\acc, b => case b of BranchL => acc + 1; BranchR => acc) (the Nat 0) path
@@ -718,7 +717,7 @@ auditMultisetHehnerTriadProof =
 ||| Compactness(P, Q) = |P ∩ Q| / [ |P ∪ Q| ]
 ||| Measures model predictive intelligence: 1/1 = perfect compression, 0/1 = complete failure.
 public export
-multisetCompactnessRatio : Ord a => Box a -> Box a -> UnixelFraction
+multisetCompactnessRatio : Ord a => Carrier a -> Carrier a -> UnixelFraction
 multisetCompactnessRatio p q =
   let interMass = boxIntersectionMass p q
       unionM = boxUnionMass p q
@@ -728,7 +727,7 @@ multisetCompactnessRatio p q =
 ||| Evaluates the exact Multiset Jaccard Distance in [0, 1]:
 ||| D_Jaccard(P, Q) = 1 - Compactness(P, Q) = |P △ Q| / [ |P ∪ Q| ]
 public export
-multisetJaccardDistance : Ord a => Box a -> Box a -> UnixelFraction
+multisetJaccardDistance : Ord a => Carrier a -> Carrier a -> UnixelFraction
 multisetJaccardDistance p q =
   let diffMass = boxSymmetricDifference p q
       unionM = boxUnionMass p q
@@ -751,12 +750,12 @@ auditMultisetCompactnessRatioProof =
 ------------------------------------------------------------------------
 
 ||| Converts a Stage 0 MSetFraction into an exact Stage 1 UnixelFraction.
-%inline public export
+public export
 msetFractionToUnixelFraction : MSetFraction -> UnixelFraction
 msetFractionToUnixelFraction (MkMSF n d) = mkUnixelFraction n d
 
 ||| Converts a Stage 1 UnixelFraction into a Stage 0 MSetFraction.
-%inline public export
+public export
 unixelFractionToMSetFraction : UnixelFraction -> MSetFraction
 unixelFractionToMSetFraction (MkUnixelFraction n u) = mkMSF n (unwrapUnixel u)
 

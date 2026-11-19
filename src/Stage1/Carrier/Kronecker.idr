@@ -83,47 +83,44 @@ stagedKroneckerMaxelN : {n, m : Nat} -> Lift (MaxelN n) -> Lift (MaxelN m) -> Co
 stagedKroneckerMaxelN qm1 qm2 = quote (kroneckerMaxelN (splice qm1) (splice qm2))
 
 ------------------------------------------------------------------------
--- 3. MULTISETTENSOR ISOMORPHISMS & ALGEBRAIC KRONECKER EQUIVALENCE
+-- 3. CARRIER TENSOR ISOMORPHISMS & ALGEBRAIC KRONECKER EQUIVALENCE
 ------------------------------------------------------------------------
 
-||| Converts a SquareMaxel into a MultisetTensor over natural coordinate pairs.
+||| Converts a SquareMaxel into a sparse Carrier over natural coordinate pairs.
 public export
-squareMaxelToTensor : {dim : Nat} -> SquareMaxel dim -> Multiset BoxInt (Nat, Nat)
+squareMaxelToTensor : {dim : Nat} -> SquareMaxel dim -> Carrier (Nat, Nat)
 squareMaxelToTensor (MkSquareMaxel tree) =
-  foldBoxTreeR (\p, w, acc => AddM (pixelRow p, pixelCol p) w acc) ZeroM tree
+  pushforwardCarrier (\p => (pixelRow p, pixelCol p)) tree
 
-||| Reconstructs a sparse SquareMaxel from an observed MultisetTensor Pixel.
+||| Reconstructs a sparse SquareMaxel from an observed Carrier Pixel.
 public export
-tensorToSquareMaxel : {dim : Nat} -> Multiset BoxInt Pixel -> SquareMaxel dim
-tensorToSquareMaxel tensor =
-  MkSquareMaxel
-    (foldMultiset (\p, w, tree => addCellTree p w tree) BoxLeaf tensor)
+tensorToSquareMaxel : {dim : Nat} -> Carrier Pixel -> SquareMaxel dim
+tensorToSquareMaxel tensor = MkSquareMaxel tensor
 
-||| Converts a SquareMaxel into a Multiset over typed Pixels.
+||| Converts a SquareMaxel into a Carrier over typed Pixels.
 public export
-squareMaxelToPixelTensor : {dim : Nat} -> SquareMaxel dim -> Multiset BoxInt Pixel
-squareMaxelToPixelTensor (MkSquareMaxel tree) =
-  foldBoxTreeR (\p, w, acc => AddM p w acc) ZeroM tree
+squareMaxelToPixelTensor : {dim : Nat} -> SquareMaxel dim -> Carrier Pixel
+squareMaxelToPixelTensor (MkSquareMaxel tree) = tree
 
-||| Reconstructs a sparse SquareMaxel from a natural coordinate pair Multiset.
+||| Reconstructs a sparse SquareMaxel from a natural coordinate pair Carrier.
 public export
-tensorNatToSquareMaxel : {dim : Nat} -> Multiset BoxInt (Nat, Nat) -> SquareMaxel dim
+tensorNatToSquareMaxel : {dim : Nat} -> Carrier (Nat, Nat) -> SquareMaxel dim
 tensorNatToSquareMaxel tensor =
-  tensorToSquareMaxel (mapMultiset (\(r, c) => mkPixel r c) tensor)
+  MkSquareMaxel (pushforwardCarrier (\(r, c) => mkPixel r c) tensor)
 
-||| Converts a SquareMaxel into a Multiset over Token pairs without intermediate Nat conversion.
+||| Converts a SquareMaxel into a Carrier over Token pairs without intermediate Nat conversion.
 public export
-squareMaxelToTokenTensor : {dim : Nat} -> SquareMaxel dim -> Multiset BoxInt (Token Nat, Token Nat)
+squareMaxelToTokenTensor : {dim : Nat} -> SquareMaxel dim -> Carrier (Token Nat, Token Nat)
 squareMaxelToTokenTensor (MkSquareMaxel tree) =
-  foldBoxTreeR (\p, w, acc => AddM (pixelTokens p) w acc) ZeroM tree
+  pushforwardCarrier pixelTokens tree
 
-||| Reconstructs a sparse SquareMaxel directly from a Token pair Multiset.
+||| Reconstructs a sparse SquareMaxel directly from a Token pair Carrier.
 public export
-tokenTensorToSquareMaxel : {dim : Nat} -> Multiset BoxInt (Token Nat, Token Nat) -> SquareMaxel dim
+tokenTensorToSquareMaxel : {dim : Nat} -> Carrier (Token Nat, Token Nat) -> SquareMaxel dim
 tokenTensorToSquareMaxel tensor =
-  tensorToSquareMaxel (mapMultiset (\(rt, ct) => mkPixelTokens rt ct) tensor)
+  MkSquareMaxel (pushforwardCarrier (\(rt, ct) => mkPixelTokens rt ct) tensor)
 
-||| Verified Invariant: Converting a SquareMaxel to Multiset and back preserves the matrix.
+||| Verified Invariant: Converting a SquareMaxel to Carrier and back preserves the matrix.
 public export
 auditSquareMaxelTensorRoundtrip : Bool
 auditSquareMaxelTensorRoundtrip =
@@ -131,26 +128,25 @@ auditSquareMaxelTensorRoundtrip =
   in tensorNatToSquareMaxel (squareMaxelToTensor id2) == id2 &&
      tensorToSquareMaxel (squareMaxelToPixelTensor id2) == id2
 
-||| Converts a general Maxel into a typed MultisetTensor over natural coordinates.
+||| Converts a general Maxel into a typed Carrier over natural coordinates.
 public export
-maxelToTensor : Maxel -> MultisetTensor Nat Nat
+maxelToTensor : Maxel -> Carrier (Nat, Nat)
 maxelToTensor tree =
-  foldBoxTreeR (\p, w, acc => AddM (pixelRow p, pixelCol p) w acc) ZeroM tree
+  pushforwardCarrier (\p => (pixelRow p, pixelCol p)) tree
 
-||| Reconstructs a general Maxel from a MultisetTensor over natural coordinates.
+||| Reconstructs a general Maxel from a Carrier over natural coordinates.
 public export
-tensorToMaxel : MultisetTensor Nat Nat -> Maxel
+tensorToMaxel : Carrier (Nat, Nat) -> Maxel
 tensorToMaxel tensor =
-  foldMultiset (\(r, c), w, tree => addCellTree (mkPixel r c) w tree) BoxLeaf tensor
+  pushforwardCarrier (\(r, c) => mkPixel r c) tensor
 
-||| Algebraic Kronecker Tensor Product on SquareMaxel:
+||| Algebraic Kronecker Tensor Product on SquareMaxel using Carrier (><) + pushforwardCarrier:
 public export
 kroneckerSquareMaxelAlg : {m, n : Nat} -> SquareMaxel m -> SquareMaxel n -> SquareMaxel (m * n)
 kroneckerSquareMaxelAlg {m} {n} m1 m2 =
   let t1 = squareMaxelToTensor m1
       t2 = squareMaxelToTensor m2
-      tOp = tensorOperator t1 t2
-      observed = mapMultiset (observeKroneckerPixel n) tOp
+      observed = pushforwardCarrier (\((r1, c1), (r2, c2)) => observeKroneckerPixel n ((r1, r2), (c1, c2))) (t1 >< t2)
   in tensorToSquareMaxel observed
 
 ||| Verified Invariant: Direct sparse Kronecker product definitionally matches

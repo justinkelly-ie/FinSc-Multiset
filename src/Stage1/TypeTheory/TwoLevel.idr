@@ -24,8 +24,8 @@ public export
 Show a => Show (StrictLevel a) where
   show (MkStrict x) = "Strict(" ++ show x ++ ")"
 
-||| 2LTT Inner Homotopy Level: Represents synthetic physical manifolds, 4Geometries metric spaces,
-||| and weak identity paths (=) operating under univalence and 2-category adjunctions.
+||| 2LTT Inner Path-Space Level: Represents synthetic physical manifolds, 4Geometries metric spaces,
+||| and weak identity paths (=) connecting computational views across scales.
 public export
 record HomotopyLevel (a : Type) where
   constructor MkHomotopy
@@ -40,19 +40,24 @@ Show a => Show (HomotopyLevel a) where
   show (MkHomotopy x) = "Homotopy(" ++ show x ++ ")"
 
 ------------------------------------------------------------------------
--- 2. 2LTT STRICT REFLECTION FUNCTOR (SUBFIBRATION ADJUNCTION)
+-- 2. 2LTT STRICT REFLECTION DUALITY (SUBFIBRATION REFLECTION)
 ------------------------------------------------------------------------
 
-||| Formulates the canonical 2LTT Subfibration Reflection Functor (W ⊣ M):
-||| Hom_Homotopy (L a, b) ≅ Hom_Strict (a, R b)
-||| Maps outer strict deforested streams (L) into inner homotopy physical states (R).
+||| Formulates the canonical 2LTT Subfibration Reflection Duality (W vs M):
+||| Tensor(L a, b) <-> Tensor(a, R b)
+||| Maps outer strict deforested streams (L) into inner path-space physical states (R).
 ||| All structural reflection proofs are annotated with QTT 0 for complete runtime erasure.
 public export
-interface StrictReflectionFunctor (0 l : Type -> Type) (0 r : Type -> Type) where
-  reflectionAdjunction : MultisetAdjunction l r
+interface StrictReflectionDuality (0 l : Type -> Type) (0 r : Type -> Type) where
+  reflectionDuality : MultisetDuality l r
 
-  ||| QTT 0 Erased Proof: Strict level map reflects into Homotopy level functorially.
+  ||| QTT 0 Erased Proof: Strict level map reflects cleanly into Path-space level.
   0 reflectionRefl : {0 a : Type} -> (x : l a) -> True = True
+
+||| Compatibility alias for `StrictReflectionDuality`.
+public export
+StrictReflectionFunctor : (Type -> Type) -> (Type -> Type) -> Type
+StrictReflectionFunctor = StrictReflectionDuality
 
 public export
 strictToHomotopyTensorIso : MultisetTensor (StrictLevel a) b -> MultisetTensor a (HomotopyLevel b)
@@ -73,7 +78,7 @@ proofStrictHomInv ZeroM = Refl
 proofStrictHomInv (AddM (x, MkHomotopy y) w rest) = cong (AddM (x, MkHomotopy y) w) (proofStrictHomInv rest)
 
 public export
-MultisetAdjunction StrictLevel HomotopyLevel where
+MultisetDuality StrictLevel HomotopyLevel where
   leftAdjoint x = MkStrict x
   rightAdjoint (MkStrict x) = x
   homTensorIso = strictToHomotopyTensorIso
@@ -82,8 +87,8 @@ MultisetAdjunction StrictLevel HomotopyLevel where
   verifyHomInv = proofStrictHomInv
 
 public export
-StrictReflectionFunctor StrictLevel HomotopyLevel where
-  reflectionAdjunction = %search
+StrictReflectionDuality StrictLevel HomotopyLevel where
+  reflectionDuality = %search
   reflectionRefl _ = Refl
 
 
@@ -177,19 +182,16 @@ pathIsoConcat = PathIsoConcat
 
 ||| Physical Reaction Path: represents a lawful sequence of multiset state transformations
 ||| (annihilation, permutation, zero-pruning, or reaction steps).
-||| (Category theoretic counterpart: Homotopy path / 1-cell in multiset groupoid).
 public export
 ReactionPath : Multiset c a -> Multiset c a -> Type
 ReactionPath = MultisetPathIso
 
 ||| Chains two successive physical reaction steps.
-||| (Category theoretic counterpart: path concatenation).
 public export
 chainSteps : ReactionPath m1 m2 -> ReactionPath m2 m3 -> ReactionPath m1 m3
 chainSteps = pathIsoConcat
 
 ||| Reverses a physical reaction step (conjugate backward reaction).
-||| (Category theoretic counterpart: path inversion).
 public export
 reverseStep : ReactionPath m1 m2 -> ReactionPath m2 m1
 reverseStep = pathIsoInverse
@@ -223,8 +225,8 @@ auditMultisetPathEqualityProof =
 ------------------------------------------------------------------------
 
 ||| 2LTT Staged Boundary Transducer:
-||| Witnesses the structural morphism crossing from outer deforested strict computation
-||| to inner synthetic homotopy physical state manifold.
+||| Witnesses the structural boundary map crossing from outer deforested strict computation
+||| to inner synthetic path-space physical state manifold.
 public export
 record StagedBoundary (a : Type) (b : Type) where
   constructor MkBoundary
@@ -234,3 +236,7 @@ record StagedBoundary (a : Type) (b : Type) where
 public export
 idStagedBoundary : StagedBoundary a a
 idStagedBoundary = MkBoundary (\(MkStrict x) => MkHomotopy x)
+
+-- Reference for Category Theory Readers:
+-- `StrictReflectionDuality` / `ReactionPath` corresponds to a 2-categorical subfibration reflection
+-- with groupoid 1-cells in the homotopy level and structural boundary maps between levels.

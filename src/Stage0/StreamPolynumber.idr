@@ -159,17 +159,204 @@ fastBoxIntPower : BoxInt -> Nat -> BoxInt
 fastBoxIntPower x d = fastBoxIntPowerFuel (gohSteps (gohFuelForCapacity d)) x d
 
 ||| Direct deforested evaluation of a StreamPolynumber at a target coordinate x in BoxInt.
-||| Evaluates P(x) = sum c_k x^k with O(1) auxiliary registers.
+||| Evaluates P(x) = sum c_k x^k with O(1) auxiliary registers and degree 0/1 fast paths.
 public export
 evalStreamPolyNat : (fuel : Nat) -> BoxInt -> StreamPolynumber -> BoxInt
 evalStreamPolyNat fuel x strm =
-  foldStreamNat fuel (\acc, (d, c) => addBox acc (mulBox c (fastBoxIntPower x d))) (MkBoxInt 0) strm
+  foldStreamNat fuel
+    (\acc, (d, c) =>
+      case d of
+        Z     => acc + c
+        (S Z) => acc + (c * x)
+        _     => acc + (c * fastBoxIntPower x d))
+    (MkBoxInt 0)
+    strm
 
 ||| Evaluates a StreamPolynumber bounded by Master Substrate Primorial 210 Goh capacity.
 public export
 evalStreamPolyGoh : BoxInt -> StreamPolynumber -> BoxInt
 evalStreamPolyGoh x strm =
   evalStreamPolyNat (boxNatToNat masterSubstrateGohFuel) x strm
+
+------------------------------------------------------------------------
+-- 4B. BIVARIATE STREAMING INTEGER POLYNUMBER & GOH FUEL EXTRACTION
+------------------------------------------------------------------------
+
+||| A Deforested Bivariate Streaming Integer Polynumber:
+||| P(alpha, beta) = sum_{(i, j) in Supp(P)} c_{i,j} * alpha^i * beta^j.
+||| Streams active ((alphaDeg, betaDeg), coeff) terms in O(1) auxiliary registers without List-backed RLE.
+public export
+0 StreamIntPolynumber : Type
+StreamIntPolynumber = FusedStream ((Nat, Nat), BoxInt)
+
+||| Empty zero bivariate StreamIntPolynumber.
+public export
+streamIntPolyZero : StreamIntPolynumber
+streamIntPolyZero = stream []
+
+||| Constant bivariate StreamIntPolynumber: c * alpha^0 * beta^0.
+public export
+streamIntPolyConstant : BoxInt -> StreamIntPolynumber
+streamIntPolyConstant c =
+  if boxIsZero c then stream [] else stream [((0, 0), c)]
+
+||| Sparse bivariate monomial: c * alpha^i * beta^j.
+public export
+streamIntPolyMonomial : Nat -> Nat -> BoxInt -> StreamIntPolynumber
+streamIntPolyMonomial da db c =
+  if boxIsZero c then stream [] else stream [((da, db), c)]
+
+||| Builds a StreamIntPolynumber from a sparse list of ((degAlpha, degBeta), coeff) terms.
+public export
+streamIntPolyFromList : List ((Nat, Nat), BoxInt) -> StreamIntPolynumber
+streamIntPolyFromList terms =
+  filterMapStream (\t@(_, c) => if boxIsZero c then Nothing else Just t) (stream terms)
+
+||| Extracts the active exponent-pair support { (i, j) | c_{i,j} /= 0 } as a FusedStream.
+public export
+supportStreamIntPoly : StreamIntPolynumber -> FusedStream (Nat, Nat)
+supportStreamIntPoly =
+  filterMapStream (\(degs, c) => if boxIsZero c then Nothing else Just degs)
+
+||| Scales a StreamIntPolynumber by a BoxInt scalar in O(1) registers.
+public export
+streamIntPolyScale : BoxInt -> StreamIntPolynumber -> StreamIntPolynumber
+streamIntPolyScale s strm =
+  if boxIsZero s
+     then stream []
+     else filterMapStream (\(degs, c) =>
+            let sc = s * c
+            in if boxIsZero sc then Nothing else Just (degs, sc)) strm
+
+||| Addition of bivariate StreamIntPolynumbers via deforested stream concatenation.
+public export
+streamIntPolyAdd : StreamIntPolynumber -> StreamIntPolynumber -> StreamIntPolynumber
+streamIntPolyAdd = appendStream
+
+||| Subtraction of bivariate StreamIntPolynumbers: P1 - P2 = P1 + (-1) * P2.
+public export
+streamIntPolySub : StreamIntPolynumber -> StreamIntPolynumber -> StreamIntPolynumber
+streamIntPolySub p1 p2 = streamIntPolyAdd p1 (streamIntPolyScale (intToBoxInt (-1)) p2)
+
+||| Cauchy convolution multiplication of two bivariate StreamIntPolynumbers.
+public export
+streamIntPolyCauchyMul : StreamIntPolynumber -> StreamIntPolynumber -> StreamIntPolynumber
+streamIntPolyCauchyMul p1 p2 =
+  flatMapStream (\((a1, b1), c1) =>
+    mapStream (\((a2, b2), c2) => ((a1 + a2, b1 + b2), c1 * c2)) p2) p1
+
+||| Direct deforested evaluation of P(alpha, beta) bounded by Nat fuel.
+public export
+evalStreamIntPolyNat : (fuel : Nat) -> BoxInt -> BoxInt -> StreamIntPolynumber -> BoxInt
+evalStreamIntPolyNat fuel alpha beta strm =
+  foldStreamNat fuel
+    (\acc, ((da, db), c) =>
+      let pa = case da of { Z => MkBoxInt 1; (S Z) => alpha; _ => fastBoxIntPower alpha da }
+          pb = case db of { Z => MkBoxInt 1; (S Z) => beta;  _ => fastBoxIntPower beta db }
+      in acc + (c * pa * pb))
+    (MkBoxInt 0)
+    strm
+
+||| Evaluates a StreamIntPolynumber bounded by Master Substrate Primorial 210 GohFuel.
+public export
+evalStreamIntPolyGoh : BoxInt -> BoxInt -> StreamIntPolynumber -> BoxInt
+evalStreamIntPolyGoh alpha beta = evalStreamIntPolyNat (gohSteps masterSubstrateGohFuelModel) alpha beta
+
+||| Summary invariants extracted in a single deforested fold over a streaming integer polynumber:
+||| - `supportCardinality`: active non-zero term count `P_supp(1)`
+||| - `totalAbsMass`: sum of absolute multiplicities `sum |c|`
+||| - `maxDegree`: maximum total exponent (`d` univariate, `d_a + d_b` bivariate)
+||| - `maxAxisIndex`: maximum single-axis index (`max d` or `max d_a d_b`)
+public export
+record PolySupportSummary where
+  constructor MkPolySupportSummary
+  supportCardinality : Nat
+  totalAbsMass       : Nat
+  maxDegree          : Nat
+  maxAxisIndex       : Nat
+
+public export
+Eq PolySupportSummary where
+  s1 == s2 =
+    s1.supportCardinality == s2.supportCardinality &&
+    s1.totalAbsMass == s2.totalAbsMass &&
+    s1.maxDegree == s2.maxDegree &&
+    s1.maxAxisIndex == s2.maxAxisIndex
+
+public export
+Show PolySupportSummary where
+  show s = "PolySupportSummary(supp=" ++ show s.supportCardinality ++
+           ", mass=" ++ show s.totalAbsMass ++
+           ", maxDeg=" ++ show s.maxDegree ++
+           ", maxAxis=" ++ show s.maxAxisIndex ++ ")"
+
+||| Single-pass deforested invariant summary of a univariate StreamPolynumber.
+public export
+summarizeStreamPolyNat : (stepBound : Nat) -> StreamPolynumber -> PolySupportSummary
+summarizeStreamPolyNat stepBound =
+  foldStreamNat stepBound
+    (\acc, (d, c) =>
+      if boxIsZero c then acc
+      else MkPolySupportSummary
+             (S acc.supportCardinality)
+             (acc.totalAbsMass + boxToNat (absBox c))
+             (fuelMax d acc.maxDegree)
+             (fuelMax d acc.maxAxisIndex))
+    (MkPolySupportSummary Z Z Z Z)
+
+||| Single-pass deforested invariant summary of a bivariate StreamIntPolynumber.
+public export
+summarizeStreamIntPolyNat : (stepBound : Nat) -> StreamIntPolynumber -> PolySupportSummary
+summarizeStreamIntPolyNat stepBound =
+  foldStreamNat stepBound
+    (\acc, ((da, db), c) =>
+      if boxIsZero c then acc
+      else MkPolySupportSummary
+             (S acc.supportCardinality)
+             (acc.totalAbsMass + boxToNat (absBox c))
+             (fuelMax (da + db) acc.maxDegree)
+             (fuelMax (fuelMax da db) acc.maxAxisIndex))
+    (MkPolySupportSummary Z Z Z Z)
+
+||| Derives existential `GohFuel` capacity from a univariate StreamPolynumber's support cardinality.
+public export
+streamPolyToGohFuel : (stepBound : Nat) -> StreamPolynumber -> AnyGohFuel
+streamPolyToGohFuel stepBound p =
+  anyGohFuel (summarizeStreamPolyNat stepBound p).supportCardinality
+
+||| Derives existential `GohFuel` capacity from a bivariate StreamIntPolynumber's support cardinality.
+public export
+streamIntPolyToGohFuel : (stepBound : Nat) -> StreamIntPolynumber -> AnyGohFuel
+streamIntPolyToGohFuel stepBound p =
+  anyGohFuel (summarizeStreamIntPolyNat stepBound p).supportCardinality
+
+||| Derives existential `GohFuel` for dense/NTT finite span `(S maxDegree)` from a StreamIntPolynumber.
+public export
+streamIntPolySpanGohFuel : (stepBound : Nat) -> StreamIntPolynumber -> AnyGohFuel
+streamIntPolySpanGohFuel stepBound p =
+  let summ = summarizeStreamIntPolyNat stepBound p
+  in if summ.supportCardinality == Z
+        then anyGohFuel Z
+        else anyGohFuel (S summ.maxDegree)
+
+||| Packages a StreamPolynumber together with its derived GohFuel capacity and Skip headroom
+||| into an AnyFueledFiniteStream ready for Skip-safe fueled finite stream folds.
+public export
+streamPolyToFueledFinite : (srcStepBound : Nat) -> StreamPolynumber -> AnyFueledFiniteStream (Nat, BoxInt)
+streamPolyToFueledFinite srcStepBound strm =
+  let summ  = summarizeStreamPolyNat srcStepBound strm
+      cap   = summ.supportCardinality
+      slack = if srcStepBound > cap then minus srcStepBound cap else 2
+  in MkAnyFueledFiniteStream cap (mkFueledFiniteStreamWithSkips (gohFuelForCapacity cap) slack strm)
+
+||| Packages a bivariate StreamIntPolynumber with its derived GohFuel capacity and Skip headroom.
+public export
+streamIntPolyToFueledFinite : (srcStepBound : Nat) -> StreamIntPolynumber -> AnyFueledFiniteStream ((Nat, Nat), BoxInt)
+streamIntPolyToFueledFinite srcStepBound strm =
+  let summ  = summarizeStreamIntPolyNat srcStepBound strm
+      cap   = summ.supportCardinality
+      slack = if srcStepBound > cap then minus srcStepBound cap else 2
+  in MkAnyFueledFiniteStream cap (mkFueledFiniteStreamWithSkips (gohFuelForCapacity cap) slack strm)
 
 ------------------------------------------------------------------------
 -- 5. COMPILE-TIME INVARIANT AUDITS (RULE 01)

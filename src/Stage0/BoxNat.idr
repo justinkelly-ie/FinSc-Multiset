@@ -21,22 +21,22 @@ record BoxNat where
   value : Nat
 
 ||| Extracts raw underlying Nat term from boxed representation in O(1) time.
-%inline public export
+public export
 unwrapBoxNat : BoxNat -> Nat
 unwrapBoxNat (MkBoxNat v) = v
 
 ||| O(1) projection to Nat.
-%inline public export
+public export
 boxNatToNat : BoxNat -> Nat
 boxNatToNat (MkBoxNat v) = v
 
 ||| O(1) constructor lifting Nat into BoxNat.
-%inline public export
+public export
 natToBoxNat : Nat -> BoxNat
 natToBoxNat n = MkBoxNat n
 
 ||| Converts a BoxNat to a signed BoxInt.
-%inline public export
+public export
 boxNatToBoxInt : BoxNat -> BoxInt
 boxNatToBoxInt (MkBoxNat n) = natToBoxInt n
 
@@ -47,7 +47,7 @@ boxIntToBoxNat (MkBoxInt v) =
   if v <= 0 then MkBoxNat 0 else MkBoxNat (integerToNat v)
 
 ||| Converts a BoxNat directly to structural evaluation Fuel.
-%inline public export
+public export
 boxNatToFuel : BoxNat -> Fuel
 boxNatToFuel (MkBoxNat n) = limit n
 
@@ -55,7 +55,7 @@ boxNatToFuel (MkBoxNat n) = limit n
 -- 2. EXACT MONOMORPHIC ARITHMETIC OPERATORS
 ------------------------------------------------------------------------
 
-%inline public export
+public export
 boxNatAdd : BoxNat -> BoxNat -> BoxNat
 boxNatAdd (MkBoxNat a) (MkBoxNat b) = MkBoxNat (a + b)
 
@@ -63,15 +63,15 @@ public export
 boxNatAddLinear : (1 a : BoxNat) -> (1 b : BoxNat) -> BoxNat
 boxNatAddLinear (MkBoxNat a) (MkBoxNat b) = MkBoxNat (a + b)
 
-%inline public export
+public export
 boxNatSub : BoxNat -> BoxNat -> BoxNat
 boxNatSub (MkBoxNat a) (MkBoxNat b) = MkBoxNat (minus a b)
 
-%inline public export
+public export
 boxNatMul : BoxNat -> BoxNat -> BoxNat
 boxNatMul (MkBoxNat a) (MkBoxNat b) = MkBoxNat (a * b)
 
-%inline public export
+public export
 normalizeBoxNat : BoxNat -> BoxNat
 normalizeBoxNat bn = bn
 
@@ -98,20 +98,40 @@ natHalfAndOdd (S (S n)) =
   let (h, odd) = natHalfAndOdd n
   in (S h, odd)
 
-||| Constructive Euclidean division and remainder on Nat with structural fuel.
+||| O(1) total integer-backed Nat division (returns 0 when divisor is 0).
+public export
+natDivFast : Nat -> Nat -> Nat
+natDivFast _ Z = Z
+natDivFast a (S k) = integerToNat (div (natToInteger a) (natToInteger (S k)))
+
+||| O(1) total integer-backed Nat remainder (returns 0 when divisor is 0).
+public export
+natModFast : Nat -> Nat -> Nat
+natModFast _ Z = Z
+natModFast a (S k) = integerToNat (mod (natToInteger a) (natToInteger (S k)))
+
+||| O(1) total integer-backed Euclidean division and remainder (quotient, remainder).
+public export
+natDivModFast : Nat -> Nat -> (Nat, Nat)
+natDivModFast _ Z = (Z, Z)
+natDivModFast n d = (natDivFast n d, natModFast n d)
+
+||| Total O(log min(a, b)) Euclidean GCD on Nat backed by O(1) GMP integer remainder.
+public export
+natGCDFast : Nat -> Nat -> Nat
+natGCDFast a b = go (S (if a < b then a else b)) a b
+  where
+    go : Nat -> Nat -> Nat -> Nat
+    go _ x Z = x
+    go Z _ y = y
+    go (S f) x (S y) = go f (S y) (natModFast x (S y))
+
+||| Constructive Euclidean division and remainder on Nat backed by O(1) GMP division.
 ||| Returns (quotient, remainder) such that n = q * d + r with r < d.
 ||| When d = 0, returns (0, 0) by constructive convention.
 public export
 natDivMod : Nat -> Nat -> (Nat, Nat)
-natDivMod _ Z = (Z, Z)
-natDivMod n d = go n n Z
-  where
-    go : (fuel : Nat) -> Nat -> Nat -> (Nat, Nat)
-    go Z rem q = (q, rem)
-    go (S f) rem q =
-      if rem < d
-        then (q, rem)
-        else go f (minus rem d) (S q)
+natDivMod = natDivModFast
 
 ||| BoxNat division and remainder.
 public export
@@ -187,6 +207,15 @@ boxNatAddComm (MkBoxNat a) (MkBoxNat b) = cong MkBoxNat (plusCommutative a b)
 public export
 0 boxNatAddAssoc : (a, b, c : BoxNat) -> boxNatAdd (boxNatAdd a b) c = boxNatAdd a (boxNatAdd b c)
 boxNatAddAssoc (MkBoxNat a) (MkBoxNat b) (MkBoxNat c) = cong MkBoxNat (sym (plusAssociative a b c))
+
+public export
+DiscreteCoord BoxNat where
+
+public export
+MonoidCoord BoxNat where
+  combine = boxNatAdd
+  origin  = MkBoxNat 0
+  assoc x y z = sym (boxNatAddAssoc x y z)
 
 ||| Multiplicative zero on the left: 0 * a = 0.
 public export

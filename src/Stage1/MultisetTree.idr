@@ -25,14 +25,12 @@ data MultisetTree a =
 
 ||| Returns node height in O(1) time:
 public export
-%inline
 height : MultisetTree a -> Nat
 height Leaf = Z
 height (Node h _ _ _ _) = h
 
 ||| Smart constructor calculating node height:
 public export
-%inline
 mkNode : MultisetTree a -> a -> Nat -> MultisetTree a -> MultisetTree a
 mkNode l x c r =
   let hl = height l
@@ -42,14 +40,12 @@ mkNode l x c r =
 
 ||| Right rotation for AVL rebalancing:
 public export
-%inline
 rotateRight : MultisetTree a -> a -> Nat -> MultisetTree a -> MultisetTree a
 rotateRight (Node _ ll lx lc lr) x c r = mkNode ll lx lc (mkNode lr x c r)
 rotateRight l x c r = mkNode l x c r
 
 ||| Left rotation for AVL rebalancing:
 public export
-%inline
 rotateLeft : MultisetTree a -> a -> Nat -> MultisetTree a -> MultisetTree a
 rotateLeft l x c (Node _ rl rx rc rr) = mkNode (mkNode l x c rl) rx rc rr
 rotateLeft l x c r = mkNode l x c r
@@ -155,13 +151,13 @@ lookupToken (MkToken x) tree = lookupTokenTree x tree
 
 ||| Converts a Box multiset into a balanced logarithmic MultisetTree:
 public export
-fromBoxMultiset : Ord a => Box a -> MultisetTree a
+fromBoxMultiset : Ord a => Carrier a -> MultisetTree a
 fromBoxMultiset b =
   foldBoxTreeL (\acc, (x, w) => insertTokenTree x (boxToNat w) acc) Leaf b
 
 ||| Converts a balanced MultisetTree back into a Box multiset in a single O(N log N) pass:
 public export
-toBoxMultiset : Ord a => MultisetTree a -> Box a
+toBoxMultiset : Ord a => MultisetTree a -> Carrier a
 toBoxMultiset tree = foldTreeL (\acc, (x, c) => setBoxTree x (natToBoxInt c) acc) BoxLeaf tree
 
 ------------------------------------------------------------------------
@@ -412,7 +408,7 @@ Show EmergentCosmicObservation where
     ", Holographic=" ++ show (fst holo) ++
     ", Parabolic=" ++ show (fst par) ++ ")"
 
-||| Staged 2LTT observation functor: dynamically observes whether emergent runtime tree counts
+||| Staged 2LTT observation step: dynamically observes whether emergent runtime tree counts
 ||| settle into certified Level 1 CosmicDimensions via the 13-smooth horizon sieve.
 public export
 observeEmergentCosmos : TreeUniverseState -> Maybe EmergentCosmicObservation
@@ -510,12 +506,12 @@ public export
 streamMultisetTree : MultisetTree a -> FusedStream (a, Nat)
 streamMultisetTree = streamMultisetTreeDirect
 
-||| Evaluates a stream catamorphism fold over a MultisetTree directly without intermediate list allocations.
+||| Evaluates a stream fold consumer over a MultisetTree directly without intermediate list allocations.
 public export
 foldTreeStream : (b -> (a, Nat) -> b) -> b -> MultisetTree a -> b
 foldTreeStream f acc0 tree = foldStream f acc0 (streamMultisetTreeDirect tree)
 
-||| Evaluates a stream catamorphism fold in parallel across the left and right subtrees over Nat fuel.
+||| Evaluates a stream fold consumer in parallel across the left and right subtrees over Nat fuel.
 public export
 fusedParallelTreeFoldNat : Nat -> (a -> Nat -> b -> b) -> b -> (b -> b -> b) -> MultisetTree a -> b
 fusedParallelTreeFoldNat _ _ acc0 _ Leaf = acc0
@@ -525,7 +521,7 @@ fusedParallelTreeFoldNat n stepAcc acc0 combineBin (Node _ left key val right) =
       nodeRes  = stepAcc key val acc0
   in combineBin (combineBin leftRes nodeRes) rightRes
 
-||| Evaluates a stream catamorphism fold in parallel across the left and right subtrees of a MultisetTree.
+||| Evaluates a stream fold consumer in parallel across the left and right subtrees of a MultisetTree.
 public export
 fusedParallelTreeFold : Fuel -> (a -> Nat -> b -> b) -> b -> (b -> b -> b) -> MultisetTree a -> b
 fusedParallelTreeFold Dry _ acc0 _ _ = acc0
@@ -612,16 +608,14 @@ streamBoxMultisetTree tree =
     stepTree (BoxNode _ _ x c r :: rest) = Yield (x, c) (pushLeftSubtreesBox r rest)
 
 ||| Zero-allocation equality comparison between two BoxMultisetTrees via deforested lockstep streaming.
+||| Uses O(log N) AVL height capacity bounds (`boxTreeCapacityBound`) rather than O(N) pre-scans.
 public export
 streamBoxTreeEqual : Eq a => BoxMultisetTree a -> BoxMultisetTree a -> Bool
+streamBoxTreeEqual BoxLeaf BoxLeaf = True
 streamBoxTreeEqual t1 t2 =
-  let sz1 = treeSizeNonZero t1
-      sz2 = treeSizeNonZero t2
-  in if sz1 /= sz2 then False
-     else if sz1 == 0 then True
-     else eqStreamNat ((boxTreeSize t1 + boxTreeSize t2 + 16) * 4)
-                      (streamBoxMultisetTree t1)
-                      (streamBoxMultisetTree t2)
+  eqStreamNat ((boxTreeCapacityBound t1 + boxTreeCapacityBound t2 + 16) * 4)
+              (streamBoxMultisetTree t1)
+              (streamBoxMultisetTree t2)
 
 ||| Audit witness verifying BoxMultisetTree O(log N) lookup and streaming.
 public export

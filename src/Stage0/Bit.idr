@@ -59,6 +59,9 @@ Ord Bit where
   compare _               _               = EQ
 
 public export
+DiscreteCoord Bit where
+
+public export
 Show Bit where
   show b = if isOne b then "1" else "0"
 

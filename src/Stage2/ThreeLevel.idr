@@ -2,6 +2,7 @@ module Stage2.ThreeLevel
 
 import Stage1.MultisetDuality
 import Stage0.Multiset
+import Stage0.StructuralFuel
 import Stage1.TypeTheory.TwoLevel
 
 %default total
@@ -52,7 +53,7 @@ Show a => Show (ParameterizedCycleState u e a) where
     "Cycle(U=" ++ show u ++ ", Epoch=" ++ show e ++ ", State=" ++ show x ++ ")"
 
 ------------------------------------------------------------------------
--- 3. 3LTT HYPER-CYCLE REFLECTION FUNCTOR (INTER-CYCLE ADJUNCTION)
+-- 3. 3LTT HYPER-CYCLE REFLECTION DUALITY (INTER-CYCLE SUBFIBRATION)
 ------------------------------------------------------------------------
 
 ||| Maps a tensor product with HyperCycleLevel into a tensor product with StrictLevel.
@@ -76,7 +77,7 @@ proofHyperCycleStrictInv ZeroM = Refl
 proofHyperCycleStrictInv (AddM (x, MkStrict y) w rest) = cong (AddM (x, MkStrict y) w) (proofHyperCycleStrictInv rest)
 
 public export
-MultisetAdjunction HyperCycleLevel StrictLevel where
+MultisetDuality HyperCycleLevel StrictLevel where
   leftAdjoint x = MkHyperCycle x
   rightAdjoint (MkHyperCycle x) = x
   homTensorIso = hyperCycleToStrictTensorIso
@@ -84,34 +85,77 @@ MultisetAdjunction HyperCycleLevel StrictLevel where
   verifyHomIso = proofHyperCycleStrictIso
   verifyHomInv = proofHyperCycleStrictInv
 
-||| Formulates the canonical 3LTT Hyper-Cycle Reflection Functor (H ⊣ S):
+||| Formulates the canonical 3LTT Hyper-Cycle Reflection Duality (H vs S):
 ||| Maps Level 3 hyper-cycle states into Level 2 deforested strict trajectories.
 ||| Annotated with QTT 0 for runtime proof erasure.
 public export
-interface HyperCycleReflectionFunctor (0 h : Type -> Type) (0 s : Type -> Type) where
-  hyperCycleAdjunction : MultisetAdjunction h s
+interface HyperCycleReflectionDuality (0 h : Type -> Type) (0 s : Type -> Type) where
+  hyperCycleDuality : MultisetDuality h s
 
-  ||| QTT 0 Erased Proof: Level 3 HyperCycle state reflects into Level 2 Strict state functorially.
+  ||| QTT 0 Erased Proof: Level 3 HyperCycle state reflects cleanly into Level 2 Strict state.
   0 hyperCycleRefl : {0 a : Type} -> (x : h a) -> True = True
 
+||| Compatibility alias for `HyperCycleReflectionDuality`.
 public export
-HyperCycleReflectionFunctor HyperCycleLevel StrictLevel where
-  hyperCycleAdjunction = %search
+HyperCycleReflectionFunctor : (Type -> Type) -> (Type -> Type) -> Type
+HyperCycleReflectionFunctor = HyperCycleReflectionDuality
+
+public export
+HyperCycleReflectionDuality HyperCycleLevel StrictLevel where
+  hyperCycleDuality = %search
   hyperCycleRefl _ = Refl
+
+-- Reference for Category Theory Readers:
+-- `HyperCycleReflectionDuality` corresponds to an inter-cycle reflection adjunction `H -| S`.
 
 ------------------------------------------------------------------------
 -- 4. GENERIC 3LTT CONJUGATE HYLOMORPHISM
 ------------------------------------------------------------------------
 
 ||| Generic 3LTT Conjugate Hylomorphism operating over Level 3 ParameterizedCycleState.
+||| Total Nat fuel-bounded 3LTT Conjugate Hylomorphism over Level 3 ParameterizedCycleState.
+public export
+conjugateHylo3Nat : Functor f => Functor g
+                  => (fuel : Nat)
+                  -> (base : ParameterizedCycleState u e a -> ParameterizedCycleState u e b)
+                  -> (alg3 : g (ParameterizedCycleState u e b) -> ParameterizedCycleState u e b)
+                  -> (coalg3 : ParameterizedCycleState u e a -> f (ParameterizedCycleState u e a))
+                  -> (eta3 : forall x . f x -> g x)
+                  -> ParameterizedCycleState u e a -> ParameterizedCycleState u e b
+conjugateHylo3Nat Z base _ _ _ x = base x
+conjugateHylo3Nat (S f') base alg3 coalg3 eta3 x =
+  alg3 (map (conjugateHylo3Nat f' base alg3 coalg3 eta3) (eta3 (coalg3 x)))
+
+||| Model-indexed GohFuel 3LTT Conjugate Hylomorphism over Level 3 ParameterizedCycleState.
+public export
+conjugateHylo3Model : Functor f => Functor g
+                    => GohFuel cap
+                    -> (base : ParameterizedCycleState u e a -> ParameterizedCycleState u e b)
+                    -> (alg3 : g (ParameterizedCycleState u e b) -> ParameterizedCycleState u e b)
+                    -> (coalg3 : ParameterizedCycleState u e a -> f (ParameterizedCycleState u e a))
+                    -> (eta3 : forall x . f x -> g x)
+                    -> ParameterizedCycleState u e a -> ParameterizedCycleState u e b
+conjugateHylo3Model fuel = conjugateHylo3Nat (gohSteps fuel)
+
+||| Direct zero-allocation N-step 3LTT cycle transition (eliminates List/Functor churn).
+public export
+conjugateHylo3Direct : {u, e : Nat}
+                    -> (steps : Nat)
+                    -> (stepState : a -> a)
+                    -> ParameterizedCycleState u e a -> ParameterizedCycleState u e a
+conjugateHylo3Direct Z _ st = st
+conjugateHylo3Direct (S k) stepState (MkCycleState u e val) =
+  conjugateHylo3Direct k stepState (MkCycleState u e (stepState val))
+
+||| Single-step total 3LTT Conjugate Hylomorphism eliminating assert_total.
 public export
 conjugateHylo3 : Functor f => Functor g
-               => (alg3 : g (ParameterizedCycleState u e b) -> ParameterizedCycleState u e b)
+               => (base : ParameterizedCycleState u e a -> ParameterizedCycleState u e b)
+               -> (alg3 : g (ParameterizedCycleState u e b) -> ParameterizedCycleState u e b)
                -> (coalg3 : ParameterizedCycleState u e a -> f (ParameterizedCycleState u e a))
                -> (eta3 : forall x . f x -> g x)
                -> ParameterizedCycleState u e a -> ParameterizedCycleState u e b
-conjugateHylo3 alg3 coalg3 eta3 x =
-  alg3 (map (assert_total (conjugateHylo3 alg3 coalg3 eta3)) (eta3 (coalg3 x)))
+conjugateHylo3 = conjugateHylo3Nat 1
 
 ------------------------------------------------------------------------
 -- 4. COMPILE-TIME 3LTT SUBFIBRATION AUDIT WITNESS

@@ -2,6 +2,7 @@ module Stage0.Interfaces
 
 import public Data.Linear
 import Data.Fin
+import Data.Fin.Properties
 import Data.Nat
 import Stage0.BoxInt
 
@@ -154,6 +155,77 @@ public export
 
 public export
 infixl 7 ><
+
+------------------------------------------------------------------------
+-- Multiplicity Weight & Carrier-Parameterised Multiset Algebra
+------------------------------------------------------------------------
+
+||| Algebraic interface required for any multiplicity carrier `c` (`BoxInt`,
+||| `SignedBit`, `MultisetBit`) to drive `Box c k` and `HereditaryMSet c`.
+public export
+interface Ord c => MultisetWeight c where
+  zeroWeight : c
+  oneWeight  : c
+  isZero     : c -> Bool
+  addWeight  : c -> c -> c
+  negWeight  : c -> c
+  mulWeight  : c -> c -> c
+  minWeight  : c -> c -> c
+  maxWeight  : c -> c -> c
+  weightMagnitude : c -> Nat
+  weightMagnitude w = if isZero w then 0 else 1
+
+||| Subtraction on any `MultisetWeight c` (`x + (-y)`).
+public export
+subWeight : MultisetWeight c => c -> c -> c
+subWeight x y = addWeight x (negWeight y)
+
+public export
+MultisetWeight BoxInt where
+  zeroWeight = intToBoxInt 0
+  oneWeight  = intToBoxInt 1
+  isZero     = boxIsZero
+  addWeight  = addBox
+  negWeight  = negBox
+  mulWeight  = mulBox
+  minWeight  = Stage0.BoxInt.minBox
+  maxWeight  = Stage0.BoxInt.maxBox
+  weightMagnitude (MkBoxInt w) = integerToNat (abs w)
+
+||| Defines how a multiplicity carrier `c` peels off one positive (`Left`)
+||| or negative (`Right`) quantum at a time.
+public export
+interface MultisetWeight c => QuantumCarrier c where
+  peelQuantum : c -> Maybe (Either c c)
+
+public export
+QuantumCarrier BoxInt where
+  peelQuantum (MkBoxInt w) =
+    if w > 0 then Just (Left (intToBoxInt (w - 1)))
+    else if w < 0 then Just (Right (intToBoxInt (w + 1)))
+    else Nothing
+
+||| Carrier-parameterised multiset algebra generalizing `MultisetAlgebra`
+||| beyond fixed `BoxInt` weights to any `MultisetWeight c` (`SignedBit`,
+||| `MultisetBit`, `BoxInt`). `| a` determines `c` uniquely for overload resolution.
+public export
+interface MultisetWeight c => WeightedMultisetAlgebra c a | a where
+  zeroWM     : a
+  addWM      : a -> a -> a
+  subWM      : a -> a -> a
+  scaleWM    : c -> a -> a
+  mulWM      : a -> a -> a
+  hadamardWM : a -> a -> a
+  minWM      : a -> a -> a
+  maxWM      : a -> a -> a
+  dotWM      : a -> a -> c
+  mulWM = hadamardWM
+
+||| Polymorphic outer product interface shared by Cartesian coordinates (`Box c`)
+||| and Kuratowski pairing (`HereditaryMSet c`).
+public export
+interface MultisetOuter a b out | a, b where
+  (><) : a -> b -> out
 
 public export
 implementation (Show a, Show b) => Show (LPair a b) where
@@ -414,3 +486,448 @@ implementation (LEq a, LEq b) => LEq (LPair a b) where
 public export
 data Ur : Type -> Type where
   MkUr : a -> Ur a
+
+-- =========================================================================
+-- Canonical Constructive Signed Integer Coordinate (`SignedCoord`)
+-- =========================================================================
+
+||| Canonical inductive signed integer coordinate with unique zero (`ZeroZ`).
+||| Avoids `-0` ambiguity and non-inductive `Integer` opaque proofs, supporting
+||| total constructive `Ord`, `DiscreteCoord`, `MonoidCoord`, and `GroupCoord`.
+public export
+data SignedCoord : Type where
+  ZeroZ : SignedCoord
+  PosZ  : Nat -> SignedCoord
+  NegZ  : Nat -> SignedCoord
+
+public export
+Eq SignedCoord where
+  ZeroZ  == ZeroZ  = True
+  PosZ a == PosZ b = a == b
+  NegZ a == NegZ b = a == b
+  _      == _      = False
+
+public export
+Ord SignedCoord where
+  compare ZeroZ    ZeroZ    = EQ
+  compare ZeroZ    (PosZ _) = LT
+  compare ZeroZ    (NegZ _) = GT
+  compare (PosZ _) ZeroZ    = GT
+  compare (PosZ a) (PosZ b) = compare a b
+  compare (PosZ _) (NegZ _) = GT
+  compare (NegZ _) ZeroZ    = LT
+  compare (NegZ _) (PosZ _) = LT
+  compare (NegZ a) (NegZ b) = compare b a
+
+public export
+Show SignedCoord where
+  show ZeroZ    = "0"
+  show (PosZ k) = "+" ++ show (S k)
+  show (NegZ k) = "-" ++ show (S k)
+
+public export
+DiscreteCoord SignedCoord where
+
+public export
+DiscreteCoord () where
+
+public export
+FiniteCoord () where
+  cardinality = 1
+  toIndex () = FZ
+  fromIndex _ = ()
+  leftInv () = Refl
+  rightInv FZ = Refl
+  rightInv (FS k) = absurd k
+
+public export
+MonoidCoord () where
+  combine _ _ = ()
+  origin = ()
+  assoc _ _ _ = Refl
+
+public export
+GroupCoord () where
+  inverse _ = ()
+  invLaw _ = Refl
+
+public export
+succZ : SignedCoord -> SignedCoord
+succZ ZeroZ        = PosZ Z
+succZ (PosZ k)     = PosZ (S k)
+succZ (NegZ Z)     = ZeroZ
+succZ (NegZ (S k)) = NegZ k
+
+public export
+predZ : SignedCoord -> SignedCoord
+predZ ZeroZ        = NegZ Z
+predZ (PosZ Z)     = ZeroZ
+predZ (PosZ (S k)) = PosZ k
+predZ (NegZ k)     = NegZ (S k)
+
+0 succPredInv : (z : SignedCoord) -> succZ (predZ z) = z
+succPredInv ZeroZ        = Refl
+succPredInv (PosZ Z)     = Refl
+succPredInv (PosZ (S _)) = Refl
+succPredInv (NegZ _)     = Refl
+
+0 predSuccInv : (z : SignedCoord) -> predZ (succZ z) = z
+predSuccInv ZeroZ        = Refl
+predSuccInv (PosZ _)     = Refl
+predSuccInv (NegZ Z)     = Refl
+predSuccInv (NegZ (S _)) = Refl
+
+||| Compute `(S a) - (S b)` canonically as a `SignedCoord`.
+public export
+subS : Nat -> Nat -> SignedCoord
+subS Z     Z     = ZeroZ
+subS (S a) Z     = PosZ a
+subS Z     (S b) = NegZ b
+subS (S a) (S b) = subS a b
+
+0 subSDiag : (k : Nat) -> subS k k = ZeroZ
+subSDiag Z     = Refl
+subSDiag (S k) = subSDiag k
+
+0 subSSuccL : (a, b : Nat) -> subS (S a) b = succZ (subS a b)
+subSSuccL Z     Z         = Refl
+subSSuccL (S _) Z         = Refl
+subSSuccL Z     (S Z)     = Refl
+subSSuccL Z     (S (S _)) = Refl
+subSSuccL (S a) (S b)     = subSSuccL a b
+
+0 subSSuccR : (a, b : Nat) -> subS a (S b) = predZ (subS a b)
+subSSuccR Z     Z         = Refl
+subSSuccR Z     (S _)     = Refl
+subSSuccR (S Z) Z         = Refl
+subSSuccR (S (S _)) Z     = Refl
+subSSuccR (S a) (S b)     = subSSuccR a b
+
+public export
+addSigned : SignedCoord -> SignedCoord -> SignedCoord
+addSigned ZeroZ    y        = y
+addSigned x        ZeroZ    = x
+addSigned (PosZ a) (PosZ b) = PosZ (S (a + b))
+addSigned (NegZ a) (NegZ b) = NegZ (S (a + b))
+addSigned (PosZ a) (NegZ b) = subS a b
+addSigned (NegZ a) (PosZ b) = subS b a
+
+public export
+negSigned : SignedCoord -> SignedCoord
+negSigned ZeroZ    = ZeroZ
+negSigned (PosZ k) = NegZ k
+negSigned (NegZ k) = PosZ k
+
+0 addSignedSuccL : (x, y : SignedCoord) -> addSigned (succZ x) y = succZ (addSigned x y)
+addSignedSuccL ZeroZ ZeroZ        = Refl
+addSignedSuccL ZeroZ (PosZ _)     = Refl
+addSignedSuccL ZeroZ (NegZ Z)     = Refl
+addSignedSuccL ZeroZ (NegZ (S _)) = Refl
+addSignedSuccL (PosZ _) ZeroZ     = Refl
+addSignedSuccL (PosZ _) (PosZ _)  = Refl
+addSignedSuccL (PosZ a) (NegZ b)  = subSSuccL a b
+addSignedSuccL (NegZ Z) ZeroZ     = Refl
+addSignedSuccL (NegZ Z) (PosZ Z)  = Refl
+addSignedSuccL (NegZ Z) (PosZ (S _)) = Refl
+addSignedSuccL (NegZ Z) (NegZ _)  = Refl
+addSignedSuccL (NegZ (S _)) ZeroZ = Refl
+addSignedSuccL (NegZ (S a)) (PosZ b) =
+  rewrite subSSuccR b a in sym (succPredInv (subS b a))
+addSignedSuccL (NegZ (S _)) (NegZ _) = Refl
+
+0 addSignedPredL : (x, y : SignedCoord) -> addSigned (predZ x) y = predZ (addSigned x y)
+addSignedPredL x y =
+  let h : (addSigned (succZ (predZ x)) y = succZ (addSigned (predZ x) y))
+      h = addSignedSuccL (predZ x) y
+      h' : (addSigned x y = succZ (addSigned (predZ x) y))
+      h' = replace {p = \t => addSigned t y = succZ (addSigned (predZ x) y)} (succPredInv x) h
+  in sym (trans (cong predZ h') (predSuccInv (addSigned (predZ x) y)))
+
+0 assocPos : (k : Nat) -> (y, z : SignedCoord)
+        -> addSigned (PosZ k) (addSigned y z) = addSigned (addSigned (PosZ k) y) z
+assocPos Z y z =
+  rewrite addSignedSuccL ZeroZ (addSigned y z) in
+  rewrite addSignedSuccL ZeroZ y in
+  rewrite addSignedSuccL y z in Refl
+assocPos (S k) y z =
+  rewrite addSignedSuccL (PosZ k) (addSigned y z) in
+  rewrite addSignedSuccL (PosZ k) y in
+  rewrite addSignedSuccL (addSigned (PosZ k) y) z in
+  cong succZ (assocPos k y z)
+
+0 assocNeg : (k : Nat) -> (y, z : SignedCoord)
+        -> addSigned (NegZ k) (addSigned y z) = addSigned (addSigned (NegZ k) y) z
+assocNeg Z y z =
+  rewrite addSignedPredL ZeroZ (addSigned y z) in
+  rewrite addSignedPredL ZeroZ y in
+  rewrite addSignedPredL y z in Refl
+assocNeg (S k) y z =
+  rewrite addSignedPredL (NegZ k) (addSigned y z) in
+  rewrite addSignedPredL (NegZ k) y in
+  rewrite addSignedPredL (addSigned (NegZ k) y) z in
+  cong predZ (assocNeg k y z)
+
+0 addSignedAssoc : (x, y, z : SignedCoord)
+              -> addSigned x (addSigned y z) = addSigned (addSigned x y) z
+addSignedAssoc ZeroZ    _ _ = Refl
+addSignedAssoc (PosZ k) y z = assocPos k y z
+addSignedAssoc (NegZ k) y z = assocNeg k y z
+
+0 addSignedInvLaw : (x : SignedCoord) -> addSigned x (negSigned x) = ZeroZ
+addSignedInvLaw ZeroZ    = Refl
+addSignedInvLaw (PosZ k) = subSDiag k
+addSignedInvLaw (NegZ k) = subSDiag k
+
+public export
+MonoidCoord SignedCoord where
+  combine = addSigned
+  origin  = ZeroZ
+  assoc   = addSignedAssoc
+
+public export
+GroupCoord SignedCoord where
+  inverse = negSigned
+  invLaw  = addSignedInvLaw
+
+public export
+signedToBoxInt : SignedCoord -> BoxInt
+signedToBoxInt ZeroZ    = intToBoxInt 0
+signedToBoxInt (PosZ k) = intToBoxInt (natToInteger (S k))
+signedToBoxInt (NegZ k) = intToBoxInt (negate (natToInteger (S k)))
+
+public export
+boxIntToSigned : BoxInt -> SignedCoord
+boxIntToSigned (MkBoxInt v) =
+  if v == 0 then ZeroZ
+  else if v > 0 then PosZ (cast (v - 1))
+  else NegZ (cast ((-v) - 1))
+
+-- =========================================================================
+-- Modular Cyclic Coordinate Instances on `Fin (S n)`
+-- =========================================================================
+
+0 notLTToLTE : (x, y : Nat) -> Not (LT x y) -> LTE y x
+notLTToLTE Z     Z     _   = LTEZero
+notLTToLTE Z     (S _) neg = void (neg (LTESucc LTEZero))
+notLTToLTE (S _) Z     _   = LTEZero
+notLTToLTE (S x) (S y) neg = LTESucc (notLTToLTE x y (\lt => neg (LTESucc lt)))
+
+0 ltePlusLeft : (x, y : Nat) -> LTE y (x + y)
+ltePlusLeft Z     _ = reflexive
+ltePlusLeft (S x) y = lteSuccRight (ltePlusLeft x y)
+
+0 ltePlusRight : (x, y : Nat) -> LTE x (x + y)
+ltePlusRight x y = rewrite plusCommutative x y in ltePlusLeft y x
+
+0 sumLtSum : (a, b, m1, m2 : Nat) -> LT a m1 -> LT b m2 -> LT (a + b) (m1 + m2)
+sumLtSum Z     b (S m1') m2 _ ltb =
+  lteSuccRight (transitive ltb (ltePlusLeft m1' m2))
+sumLtSum (S a') b (S m1') m2 (LTESucc lta) ltb =
+  LTESucc (sumLtSum a' b m1' m2 lta ltb)
+
+0 minusPlusEq : (a, m : Nat) -> LTE m a -> minus a m + m = a
+minusPlusEq a     Z     _             = rewrite minusZeroRight a in rewrite plusZeroRightNeutral a in Refl
+minusPlusEq (S a) (S m) (LTESucc prf) =
+  rewrite sym (plusSuccRightSucc (minus a m) m) in cong S (minusPlusEq a m prf)
+
+0 lteAddMinusLT : (m1, a, m2 : Nat) -> LTE m1 a -> LT a (m1 + m2) -> LT (minus a m1) m2
+lteAddMinusLT Z     a     m2 _             lt           = rewrite minusZeroRight a in lt
+lteAddMinusLT (S x) (S y) m2 (LTESucc le)  (LTESucc lt) = lteAddMinusLT x y m2 le lt
+
+0 notSuccLTE : {x : Nat} -> Not (LT x x)
+notSuccLTE {x = Z}   lt           = absurd lt
+notSuccLTE {x = S _} (LTESucc lt) = notSuccLTE lt
+
+0 plusCancelRight : (a, b, c : Nat) -> a + c = b + c -> a = b
+plusCancelRight a b Z     eq = rewrite sym (plusZeroRightNeutral a) in rewrite sym (plusZeroRightNeutral b) in eq
+plusCancelRight a b (S c) eq =
+  let eq' : (S (a + c) = S (b + c))
+      eq' = rewrite plusSuccRightSucc a c in rewrite plusSuccRightSucc b c in eq
+  in plusCancelRight a b c (injective eq')
+
+0 remUnique : (m, r1, r2, q1, q2 : Nat)
+         -> LT r1 m -> LT r2 m -> r1 + q1 * m = r2 + q2 * m -> r1 = r2
+remUnique m r1 r2 Z Z _ _ eq =
+  rewrite sym (plusZeroRightNeutral r1) in rewrite sym (plusZeroRightNeutral r2) in eq
+remUnique m r1 r2 Z (S q2') lt1 _ eq =
+  let eq1 : (r1 = r2 + (m + q2' * m))
+      eq1 = rewrite sym (plusZeroRightNeutral r1) in eq
+      le1 : LTE m (r2 + (m + q2' * m))
+      le1 = transitive (ltePlusRight m (q2' * m)) (ltePlusLeft r2 (m + q2' * m))
+      le2 : LTE m r1
+      le2 = replace {p = \t => LTE m t} (sym eq1) le1
+  in void (notSuccLTE {x = r1} (transitive lt1 le2))
+remUnique m r1 r2 (S q1') Z _ lt2 eq =
+  let eq1 : (r2 = r1 + (m + q1' * m))
+      eq1 = rewrite sym (plusZeroRightNeutral r2) in sym eq
+      le1 : LTE m (r1 + (m + q1' * m))
+      le1 = transitive (ltePlusRight m (q1' * m)) (ltePlusLeft r1 (m + q1' * m))
+      le2 : LTE m r2
+      le2 = replace {p = \t => LTE m t} (sym eq1) le1
+  in void (notSuccLTE {x = r2} (transitive lt2 le2))
+remUnique m r1 r2 (S q1') (S q2') lt1 lt2 eq =
+  let eqL : ((r1 + q1' * m) + m = r1 + (m + q1' * m))
+      eqL = rewrite plusCommutative m (q1' * m) in sym (plusAssociative r1 (q1' * m) m)
+      eqR : ((r2 + q2' * m) + m = r2 + (m + q2' * m))
+      eqR = rewrite plusCommutative m (q2' * m) in sym (plusAssociative r2 (q2' * m) m)
+      eqC : ((r1 + q1' * m) + m = (r2 + q2' * m) + m)
+      eqC = trans eqL (trans eq (sym eqR))
+  in remUnique m r1 r2 q1' q2' lt1 lt2 (plusCancelRight (r1 + q1' * m) (r2 + q2' * m) m eqC)
+
+0 finToNatInj : {m : Nat} -> {x, y : Fin m} -> finToNat x = finToNat y -> x = y
+finToNatInj {x = FZ}   {y = FZ}   _  = Refl
+finToNatInj {x = FZ}   {y = FS _} eq = void (SIsNotZ (sym eq))
+finToNatInj {x = FS _} {y = FZ}   eq = void (SIsNotZ eq)
+finToNatInj {x = FS _} {y = FS _} eq = cong FS (finToNatInj (injective eq))
+
+public export
+0 finToNatNatToFinLT : {m : Nat} -> (k : Nat) -> (0 prf : LT k m)
+                    -> finToNat (natToFinLT k @{prf}) = k
+finToNatNatToFinLT {m = S _} Z     (LTESucc _)   = Refl
+finToNatNatToFinLT {m = S _} (S k) (LTESucc prf) = cong S (finToNatNatToFinLT k prf)
+
+public export
+wrapAddMod : (m, a, b : Nat) -> Nat
+wrapAddMod m a b = case isLT (a + b) m of
+  Yes _ => a + b
+  No _  => minus (a + b) m
+
+0 wrapAddModLT : (m, a, b : Nat) -> LT a m -> LT b m -> LT (wrapAddMod m a b) m
+wrapAddModLT m a b lta ltb with (isLT (a + b) m)
+  _ | Yes lt = lt
+  _ | No nlt = lteAddMinusLT m (a + b) m (notLTToLTE (a + b) m nlt) (sumLtSum a b m m lta ltb)
+
+0 wrapAddModSpec : (m, a, b : Nat) -> LT a m -> LT b m
+              -> (q : Nat ** wrapAddMod m a b + q * m = a + b)
+wrapAddModSpec m a b _ _ with (isLT (a + b) m)
+  _ | Yes _  = (Z ** plusZeroRightNeutral (a + b))
+  _ | No nlt = (1 **
+      let 0 prf = notLTToLTE (a + b) m nlt
+      in rewrite plusZeroRightNeutral m in minusPlusEq (a + b) m prf)
+
+0 wrapAddModAssoc : (m, a, b, c : Nat) -> LT a m -> LT b m -> LT c m
+               -> wrapAddMod m (wrapAddMod m a b) c = wrapAddMod m a (wrapAddMod m b c)
+wrapAddModAssoc m a b c lta ltb ltc =
+  let ltab  : LT (wrapAddMod m a b) m
+      ltab  = wrapAddModLT m a b lta ltb
+      ltbc  : LT (wrapAddMod m b c) m
+      ltbc  = wrapAddModLT m b c ltb ltc
+      ltlhs : LT (wrapAddMod m (wrapAddMod m a b) c) m
+      ltlhs = wrapAddModLT m (wrapAddMod m a b) c ltab ltc
+      ltrhs : LT (wrapAddMod m a (wrapAddMod m b c)) m
+      ltrhs = wrapAddModLT m a (wrapAddMod m b c) lta ltbc
+  in case wrapAddModSpec m a b lta ltb of
+       (qab ** eqab) => case wrapAddModSpec m (wrapAddMod m a b) c ltab ltc of
+         (ql ** eql) => case wrapAddModSpec m b c ltb ltc of
+           (qbc ** eqbc) => case wrapAddModSpec m a (wrapAddMod m b c) lta ltbc of
+             (qr ** eqr) =>
+               let eqL : (wrapAddMod m (wrapAddMod m a b) c + (ql + qab) * m = (a + b) + c)
+                   eqL =
+                     rewrite multDistributesOverPlusLeft ql qab m in
+                     rewrite plusAssociative (wrapAddMod m (wrapAddMod m a b) c) (ql * m) (qab * m) in
+                     rewrite eql in
+                     rewrite plusCommutative (wrapAddMod m a b) c in
+                     rewrite sym (plusAssociative c (wrapAddMod m a b) (qab * m)) in
+                     rewrite eqab in plusCommutative c (a + b)
+                   eqR : (wrapAddMod m a (wrapAddMod m b c) + (qr + qbc) * m = (a + b) + c)
+                   eqR =
+                     rewrite multDistributesOverPlusLeft qr qbc m in
+                     rewrite plusAssociative (wrapAddMod m a (wrapAddMod m b c)) (qr * m) (qbc * m) in
+                     rewrite eqr in
+                     rewrite sym (plusAssociative a (wrapAddMod m b c) (qbc * m)) in
+                     rewrite eqbc in plusAssociative a b c
+               in remUnique m (wrapAddMod m (wrapAddMod m a b) c) (wrapAddMod m a (wrapAddMod m b c))
+                    (ql + qab) (qr + qbc) ltlhs ltrhs (trans eqL (sym eqR))
+
+0 finAddModLT : {n : Nat} -> (x, y : Fin (S n))
+           -> LT (wrapAddMod (S n) (finToNat x) (finToNat y)) (S n)
+finAddModLT {n} x y =
+  wrapAddModLT (S n) (finToNat x) (finToNat y) (elemSmallerThanBound x) (elemSmallerThanBound y)
+
+public export
+natToFinClamped : Nat -> (n : Nat) -> Fin (S n)
+natToFinClamped Z     _     = FZ
+natToFinClamped (S k) Z     = FZ
+natToFinClamped (S k) (S m) = FS (natToFinClamped k m)
+
+0 finToNatClampedEq : (k, n : Nat) -> (0 prf : LT k (S n))
+                   -> finToNat (natToFinClamped k n) = k
+finToNatClampedEq Z     _     _            = Refl
+finToNatClampedEq (S _) Z     (LTESucc lt) = absurd lt
+finToNatClampedEq (S k) (S m) (LTESucc lt) = cong S (finToNatClampedEq k m lt)
+
+public export
+finAddMod : {n : Nat} -> Fin (S n) -> Fin (S n) -> Fin (S n)
+finAddMod {n} x y =
+  natToFinClamped (wrapAddMod (S n) (finToNat x) (finToNat y)) n
+
+0 finToNatFinAddMod : {n : Nat} -> (x, y : Fin (S n))
+                   -> finToNat (finAddMod x y) = wrapAddMod (S n) (finToNat x) (finToNat y)
+finToNatFinAddMod {n} x y =
+  finToNatClampedEq (wrapAddMod (S n) (finToNat x) (finToNat y)) n (finAddModLT x y)
+
+public export
+finNegMod : {n : Nat} -> Fin (S n) -> Fin (S n)
+finNegMod {n = _}   FZ     = FZ
+finNegMod {n = S _} (FS k) = FS (complement k)
+
+0 finAddModAssoc : {n : Nat} -> (x, y, z : Fin (S n))
+              -> finAddMod x (finAddMod y z) = finAddMod (finAddMod x y) z
+finAddModAssoc {n} x y z =
+  let ltx : LT (finToNat x) (S n)
+      ltx = elemSmallerThanBound x
+      lty : LT (finToNat y) (S n)
+      lty = elemSmallerThanBound y
+      ltz : LT (finToNat z) (S n)
+      ltz = elemSmallerThanBound z
+      eq1 : (wrapAddMod (S n) (finToNat x) (finToNat (finAddMod y z))
+           = wrapAddMod (S n) (finToNat x) (wrapAddMod (S n) (finToNat y) (finToNat z)))
+      eq1 = cong (wrapAddMod (S n) (finToNat x)) (finToNatFinAddMod y z)
+      eq2 : (wrapAddMod (S n) (finToNat (finAddMod x y)) (finToNat z)
+           = wrapAddMod (S n) (wrapAddMod (S n) (finToNat x) (finToNat y)) (finToNat z))
+      eq2 = cong (\t => wrapAddMod (S n) t (finToNat z)) (finToNatFinAddMod x y)
+      core : (wrapAddMod (S n) (finToNat x) (wrapAddMod (S n) (finToNat y) (finToNat z))
+            = wrapAddMod (S n) (wrapAddMod (S n) (finToNat x) (finToNat y)) (finToNat z))
+      core = sym (wrapAddModAssoc (S n) (finToNat x) (finToNat y) (finToNat z) ltx lty ltz)
+      natEq : (wrapAddMod (S n) (finToNat x) (finToNat (finAddMod y z))
+             = wrapAddMod (S n) (finToNat (finAddMod x y)) (finToNat z))
+      natEq = trans eq1 (trans core (sym eq2))
+  in finToNatInj (trans (finToNatFinAddMod x (finAddMod y z))
+                        (trans natEq (sym (finToNatFinAddMod (finAddMod x y) z))))
+
+0 finAddModInvLaw : {n : Nat} -> (x : Fin (S n)) -> finAddMod x (finNegMod x) = FZ
+finAddModInvLaw {n} FZ =
+  case wrapAddModSpec (S n) Z Z (LTESucc LTEZero) (LTESucc LTEZero) of
+    (q ** eqq) =>
+      let wrapZero : (wrapAddMod (S n) Z Z = Z)
+          wrapZero = remUnique (S n) _ Z q Z (finAddModLT {n} FZ FZ) (LTESucc LTEZero) eqq
+      in finToNatInj (trans (finToNatFinAddMod {n} FZ FZ) wrapZero)
+finAddModInvLaw {n = S m} (FS k) =
+  let ltx : LT (finToNat (FS k)) (S (S m))
+      ltx = elemSmallerThanBound (FS k)
+      lty : LT (finToNat (FS (complement k))) (S (S m))
+      lty = elemSmallerThanBound (FS (complement k))
+      comp : (S (finToNat k) + finToNat (complement k) = S m)
+      comp = complementSpec k
+      sumIsMod : (S (finToNat k) + S (finToNat (complement k)) = S (S m))
+      sumIsMod =
+        rewrite sym (plusSuccRightSucc (S (finToNat k)) (finToNat (complement k))) in
+        cong S comp
+  in case wrapAddModSpec (S (S m)) (S (finToNat k)) (S (finToNat (complement k))) ltx lty of
+       (q ** eqq) =>
+         let eqMod : (wrapAddMod (S (S m)) (S (finToNat k)) (S (finToNat (complement k))) + q * S (S m) = Z + 1 * S (S m))
+             eqMod = rewrite plusZeroRightNeutral (S (S m)) in trans eqq sumIsMod
+             wrapZero : (wrapAddMod (S (S m)) (S (finToNat k)) (S (finToNat (complement k))) = Z)
+             wrapZero = remUnique (S (S m)) _ Z q 1 (finAddModLT {n = S m} (FS k) (FS (complement k))) (LTESucc LTEZero) eqMod
+         in finToNatInj (trans (finToNatFinAddMod {n = S m} (FS k) (FS (complement k))) wrapZero)
+
+public export
+{n : Nat} -> MonoidCoord (Fin (S n)) where
+  combine = finAddMod
+  origin  = FZ
+  assoc   = finAddModAssoc
+
+public export
+{n : Nat} -> GroupCoord (Fin (S n)) where
+  inverse = finNegMod
+  invLaw  = finAddModInvLaw

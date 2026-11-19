@@ -29,7 +29,7 @@ public export
 public export
 record LevelBox (n : Nat) (a : Type) where
   constructor MkLevelBox
-  unwrapLevelBox : Box a
+  unwrapLevelBox : Carrier a
 
 public export
 Eq a => Eq (LevelBox n a) where
@@ -97,7 +97,7 @@ quoteIntensional supp gen = MkIntensionalBox supp gen
 
 ||| Splices an IntensionalBox down to an extensional Level 0 concrete Box container.
 public export
-spliceIntensionalToBox : Ord a => IntensionalBox a -> Box a
+spliceIntensionalToBox : Ord a => IntensionalBox a -> Carrier a
 spliceIntensionalToBox (MkIntensionalBox supp gen) =
   let rawPairs = map (\x => (x, gen x)) supp
       filtered = filter (\(_, w) => boxIsNonZero w) rawPairs
@@ -129,7 +129,7 @@ quoteIntensionalStream strm gen = MkIntensionalStreamBox strm gen
 ||| Splices an IntensionalStreamBox down to an extensional Level 0 concrete Box container
 ||| using total structural Nat fuel without intermediate list allocations.
 public export
-spliceIntensionalStreamToBoxNat : Ord a => (fuel : Nat) -> IntensionalStreamBox a -> Box a
+spliceIntensionalStreamToBoxNat : Ord a => (fuel : Nat) -> IntensionalStreamBox a -> Carrier a
 spliceIntensionalStreamToBoxNat fuel (MkIntensionalStreamBox strm gen) =
   foldStreamNat fuel
     (\acc, x =>
@@ -141,7 +141,7 @@ spliceIntensionalStreamToBoxNat fuel (MkIntensionalStreamBox strm gen) =
 ||| Splices an IntensionalStreamBox down to an extensional Level 0 concrete Box container
 ||| using model-derived Goh fuel based on support size.
 public export
-spliceIntensionalStreamToBox : Ord a => (sizeHint : Nat) -> IntensionalStreamBox a -> Box a
+spliceIntensionalStreamToBox : Ord a => (sizeHint : Nat) -> IntensionalStreamBox a -> Carrier a
 spliceIntensionalStreamToBox sizeHint ibox =
   spliceIntensionalStreamToBoxNat (boxNatToNat (gohFuel sizeHint)) ibox
 

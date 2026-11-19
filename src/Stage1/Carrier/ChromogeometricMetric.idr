@@ -59,15 +59,25 @@ public export
 greenMetricMaxel2D : Maxel
 greenMetricMaxel2D = parameterizedGreenMetricMaxel (intToBoxInt 1) (intToBoxInt 1)
 
+public export
+subPixel11 : Pixel
+subPixel11 = mkPixel 1 1
+
+public export
+subPixel12 : Pixel
+subPixel12 = mkPixel 1 2
+
+public export
+subPixel21 : Pixel
+subPixel21 = mkPixel 2 1
+
 ||| 2D Substrate (Causal Poset / Master Budget) Metric Maxel parameterized by (x, y):
 ||| g_11 = x^2, g_12 = xy, g_21 = xy, g_22 = 0.
 public export
 parameterizedSubstrateMetricMaxel : BoxInt -> BoxInt -> Maxel
 parameterizedSubstrateMetricMaxel x y =
   let xy = x * y
-  in singletonCell (mkPixel 1 1) (x * x) <+>
-     singletonCell (mkPixel 1 2) xy <+>
-     singletonCell (mkPixel 2 1) xy
+  in mkSortedBox3 subPixel11 (x * x) subPixel12 xy subPixel21 xy
 
 public export
 substrateMetricMaxel2D : Maxel

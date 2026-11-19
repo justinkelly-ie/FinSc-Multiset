@@ -101,15 +101,100 @@ stripPrimeFactorsFuelModel : GohFuel cap -> List BoxInt -> BoxInt -> BoxInt
 stripPrimeFactorsFuelModel fuel primes n = stripPrimeFactors (gohSteps fuel) primes n
 
 ||| Generic smoothness predicate parameterized by upper prime bound grounded in BoxInt.
+||| Fast binary Nat strip helper avoiding unary BoxInt/gohFuelForCapacity CT explosion.
+public export
+stripFactorNat : (fuel : Nat) -> (p : Nat) -> (n : Nat) -> Nat
+stripFactorNat Z _ n = n
+stripFactorNat _ Z n = n
+stripFactorNat _ (S Z) n = n
+stripFactorNat (S f) (S p') n =
+  if n <= 1 then n
+  else if natModFast n (S p') == Z
+    then stripFactorNat f (S p') (natDivFast n (S p'))
+    else n
+
+||| Binary integer-halving step bound for prime smoothness division (at most 1 + log2(n) steps).
+public export
+smoothStripFuelNat : Nat -> Nat
+smoothStripFuelNat n =
+  if n < 256 then 9
+  else if n < 65536 then 17
+  else go n n
+  where
+    go : Nat -> Nat -> Nat
+    go Z _ = 2
+    go _ Z = 2
+    go (S f) k = if k <= 1 then 2 else S (go f (natDivFast k 2))
+
+||| Strips a list of Nat primes sequentially using O(log n) binary division fuel.
+public export
+stripPrimeFactorsNat : (fuel : Nat) -> List Nat -> Nat -> Nat
+stripPrimeFactorsNat _ [] n = n
+stripPrimeFactorsNat fuel (p :: ps) n =
+  stripPrimeFactorsNat fuel ps (stripFactorNat fuel p n)
+
+||| Generates candidate prime Nats up to a given limit using structural Nat fuel.
+public export
+primeNatsUnderBound : (bound : Nat) -> List Nat
+primeNatsUnderBound 13 = [2, 3, 5, 7, 11, 13]
+primeNatsUnderBound bound = primesUpToCandidate (S bound) 2 bound
+
+||| Generic smoothness predicate parameterized by upper prime bound.
+||| Division fuel helper for general bounds so compile-time Refl witnesses reduce cleanly (Rule 05).
+public export
+stripFactorFast : (fuel : Nat) -> (p : Nat) -> (n : Nat) -> Nat
+stripFactorFast Z _ n = n
+stripFactorFast (S f) p n =
+  if n <= 1 then n
+  else if natModFast n p == 0 then stripFactorFast f p (natDivFast n p)
+  else n
+
+public export
+smooth13Mask0 : Integer
+smooth13Mask0 = 132633655468490751
+
+public export
+smooth13Mask1 : Integer
+smooth13Mask1 = 23862989775589860
+
+public export
+smooth13Mask2 : Integer
+smooth13Mask2 = 611890
+
+||| Exact O(1)-space 13-smooth predicate using fixnum bitmasks for n <= 137
+||| and tail-recursive trial division by {2,3,5,7,11,13} for n > 137.
+public export
+isSmooth13Nat : Nat -> Bool
+isSmooth13Nat n =
+  if n <= 16 then True
+  else if n <= 137 then
+    let ni = cast {to = Integer} n
+    in if ni < 58 then prim__and_Integer (prim__shr_Integer smooth13Mask0 ni) 1 == 1
+       else if ni < 116 then prim__and_Integer (prim__shr_Integer smooth13Mask1 (ni - 58)) 1 == 1
+       else prim__and_Integer (prim__shr_Integer smooth13Mask2 (ni - 116)) 1 == 1
+  else
+    let f  = smoothStripFuelNat n
+        n1 = stripFactorFast f 2 n
+    in if n1 <= 16 then True
+       else let n2 = stripFactorFast f 3 n1
+            in if n2 <= 16 then True
+               else let n3 = stripFactorFast f 5 n2
+                    in if n3 <= 16 then True
+                       else let n4 = stripFactorFast f 7 n3
+                            in if n4 <= 16 then True
+                               else let n5 = stripFactorFast f 11 n4
+                                    in if n5 <= 16 then True
+                                       else stripFactorFast f 13 n5 == 1
+
 public export
 isSmoothNat : (bound : Nat) -> (n : Nat) -> Bool
 isSmoothNat _ Z = True
 isSmoothNat _ (S Z) = True
-isSmoothNat bound n =
-  let n0 = natToBoxInt n
-      fuel = gohFuelForCapacity n
-      remVal = stripPrimeFactorsFuelModel fuel (primesUnderBound bound) n0
-  in boxEq remVal (intToBoxInt 1)
+isSmoothNat bound n@(S (S _)) =
+  if bound == 13
+    then isSmooth13Nat n
+    else let fuel = smoothStripFuelNat n
+         in stripPrimeFactorsNat fuel (primeNatsUnderBound bound) n == 1
 
 ||| Type-level witness certifying that Nat n is smooth up to prime bound.
 public export
@@ -148,7 +233,6 @@ certifiedDimension bound n {prf} = (n ** prf)
 
 ||| Projection extracting the underlying natural capacity value of a Dimension:
 public export
-%inline
 dimensionValue : {bound : Nat} -> Dimension bound -> Nat
 dimensionValue (n ** _) = n
 
@@ -275,9 +359,10 @@ public export
 ||| Evaluates and returns the constructive coherence status witness.
 public export
 decideCoherence : (bound : Nat) -> (n : Nat) -> CoherenceStatus bound n
-decideCoherence bound n with (decideSmoothness bound n)
-  decideCoherence bound n | Yes prf   = GatePure prf
-  decideCoherence bound n | No contra = Decoherent contra
+decideCoherence bound n with (isSmoothNat bound n) proof eq
+  decideCoherence bound n | True  = GatePure (cong (== True) eq)
+  decideCoherence bound n | False =
+    Decoherent (\prf => uninhabited (trans (sym (cong (== True) eq)) prf))
 
 ||| Extracts the certified Dimension from a GatePure status.
 public export
@@ -307,7 +392,6 @@ CosmicDimension = Dimension CosmicSmoothHorizon
 
 ||| Projection extracting the natural capacity value of a CosmicDimension:
 public export
-%inline
 cosmicDimensionValue : CosmicDimension -> Nat
 cosmicDimensionValue (n ** _) = n
 
@@ -373,37 +457,38 @@ EmergentCosmicDimension : Type
 EmergentCosmicDimension = EmergentDimension CosmicSmoothHorizon
 
 ||| Canonical Emergent Cosmic Dimension instances.
+||| Canonical Emergent Cosmic Dimension instances (reusing certified dim* proofs in O(1)).
 public export
 dimEmergentManifest : EmergentCosmicDimension
-dimEmergentManifest = emergentDimension CosmicSmoothHorizon 3
+dimEmergentManifest = toEmergentDimension dimManifest
 
 public export
 dimEmergentElliptic : EmergentCosmicDimension
-dimEmergentElliptic = emergentDimension CosmicSmoothHorizon (computeVMSize 3)
+dimEmergentElliptic = toEmergentDimension dimElliptic
 
 public export
 dimEmergentObserver : EmergentCosmicDimension
-dimEmergentObserver = emergentDimension CosmicSmoothHorizon (3 * CosmicSmoothHorizon)
+dimEmergentObserver = toEmergentDimension dimObserver
 
 public export
 dimEmergentHolographic : EmergentCosmicDimension
-dimEmergentHolographic = emergentDimension CosmicSmoothHorizon (6 * 3 * 3)
+dimEmergentHolographic = toEmergentDimension dimHolographic
 
 public export
 dimEmergentParabolic : EmergentCosmicDimension
-dimEmergentParabolic = emergentDimension CosmicSmoothHorizon (triangularSum 10)
+dimEmergentParabolic = toEmergentDimension dimParabolic
 
 public export
 dimEmergentHyperbolic : EmergentCosmicDimension
-dimEmergentHyperbolic = emergentDimension CosmicSmoothHorizon (computeDESize 7)
+dimEmergentHyperbolic = toEmergentDimension dimHyperbolic
 
 public export
 dimEmergentPrimorial : EmergentCosmicDimension
-dimEmergentPrimorial = emergentDimension CosmicSmoothHorizon (computeVMSize 3 + computeDESize 7 + triangularSum 10)
+dimEmergentPrimorial = toEmergentDimension dimPrimorial
 
 public export
 dimEmergentHolographicEnclosure : EmergentCosmicDimension
-dimEmergentHolographicEnclosure = emergentDimension CosmicSmoothHorizon (4 * (6 * 3 * 3))
+dimEmergentHolographicEnclosure = toEmergentDimension dimHolographicEnclosure
 
 ||| Safely lifts a validated Dimension to a DimensionCarrier if 13-smooth.
 public export
@@ -443,7 +528,7 @@ GohFuelDim : CosmicDimension -> Type
 GohFuelDim (dim ** _) = GohFuel dim
 
 ||| Canonical fuel generator for a certified cosmic dimension:
-%inline public export
+public export
 gohFuelForDim : (dim : CosmicDimension) -> GohFuel (fst dim)
 gohFuelForDim (cap ** _) = gohFuelForCapacity cap
 

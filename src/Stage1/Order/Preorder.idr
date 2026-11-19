@@ -13,32 +13,30 @@ natLTE Z _ = True
 natLTE (S _) Z = False
 natLTE (S k) (S j) = natLTE k j
 
-||| Exact structural strict less-than comparison for Nat reducing at compile time.
+||| Exact structural strict less-than comparison for Nat (O(1) GMP at runtime, Refl-reducible at compile time).
 public export
 natLT : Nat -> Nat -> Bool
-natLT _ Z = False
-natLT Z (S _) = True
-natLT (S k) (S j) = natLT k j
+natLT a b = a < b
 
-||| Monomorphic equality comparison for Nat reducing at compile time without typeclass dispatch.
+||| O(1) GMP less-than-or-equal comparison for runtime Nat checks.
+public export
+natLTEFast : Nat -> Nat -> Bool
+natLTEFast a b = a <= b
+
+||| Monomorphic equality comparison for Nat (O(1) GMP at runtime, Refl-reducible at compile time).
 public export
 natEq : Nat -> Nat -> Bool
-natEq Z Z = True
-natEq (S k) (S j) = natEq k j
-natEq _ _ = False
+natEq a b = a == b
 
-||| Monomorphic addition for Nat reducing at compile time without typeclass dispatch.
+||| Total addition for Nat (O(1) GMP at runtime, definitionally plus at compile time).
 public export
 natAdd : Nat -> Nat -> Nat
-natAdd Z y = y
-natAdd (S k) y = S (natAdd k y)
+natAdd a b = a + b
 
-||| Monomorphic subtraction for Nat reducing at compile time without typeclass dispatch.
+||| Total truncated subtraction for Nat (O(1) GMP at runtime, Refl-reducible at compile time).
 public export
 natSub : Nat -> Nat -> Nat
-natSub Z _ = Z
-natSub a Z = a
-natSub (S k) (S j) = natSub k j
+natSub a b = minus a b
 
 ||| Fast natural number exponentiation reducing at compile time without typeclass dispatch.
 public export
@@ -66,15 +64,20 @@ interface Monoid a => PreorderedMonoid a where
   PreorderRel x y = preorder x y = True
 
 --------------------------------------------------------------------------------
--- 3. PREORDERED CATEGORY FUNCTOR & PROOF TRANSPORT
+-- 3. PREORDERED MULTISET SCALE TRANSFORM & PROOF TRANSPORT
 --------------------------------------------------------------------------------
 
-||| Preordered Category Functor transporting thermodynamic state orderings across scale jumps.
+||| Preordered Scale Transform transporting thermodynamic state orderings across scale jumps.
 public export
-record PreorderedFunctor (0 m1 : Type) (0 m2 : Type) {auto p1 : PreorderedMonoid m1} {auto p2 : PreorderedMonoid m2} where
-  constructor MkPreorderedFunctor
+record PreorderedScaleTransform (0 m1 : Type) (0 m2 : Type) {auto p1 : PreorderedMonoid m1} {auto p2 : PreorderedMonoid m2} where
+  constructor MkPreorderedScaleTransform
   mapState : m1 -> m2
   0 mapOrder : {x, y : m1} -> PreorderRel @{p1} x y -> PreorderRel @{p2} (mapState x) (mapState y)
+
+||| Compatibility alias for `PreorderedScaleTransform`.
+public export
+PreorderedFunctor : (0 m1 : Type) -> (0 m2 : Type) -> {auto p1 : PreorderedMonoid m1} -> {auto p2 : PreorderedMonoid m2} -> Type
+PreorderedFunctor m1 m2 {p1} {p2} = PreorderedScaleTransform m1 m2 @{p1} @{p2}
 
 --------------------------------------------------------------------------------
 -- 3. POSET DIRECTIONAL STEP EVALUATION
