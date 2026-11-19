@@ -43,6 +43,58 @@ addPhased : MultisetWeight c =>
 addPhased (MkPhasedMSet a) (MkPhasedMSet b) =
   MkPhasedMSet (addHMSet a b)
 
+||| Exact signed subtraction (`-`): Zero-pruning cancellation across every `AlgebraicPhase`.
+public export
+subPhased : MultisetWeight c =>
+            {0 phase : AlgebraicPhase} ->
+            Stage1.PhasedMultiset.Multiset phase c ->
+            Stage1.PhasedMultiset.Multiset phase c ->
+            Stage1.PhasedMultiset.Multiset phase c
+subPhased (MkPhasedMSet a) (MkPhasedMSet b) =
+  MkPhasedMSet (subHMSet a b)
+
+||| Scalar carrier weighting across every `AlgebraicPhase`.
+public export
+scalePhased : MultisetWeight c =>
+              {0 phase : AlgebraicPhase} ->
+              c ->
+              Stage1.PhasedMultiset.Multiset phase c ->
+              Stage1.PhasedMultiset.Multiset phase c
+scalePhased s (MkPhasedMSet a) =
+  MkPhasedMSet (scaleHMSet s a)
+
+||| Pointwise Hadamard mask/interaction (`.*.`) within a shared `AlgebraicPhase`.
+public export
+hadamardPhased : MultisetWeight c =>
+                 {0 phase : AlgebraicPhase} ->
+                 Stage1.PhasedMultiset.Multiset phase c ->
+                 Stage1.PhasedMultiset.Multiset phase c ->
+                 Stage1.PhasedMultiset.Multiset phase c
+hadamardPhased (MkPhasedMSet a) (MkPhasedMSet b) =
+  MkPhasedMSet (hadamardHMSet a b)
+
+||| Pointwise Hadamard horizon slicing (`.*.`) intersecting an arbitrary `rA` carrier
+||| with a certified bounded mask `rMask`, tightening the result into `(rMask, min c1 cM)`.
+public export
+hadamardSlicePhased : MultisetWeight c =>
+                      {0 lvl : Nat} -> {0 rA, rMask : LaurentRegime} -> {0 c1, cM : Nat} ->
+                      {auto 0 ok : BoundedRegime rMask} ->
+                      Multiset (MkPhase lvl rA c1) c ->
+                      Multiset (MkPhase lvl rMask cM) c ->
+                      Multiset (MkPhase lvl rMask (min c1 cM)) c
+hadamardSlicePhased (MkPhasedMSet a) (MkPhasedMSet m) =
+  MkPhasedMSet (hadamardHMSet a m)
+
+||| Unitary contact reflection `psi - 2 * (psi .*. mask)` inverting Black/Red polarity
+||| on the support selected by an indicator `{0, 1}` mask multiset.
+public export
+contactReflectPhased : {0 phase : AlgebraicPhase} ->
+                       Multiset phase BoxInt ->
+                       Multiset phase BoxInt ->
+                       Multiset phase BoxInt
+contactReflectPhased psi mask =
+  subPhased psi (scalePhased (intToBoxInt 2) (hadamardPhased psi mask))
+
 ||| Level 1 Cauchy Convolution (`*`): Guarded by `CanConvolve` on `regime`
 ||| and combines fuel capacities additively (`c1 + c2`).
 public export
