@@ -60,6 +60,9 @@ public export
 DiscreteCoord String where
 
 public export
+DiscreteCoord Bool where
+
+public export
 DiscreteCoord BoxInt where
 
 public export

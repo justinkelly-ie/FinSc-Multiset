@@ -449,12 +449,7 @@ probeGroverOnGasket =
 
 private
 filterWindowBox : Integer -> Box BoxInt Integer -> Box BoxInt Integer
-filterWindowBox wBound =
-  foldBox (\x, w, acc =>
-            if abs x <= wBound && not (isZero w)
-              then setBox x w acc
-              else acc)
-          BoxLeaf
+filterWindowBox wBound = sliceWindowInt (2 * integerToNat (abs wBound) + 1) 0
 
 private
 stepWindowedHad1D : Integer -> Spinor1D -> Spinor1D

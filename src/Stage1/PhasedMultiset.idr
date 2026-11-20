@@ -2,6 +2,7 @@ module Stage1.PhasedMultiset
 
 import public Stage0.BoxInt
 import public Stage0.Box
+import public Stage0.SignedBit
 import public Stage0.HereditaryMSet
 import public Stage0.StructuralFuel
 import public Stage0.OnSeq.FusedStream
@@ -218,3 +219,92 @@ recognizeCanonicalPhased : MultisetWeight c =>
                            (m : Stage1.PhasedMultiset.Multiset phase c) ->
                            Dec (IsCanonicalHMSet m.rawHMSet)
 recognizeCanonicalPhased (MkPhasedMSet m) = recognizeCanonicalHMSet m
+
+------------------------------------------------------------------------
+-- 5. LAURENT REGIMES AS MULTISETS (CARRIER PROGRESSION)
+------------------------------------------------------------------------
+
+||| Carrier progression for Laurent Horizon indicators:
+||| - `MultisetBit`: Unsigned support topology ({0, 1})
+||| - `SignedBit`  : Balanced ternary polarity / causal direction ({-1, 0, +1})
+||| - `BoxInt`     : Weighted multiplicity / channel capacity (ℤ)
+
+||| Generates the unsigned support multiset (`Carrier MultisetBit Integer`) for a regime
+||| truncated to the observation interval `[low, high]`.
+public export
+regimeSupportBit : LaurentRegime -> Integer -> Integer -> Box MultisetBit Integer
+regimeSupportBit reg low high =
+  foldl (\acc, k =>
+           if inRegime reg k
+             then addAtKeyBox k OneBit acc
+             else acc)
+        BoxLeaf
+        [low .. high]
+  where
+    inRegime : LaurentRegime -> Integer -> Bool
+    inRegime (StaticHorizon l h)       k = (k >= l) && (k <= h)
+    inRegime (BoundedHorizon cap)      k = (k >= 0) && (k <= natToInteger cap)
+    inRegime (RetroBoundedHorizon cap) k = (k >= - (natToInteger cap)) && (k <= 0)
+    inRegime (WindowedHorizon win)     k =
+      let half = (natToInteger win) `div` 2
+      in (k >= -half) && (k <= half)
+    inRegime OpenFuture                k = k >= 0
+    inRegime BilateralOpen             _ = True
+
+||| Generates the directional / chiral multiset (`Carrier SignedBit Integer`) for a regime:
+||| - `PosBit` (+1) on forward causal / matter rays (`BoundedHorizon`, `OpenFuture`)
+||| - `NegBit` (-1) on backward UV / antimatter rays (`RetroBoundedHorizon`)
+||| - `ZeroBit` (0) outside the horizon
+public export
+regimeSignedBit : LaurentRegime -> Integer -> Integer -> Box SignedBit Integer
+regimeSignedBit reg low high =
+  foldl (\acc, k =>
+           case signedWeight reg k of
+             ZeroBit => acc
+             bit     => addAtKeyBox k bit acc)
+        BoxLeaf
+        [low .. high]
+  where
+    signedWeight : LaurentRegime -> Integer -> SignedBit
+    signedWeight (StaticHorizon l h)       k = if (k >= l) && (k <= h) then PosBit else ZeroBit
+    signedWeight (BoundedHorizon cap)      k = if (k >= 0) && (k <= natToInteger cap) then PosBit else ZeroBit
+    signedWeight (RetroBoundedHorizon cap) k = if (k >= - (natToInteger cap)) && (k <= 0) then NegBit else ZeroBit
+    signedWeight (WindowedHorizon win)     k =
+      let half = (natToInteger win) `div` 2
+      in if (k >= -half) && (k <= half) then PosBit else ZeroBit
+    signedWeight OpenFuture                k = if k >= 0 then PosBit else ZeroBit
+    signedWeight BilateralOpen             k = if k >= 0 then PosBit else NegBit
+
+||| Generates the weighted indicator multiset (`Carrier BoxInt Integer`) of a regime
+||| with uniform weight 1 on its support.
+public export
+regimeBoxInt : LaurentRegime -> Integer -> Integer -> Box BoxInt Integer
+regimeBoxInt reg low high =
+  foldl (\acc, k =>
+           if inRegime reg k
+             then addAtKeyBox k (intToBoxInt 1) acc
+             else acc)
+        BoxLeaf
+        [low .. high]
+  where
+    inRegime : LaurentRegime -> Integer -> Bool
+    inRegime (StaticHorizon l h)       k = (k >= l) && (k <= h)
+    inRegime (BoundedHorizon cap)      k = (k >= 0) && (k <= natToInteger cap)
+    inRegime (RetroBoundedHorizon cap) k = (k >= - (natToInteger cap)) && (k <= 0)
+    inRegime (WindowedHorizon win)     k =
+      let half = (natToInteger win) `div` 2
+      in (k >= -half) && (k <= half)
+    inRegime OpenFuture                k = k >= 0
+    inRegime BilateralOpen             _ = True
+
+||| Slices a localized WindowedHorizon win shell from an Integer-indexed Box multiset
+||| centered around `center`.
+public export
+sliceWindowInt : MultisetWeight c => (win : Nat) -> (center : Integer) -> Box c Integer -> Box c Integer
+sliceWindowInt win center box =
+  let half = (natToInteger win) `div` 2
+      low  = center - half
+      high = center + half
+      mask : Box c Integer
+      mask = foldl (\acc, k => addAtKeyBox k (the c oneWeight) acc) BoxLeaf [low .. high]
+  in hadamardBox box mask

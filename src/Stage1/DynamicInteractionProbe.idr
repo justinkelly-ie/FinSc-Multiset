@@ -58,16 +58,14 @@ diagMaskOf =
   foldBox (\k@((x1, _), (x2, _)), w, acc =>
             if unwrapBox w == 0 || x1 /= x2
               then acc
-              else setBox k (intToBoxInt 1) acc)
+              else addAtKeyBox k w acc)
           BoxLeaf
 
 ||| Unitary contact-reflection interaction `psi - 2 * (psi .*. Delta)` inverting
 ||| Black/Red polarity on the coincidence diagonal `x1 == x2`.
 public export
 applyContactMask : PairSpinor1D -> PairSpinor1D
-applyContactMask psi =
-  let delta = diagMaskOf psi
-  in subBox psi (scaleBox (intToBoxInt 2) (hadamardBox psi delta))
+applyContactMask psi = subBox psi (scaleBox (intToBoxInt 2) (diagMaskOf psi))
 
 ||| Single discrete-time 2-particle walk step with coin `[[a, b], [c, d]]` and
 ||| chiral shifts applied to both particles, followed optionally by contact reflection.
@@ -102,18 +100,7 @@ stepPairCoin1D a b c d useContact st =
 ||| certifies a separable product state and `< 1` proves dynamical entanglement.
 public export
 pairPurity : PairSpinor1D -> MSetFraction
-pairPurity psi =
-  let q2     = unwrapBox (dotBox psi psi)
-      rho1   = composePairMaxel psi (transposePairMaxel psi)
-      trRho2 = unwrapBox (dotBox rho1 rho1)
-      den    = integerToNat (max (the Integer 1) (q2 * q2))
-  in reduceBigMSF (mkMSF (intToBoxInt trRho2) den)
-
-private
-record PairDiagAccum where
-  constructor MkPairDiagAccum
-  nearQ2Acc : Integer
-  sep2Acc   : Integer
+pairPurity = maxelPurity
 
 private
 record PairDiagStats where
@@ -124,33 +111,37 @@ record PairDiagStats where
   meanSep2 : MSetFraction
 
 private
+relDistBox : PairSpinor1D -> Box BoxInt Integer
+relDistBox psi =
+  foldBox (\((x1, _), (x2, _)), (MkBoxInt w), acc =>
+            if w == 0
+              then acc
+              else addAtKeyBox (x1 - x2) (intToBoxInt (w * w)) acc)
+          BoxLeaf
+          psi
+
+private
 pairDiagStats : PairSpinor1D -> PairDiagStats
 pairDiagStats psi =
   let q2      = unwrapBox (dotBox psi psi)
-      diagBox = hadamardBox psi (diagMaskOf psi)
+      diagBox = diagMaskOf psi
       diagQ2  = unwrapBox (dotBox diagBox diagBox)
-      acc     = foldBox (\((x1, _), (x2, _)), (MkBoxInt w), st =>
-                          let p   = w * w
-                              dx  = x1 - x2
-                              nr  = if abs dx <= 2 then p else 0
-                          in MkPairDiagAccum (st.nearQ2Acc + nr) (st.sep2Acc + p * dx * dx))
-                        (MkPairDiagAccum 0 0)
-                        psi
-      den = integerToNat (max (the Integer 1) q2)
+      relM    = relDistBox psi
+      nearM   = sliceWindowInt 5 0 relM
+      nearQ2  = unwrapBox (totalMassBox nearM)
+      sep2    = foldBox (\dx, (MkBoxInt p), acc => acc + p * dx * dx) 0 relM
+      den     = integerToNat (max (the Integer 1) q2)
   in MkPairDiagStats q2
-       (reduceBigMSF (mkMSF (intToBoxInt diagQ2) den))
-       (reduceBigMSF (mkMSF (intToBoxInt acc.nearQ2Acc) den))
-       (reduceBigMSF (mkMSF (intToBoxInt acc.sep2Acc) den))
+       (reduceMSF (mkMSF (intToBoxInt diagQ2) den))
+       (reduceMSF (mkMSF (intToBoxInt nearQ2) den))
+       (reduceMSF (mkMSF (intToBoxInt sep2) den))
 
 private
 relDistPureMSet : PairSpinor1D -> PureMultiset
 relDistPureMSet psi =
-  MkHMSet (foldBox (\((x1, _), (x2, _)), (MkBoxInt w), acc =>
-                     if w == 0
-                       then acc
-                       else addAtKeyBox (signedKeyM (x1 - x2)) (intToBoxInt (w * w)) acc)
+  MkHMSet (foldBox (\dx, w, acc => addAtKeyBox (signedKeyM dx) w acc)
                    BoxLeaf
-                   psi)
+                   (relDistBox psi))
 
 private
 doublonWindowMask : Stage1.PhasedMultiset.Multiset (MkPhase 1 (WindowedHorizon 5) 5) BoxInt
