@@ -679,6 +679,48 @@ public export
 mulBoxWith : (MonoidCoord k, MultisetWeight c) => Box c k -> Box c k -> Box c k
 mulBoxWith = pairBoxWith combine
 
+||| Pair coordinate transposition: swaps (a, b) -> (b, a).
+public export
+transposeBox : (Ord a, Ord b, MultisetWeight c) => Box c (a, b) -> Box c (b, a)
+transposeBox BoxLeaf = BoxLeaf
+transposeBox m =
+  foldBox (\(x, y), w, acc =>
+            if isZero w then acc else addAtKeyBox (y, x) w acc)
+          BoxLeaf m
+
+||| Pixel-fusion multiset contraction: [a, b1] * [b2, c] -> [a, c] where b1 == b2.
+public export
+composeBox : (Ord a, Ord b, Ord c, MultisetWeight w) =>
+             Box w (a, b) -> Box w (b, c) -> Box w (a, c)
+composeBox BoxLeaf _ = BoxLeaf
+composeBox _ BoxLeaf = BoxLeaf
+composeBox m1 m2 =
+  foldBox (\(a, b1), w1, acc1 =>
+            if isZero w1 then acc1
+            else foldBox (\(b2, c), w2, acc2 =>
+                           if isZero w2 || b1 /= b2 then acc2
+                           else addAtKeyBox (a, c) (mulWeight w1 w2) acc2)
+                         acc1 m2)
+          BoxLeaf m1
+
+||| Trace of a square 2D multiset: sums multiplicities on the diagonal a1 == a2.
+public export
+traceBox : (Ord a, MultisetWeight c) => Box c (a, a) -> c
+traceBox BoxLeaf = zeroWeight
+traceBox m =
+  foldBox (\(x, y), w, acc =>
+            if x == y then addWeight acc w else acc)
+          zeroWeight m
+
+||| Diagonal projection mask: retains only entries on the coincidence diagonal a1 == a2.
+public export
+diagMaskBox : (Ord a, MultisetWeight c) => Box c (a, a) -> Box c (a, a)
+diagMaskBox BoxLeaf = BoxLeaf
+diagMaskBox m =
+  foldBox (\(x, y), w, acc =>
+            if x == y then addAtKeyBox (x, y) w acc else acc)
+          BoxLeaf m
+
 ------------------------------------------------------------------------
 -- 7. STANDARD ALGEBRAIC INSTANCES ON `Box c k`
 ------------------------------------------------------------------------

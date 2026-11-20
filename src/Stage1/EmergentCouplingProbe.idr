@@ -26,13 +26,7 @@ powInt b (S k) = b * powInt b k
 
 private
 reduceBigMSF : MSetFraction -> MSetFraction
-reduceBigMSF (MkMSF a d) =
-  let n = unwrapBox a
-      m = natToInteger d
-      g = gcdIntFuel 512 (abs n) (abs m)
-  in if g <= 1
-       then MkMSF a d
-       else mkMSF (intToBoxInt (n `div` g)) (integerToNat (m `div` g))
+reduceBigMSF = reduceMSF
 
 --------------------------------------------------------------------------------
 -- LOCAL PRIVATE GRAPH & BFS UTILITIES

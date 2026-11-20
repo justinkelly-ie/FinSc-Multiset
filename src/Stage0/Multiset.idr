@@ -399,6 +399,43 @@ public export
 pushforwardCarrier : DiscreteCoord k2 => (k1 -> k2) -> Carrier k1 -> Carrier k2
 pushforwardCarrier = mapBox
 
+||| Pair coordinate transposition: swaps (a, b) -> (b, a).
+public export
+transposeCarrier : (DiscreteCoord a, DiscreteCoord b) => Carrier (a, b) -> Carrier (b, a)
+transposeCarrier = transposeBox
+
+||| Pixel-fusion multiset contraction: [a, b1] * [b2, c] -> [a, c] where b1 == b2.
+public export
+composeCarrier : (DiscreteCoord a, DiscreteCoord b, DiscreteCoord c) =>
+                 Carrier (a, b) -> Carrier (b, c) -> Carrier (a, c)
+composeCarrier = composeBox
+
+||| Trace of a square 2D multiset: sums multiplicities on the diagonal a1 == a2.
+public export
+traceCarrier : DiscreteCoord a => Carrier (a, a) -> BoxInt
+traceCarrier = traceBox
+
+||| Diagonal projection mask: retains only entries on the coincidence diagonal a1 == a2.
+public export
+diagMaskCarrier : DiscreteCoord a => Carrier (a, a) -> Carrier (a, a)
+diagMaskCarrier = diagMaskBox
+
+||| Partial contraction / reduced composite multiset: M * M^T.
+public export
+maxelReducedDensity : (DiscreteCoord a, DiscreteCoord b) =>
+                      Carrier (a, b) -> Carrier (a, a)
+maxelReducedDensity m = composeCarrier m (transposeCarrier m)
+
+||| Bipartite contraction norms: returns (Tr((M * M^T)^2), ||M||_2^4).
+public export
+maxelTraceSquare : (DiscreteCoord a, DiscreteCoord b) =>
+                   Carrier (a, b) -> (BoxInt, BoxInt)
+maxelTraceSquare m =
+  let q2     = dotCarrier m m
+      rho    = maxelReducedDensity m
+      trRho2 = dotCarrier rho rho
+  in (trRho2, q2 * q2)
+
 public export
 buildOneCarrier : {0 k : Type} -> FiniteCoord k
                => (rem : Nat) -> (acc : Carrier k) -> Carrier k

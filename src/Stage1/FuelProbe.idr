@@ -52,25 +52,6 @@ andAll []            = True
 andAll (False :: _)  = False
 andAll (True  :: xs) = andAll xs
 
-||| Fuel-bounded Euclidean GCD over `Integer` (256 steps covers inputs beyond 10^50).
-public export
-gcdIntFuel : Nat -> Integer -> Integer -> Integer
-gcdIntFuel Z     a _ = if a == 0 then 1 else abs a
-gcdIntFuel (S k) a b =
-  if b == 0 then (if a == 0 then 1 else abs a)
-  else gcdIntFuel k b (a `mod` b)
-
-||| Reduces an `MSetFraction` to lowest coprime terms using `gcdIntFuel 256`.
-public export
-reduceMSF : MSetFraction -> MSetFraction
-reduceMSF (MkMSF a d) =
-  let n = unwrapBox a
-      m = natToInteger d
-      g = gcdIntFuel 256 (abs n) (abs m)
-  in if g <= 1
-       then MkMSF a d
-       else mkMSF (intToBoxInt (n `div` g)) (integerToNat (m `div` g))
-
 ||| Exact absolute difference `|a - b|` of two `MSetFraction` values, reduced via GCD.
 public export
 msfAbsDiff : MSetFraction -> MSetFraction -> MSetFraction

@@ -28,13 +28,7 @@ powInt b (S k) = b * powInt b k
 
 private
 reduceBigMSF : MSetFraction -> MSetFraction
-reduceBigMSF (MkMSF a d) =
-  let n = unwrapBox a
-      m = natToInteger d
-      g = gcdIntFuel 512 (abs n) (abs m)
-  in if g <= 1
-       then MkMSF a d
-       else mkMSF (intToBoxInt (n `div` g)) (integerToNat (m `div` g))
+reduceBigMSF = reduceMSF
 
 --------------------------------------------------------------------------------
 -- 1. PROBE N: CONTACT-INTERACTING 2-PARTICLE SCATTERING VIA MAXEL ALGEBRA
@@ -44,46 +38,19 @@ reduceBigMSF (MkMSF a d) =
 ||| exact separable two-particle product state `|psi1> >< |psi2>`.
 public export
 outerPairBox : Ord a => Ord b => Box BoxInt a -> Box BoxInt b -> Box BoxInt (a, b)
-outerPairBox b1 b2 =
-  foldBox (\k1, (MkBoxInt w1), acc1 =>
-            if w1 == 0
-              then acc1
-              else foldBox (\k2, (MkBoxInt w2), acc2 =>
-                             if w2 == 0
-                               then acc2
-                               else addAtKeyBox (k1, k2) (intToBoxInt (w1 * w2)) acc2)
-                           acc1
-                           b2)
-          BoxLeaf
-          b1
+outerPairBox = tensorBox
 
 ||| Maxel transposition swapping pair coordinates `(a, b) -> (b, a)`.
 public export
 transposePairMaxel : Ord a => Ord b => Box BoxInt (a, b) -> Box BoxInt (b, a)
-transposePairMaxel =
-  foldBox (\(x, y), w, acc =>
-            if unwrapBox w == 0
-              then acc
-              else addAtKeyBox (y, x) w acc)
-          BoxLeaf
+transposePairMaxel = transposeBox
 
 ||| Pixel-fusion Maxel multiplication contracting matching inner keys `b1 == b2`
 ||| (`[a, b1] * [b2, c] -> [a, c]`) with automatic zero-pruning annihilation.
 public export
 composePairMaxel : Ord a => Ord b => Ord c =>
                    Box BoxInt (a, b) -> Box BoxInt (b, c) -> Box BoxInt (a, c)
-composePairMaxel m1 m2 =
-  foldBox (\(a, b1), (MkBoxInt w1), acc1 =>
-            if w1 == 0
-              then acc1
-              else foldBox (\(b2, c), (MkBoxInt w2), acc2 =>
-                             if w2 == 0 || b1 /= b2
-                               then acc2
-                               else addAtKeyBox (a, c) (intToBoxInt (w1 * w2)) acc2)
-                           acc1
-                           m2)
-          BoxLeaf
-          m1
+composePairMaxel = composeBox
 
 private
 diagMaskOf : PairSpinor1D -> PairSpinor1D

@@ -166,4 +166,33 @@ fromBoxIntPair (n, d) =
   let posD = mkPosNat (boxToNat (absBox d))
   in MkMSF n posD
 
+||| Fuel-bounded greatest common divisor for exact integer fractions.
+public export
+gcdIntFuel : Nat -> Integer -> Integer -> Integer
+gcdIntFuel Z     a _ = if a == 0 then 1 else abs a
+gcdIntFuel (S k) a b =
+  if b == 0
+    then if a == 0 then 1 else abs a
+    else gcdIntFuel k b (a `mod` b)
+
+||| Reduces an `MSetFraction` to lowest coprime terms using `gcdIntFuel 512`.
+public export
+reduceMSF : MSetFraction -> MSetFraction
+reduceMSF (MkMSF a d) =
+  let n = unwrapBox a
+      m = natToInteger d
+      g = gcdIntFuel 512 (abs n) (abs m)
+  in if g <= 1
+       then MkMSF a d
+       else mkMSF (intToBoxInt (n `div` g)) (integerToNat (m `div` g))
+
+||| Normalized trace of squared composite multiset: Tr((M * M^T)^2) / ||M||_2^4.
+||| In comments: bipartite purity (1 = unentangled product state, < 1 = composite entanglement).
+public export
+maxelPurity : (DiscreteCoord a, DiscreteCoord b) => Carrier (a, b) -> MSetFraction
+maxelPurity m =
+  let (trRho2, denBox) = maxelTraceSquare m
+      den = integerToNat (max 1 (unwrapBox denBox))
+  in reduceMSF (mkMSF trRho2 den)
+
 
